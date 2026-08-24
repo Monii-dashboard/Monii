@@ -1,6 +1,5 @@
 build "web" {
-  base    = "node"
-  command = "pnpm run build"
+  dockerfile = "Dockerfile"
 }
 
 service "web" {

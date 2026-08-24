@@ -1,0 +1,5 @@
+node_modules
+.next
+.git
+.specific
+specific_examples
