@@ -1,68 +1,86 @@
+# Repository Instructions
+
+## Required Context
+
+Before planning, implementing, or reviewing application changes, read:
+
+- `docs/product.md` for product intent, V1 scope, and user-visible behavior.
+- `docs/domain-and-engineering.md` for domain concepts, boundaries, and deferred
+  decisions.
+
+Skip them only for isolated work that cannot affect application behavior or
+architecture.
+
+Accepted decisions in these documents are binding. If an explicit user request
+supersedes one, identify the conflict and update the affected document in the
+same change. If code and documentation disagree, investigate which is
+intentional; do not change documentation merely to justify accidental behavior.
+
+Deferred items are not decisions. When a task needs one, choose the simplest
+evidence-backed, reversible option consistent with the documented principles
+and record it if durable. Ask when the choice changes product semantics or is
+costly or hard to reverse.
 
 ## Package Management
 
 - Use `pnpm` for all package management and script execution.
 - Use the pnpm version declared in `package.json`.
-- Do not use `npm` or `yarn`
+- Do not use `npm` or `yarn`.
 
-## Development
+## Engineering Principles
 
-- Follow the existing project structure and conventions.
-- Prefer TypeScript for application code.
-- Reuse existing utilities, components, and abstractions before introducing new ones.
-- Avoid adding dependencies unless they provide clear value.
-- Before adding a dependency, check whether the runtime, platform, or an existing dependency already provides the required functionality.
-- Keep changes focused on the requested task.
-- Do not refactor or reformat unrelated code.
-- Prefer explicit, readable code over clever or overly generic implementations.
-- Keep simple operations locally understandable without requiring unnecessary navigation across many files or layers.
-- Keep public APIs and exported surfaces as small as practical.
+- Follow existing structure and conventions. Prefer TypeScript for application
+  code.
+- Keep changes focused. Do not refactor or reformat unrelated code.
+- Reuse the runtime and existing dependencies, utilities, and components before
+  adding another dependency or abstraction.
+- Keep business logic separate from framework, transport, persistence, and
+  infrastructure concerns where practical. Keep routes thin.
+- Colocate code by feature or responsibility. Add structure only for clearer
+  cohesion, discovery, or a real boundary.
+- Prefer the simplest sufficient design. Do not add layers, services,
+  repositories, interfaces, or pass-through abstractions for hypothetical use.
+- Add adapters or interfaces only for meaningful variation or external
+  boundaries. Share code for the same concept, not merely similar syntax.
+- Reuse types when meaning and invariants match. Separate them only for real
+  validation, serialization, ownership, lifecycle, or domain differences.
+- Prefer explicit local code, small public APIs, and composition.
 
-Before considering a change complete, run the relevant checks defined in `package.json`.
+## Financial Domain Guardrails
 
-## Architecture
+- Powens and future integrations are data sources, not the domain model.
+  Normalize provider-specific payloads at the integration boundary.
+- Domain objects own their identities; provider IDs are external references.
+- Missing financial data is normal. Preserve partial usefulness, and never
+  silently convert an unknown value to zero.
+- Aggregate wealth from each account's latest usable EUR valuation. Never count
+  an account value and its underlying positions or cash twice.
+- Keep synchronization outside the dashboard read path. On failure, preserve
+  last-valid data, history, and enough provenance to explain freshness.
 
-- Respect the existing module and dependency boundaries.
-- Keep business logic separate from framework, transport, persistence, and infrastructure concerns where practical.
-- Keep API/route handlers thin.
-- Prefer colocating code with the feature that owns it over creating generic shared abstractions prematurely.
-- Prefer composition over inheritance.
-- Prefer clear boundaries over adding more layers.
-- Do not introduce layers, services, repositories, interfaces, or other abstractions solely to satisfy an architectural pattern or hypothetical future extensibility.
-- Avoid pass-through abstractions that add no meaningful policy, translation, validation, orchestration, or isolation.
-- Prefer the simplest design that cleanly satisfies the current requirements while leaving an obvious path to evolve.
-- Do not introduce new top-level directories or architectural patterns without a clear need.
+## Documentation Stewardship
 
-### Project Structure
-
-- Keep directories easy to scan and conceptually cohesive.
-- When a directory becomes crowded with unrelated or loosely related files, consider grouping them into meaningful subdirectories or proposing a clearer structure rather than continuing to flatten the directory.
-- Organize directories by responsibility or feature when appropriate, not merely by file type.
-- Do not introduce subdirectories unless they improve discoverability, cohesion, or establish a useful boundary.
-
-### Abstractions
-
-- Prefer adapters or interfaces when behavior or an external dependency needs to vary across implementations.
-- Do not replace simple method parameters with abstractions when the parameter is merely data or configuration.
-- Avoid premature shared abstractions.
-- Extract shared code when it represents the same concept, not merely similar syntax.
-- A small amount of duplication is preferable to an incorrect or premature abstraction.
-
-### Types and Models
-
-- Do not create separate DTOs, entities, models, structs, or classes for every architectural layer by default.
-- Reuse a type across boundaries when its meaning, invariants, and representation are genuinely the same.
-- Introduce a separate type when a boundary has materially different validation, serialization, ownership, lifecycle, or domain semantics.
-- Avoid mapping between structurally identical types without a clear architectural reason.
-- Use types to protect meaningful invariants, but avoid introducing wrapper types that add no meaningful semantics.
+- Update `docs/product.md` when behavior, scope, or user-visible financial
+  semantics change.
+- Update `docs/domain-and-engineering.md` when domain concepts, boundaries, or
+  durable engineering principles change.
+- Prefer an existing canonical document. Create a focused one only for
+  repository-specific, reusable knowledge that needs independent detail.
+- For libraries and frameworks, document Monii-specific usage, decisions, and
+  traps instead of copying upstream documentation.
+- Link new documents from the nearest canonical document, and from the README
+  when they become primary entry points.
+- Keep docs concise; avoid speculative plans and repeated rules.
 
 ## Tests
 
-- Keep application and business-behavior tests separate from repository, tooling, and development quality checks.
-- Tests for generated-file freshness, file-size limits, architectural constraints, repository conventions, schema drift, or similar development-only guarantees should live in dedicated test files.
-- Do not mix development/tooling checks into domain or application behavior test suites.
-- Keep tests focused on observable behavior rather than implementation details where practical.
-- When behavior changes, update or add the relevant tests.
+- Test observable behavior rather than implementation details where practical.
+- Keep application and business tests separate from integration, tooling, and
+  repository-quality checks.
+- Add or update tests when behavior changes.
+- Before completion, run the smallest relevant checks from `package.json`, such
+  as `pnpm lint`, `pnpm test:unit`, `pnpm test:integration`, or `pnpm build`.
+  Report any check that could not run or did not pass.
 
 ## Specific
 
