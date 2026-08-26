@@ -3,22 +3,31 @@ import postgres from "postgres";
 
 import * as schema from "./schema";
 
-function createDatabase() {
+export function createDatabase(databaseUrl: string) {
+  const client = postgres(databaseUrl);
+  const db = drizzle(client, { schema });
+
+  return {
+    db,
+    close: () => client.end(),
+  };
+}
+
+let database: ReturnType<typeof createDatabase> | undefined;
+
+export function getDb() {
   const databaseUrl = process.env.DATABASE_URL;
 
   if (!databaseUrl) {
     throw new Error("DATABASE_URL is not configured");
   }
 
-  const client = postgres(databaseUrl);
+  database ??= createDatabase(databaseUrl);
 
-  return drizzle(client, { schema });
+  return database.db;
 }
 
-let database: ReturnType<typeof createDatabase> | undefined;
-
-export function getDb() {
-  database ??= createDatabase();
-
-  return database;
-}
+export type Database = ReturnType<typeof createDatabase>["db"];
+export type DatabaseTransaction = Parameters<
+  Parameters<Database["transaction"]>[0]
+>[0];
