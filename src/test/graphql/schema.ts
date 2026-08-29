@@ -1,6 +1,7 @@
 import "reflect-metadata";
 
 import { setTimeout as sleep } from "node:timers/promises";
+import { GraphQLError } from "graphql";
 import { Arg, Ctx, Int, Mutation, Query, Resolver } from "type-graphql";
 
 import { graphqlErrorCodes, createGraphqlError } from "../../server/graphql/errors";
@@ -30,6 +31,13 @@ class TestGraphqlResolver {
       graphqlErrorCodes.badUserInput,
       "Expected test failure.",
     );
+  }
+
+  @Query(() => String)
+  testUnknownErrorCode(): never {
+    throw new GraphQLError("private coded failure", {
+      extensions: { code: "THIRD_PARTY_ERROR", privateDetail: "do not expose" },
+    });
   }
 
   @Query(() => String)

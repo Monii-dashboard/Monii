@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { configDefaults, defineConfig } from "vitest/config";
 
 const applicationExcludes = [
@@ -6,9 +8,15 @@ const applicationExcludes = [
 ];
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
   test: {
     projects: [
       {
+        extends: true,
         test: {
           name: "unit",
           include: ["**/*.test.{ts,tsx}"],
@@ -19,6 +27,7 @@ export default defineConfig({
         },
       },
       {
+        extends: true,
         test: {
           name: "integration",
           include: ["**/*.integration.test.{ts,tsx}"],

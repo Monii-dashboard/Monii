@@ -19,6 +19,8 @@ const testDocuments = [
 
 const config: CodegenConfig = {
   overwrite: true,
+  // TODO: Remove or scope this to the test project once the application has
+  // operations, so a broken application document glob fails generation.
   ignoreNoDocuments: true,
   pluckConfig: {
     globalGqlIdentifierName: ["graphql"],

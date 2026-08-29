@@ -17,12 +17,14 @@ type Documents = {
     "\n  query GraphqlTestEcho($value: String!) {\n    testEcho(value: $value)\n  }\n": typeof types.GraphqlTestEchoDocument,
     "\n  mutation GraphqlTestReverse($value: String!) {\n    testReverse(value: $value)\n  }\n": typeof types.GraphqlTestReverseDocument,
     "\n  query GraphqlTestFailure($unexpected: Boolean!) {\n    testFailure(unexpected: $unexpected)\n  }\n": typeof types.GraphqlTestFailureDocument,
+    "\n  query GraphqlTestUnknownErrorCode {\n    testUnknownErrorCode\n  }\n": typeof types.GraphqlTestUnknownErrorCodeDocument,
     "\n  query GraphqlTestSlow($delayMs: Int!) {\n    testSlow(delayMs: $delayMs)\n  }\n": typeof types.GraphqlTestSlowDocument,
 };
 const documents: Documents = {
     "\n  query GraphqlTestEcho($value: String!) {\n    testEcho(value: $value)\n  }\n": types.GraphqlTestEchoDocument,
     "\n  mutation GraphqlTestReverse($value: String!) {\n    testReverse(value: $value)\n  }\n": types.GraphqlTestReverseDocument,
     "\n  query GraphqlTestFailure($unexpected: Boolean!) {\n    testFailure(unexpected: $unexpected)\n  }\n": types.GraphqlTestFailureDocument,
+    "\n  query GraphqlTestUnknownErrorCode {\n    testUnknownErrorCode\n  }\n": types.GraphqlTestUnknownErrorCodeDocument,
     "\n  query GraphqlTestSlow($delayMs: Int!) {\n    testSlow(delayMs: $delayMs)\n  }\n": types.GraphqlTestSlowDocument,
 };
 
@@ -52,6 +54,10 @@ export function graphql(source: "\n  mutation GraphqlTestReverse($value: String!
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  query GraphqlTestFailure($unexpected: Boolean!) {\n    testFailure(unexpected: $unexpected)\n  }\n"): (typeof documents)["\n  query GraphqlTestFailure($unexpected: Boolean!) {\n    testFailure(unexpected: $unexpected)\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  query GraphqlTestUnknownErrorCode {\n    testUnknownErrorCode\n  }\n"): (typeof documents)["\n  query GraphqlTestUnknownErrorCode {\n    testUnknownErrorCode\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

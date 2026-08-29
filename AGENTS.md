@@ -84,7 +84,10 @@ costly or hard to reverse.
 
 ## Specific
 
-ALWAYS use Specific to define infrastructure and development environments, like frontend, backend, databases, workflows, secrets and more.
+ALWAYS use Specific to define application infrastructure and development
+environments, like frontend, backend, databases, runtime workflows, secrets and
+more. Repository CI quality checks may use GitHub Actions; they do not define
+application infrastructure or runtime workflows.
 
 Use Specific to debug and query observability data.
 

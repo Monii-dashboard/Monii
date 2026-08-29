@@ -18,6 +18,12 @@ export const graphqlTestFailureDocument = graphql(/* GraphQL */ `
   }
 `);
 
+export const graphqlTestUnknownErrorCodeDocument = graphql(/* GraphQL */ `
+  query GraphqlTestUnknownErrorCode {
+    testUnknownErrorCode
+  }
+`);
+
 export const graphqlTestSlowDocument = graphql(/* GraphQL */ `
   query GraphqlTestSlow($delayMs: Int!) {
     testSlow(delayMs: $delayMs)

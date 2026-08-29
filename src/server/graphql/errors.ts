@@ -12,6 +12,14 @@ export const graphqlErrorCodes = {
 export type GraphqlErrorCode =
   (typeof graphqlErrorCodes)[keyof typeof graphqlErrorCodes];
 
+const publicGraphqlErrorCodes = new Set<string>(
+  Object.values(graphqlErrorCodes),
+);
+
+export function isGraphqlErrorCode(value: unknown): value is GraphqlErrorCode {
+  return typeof value === "string" && publicGraphqlErrorCodes.has(value);
+}
+
 type CreateGraphqlErrorOptions = {
   cause?: Error;
 };

@@ -19,6 +19,8 @@ export function createGraphqlSchema({
 
   return buildSchemaSync({
     resolvers: schemaResolvers,
+    // TODO: Choose explicit transport-input validation before relying on
+    // validation decorators in future GraphQL input classes.
     validate: false,
   });
 }

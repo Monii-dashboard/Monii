@@ -44,6 +44,7 @@ Useful checks and one-off commands include:
 
 ```bash
 pnpm lint
+pnpm typecheck
 pnpm graphql:generate
 pnpm graphql:check
 pnpm test
@@ -57,6 +58,10 @@ under `src/generated/graphql`; `pnpm graphql:check` fails when they are stale.
 Backend operations are added as decorated TypeGraphQL resolver classes and
 registered in `src/server/graphql/schema.ts`. Keep decorated GraphQL DTOs at
 the transport boundary instead of annotating financial domain objects.
+
+GitHub Actions runs lint, typechecking, tests, and the GraphQL staleness check
+as separate required-check candidates for pull requests to and pushes on
+`master`.
 
 Infrastructure and development-environment changes belong in `specific.hcl`.
 Run `specific check` after changing that file.

@@ -1,0 +1,22 @@
+name: Typecheck
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/setup@v2
+        with:
+          runtime: node@25
+          cache: true
+          require-lockfile: true
+      - run: pnpm typecheck

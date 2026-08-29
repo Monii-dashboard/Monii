@@ -4,7 +4,7 @@ import {
   useExecutionCancellation as executionCancellationPlugin,
 } from "graphql-yoga";
 
-import { graphqlErrorCodes } from "./errors";
+import { graphqlErrorCodes, isGraphqlErrorCode } from "./errors";
 import { graphqlSchema } from "./schema";
 
 const graphqlEndpoint = "/api/graphql";
@@ -16,8 +16,8 @@ type CreateGraphqlServerOptions = {
   schema: GraphQLSchema;
 };
 
-function hasErrorCode(error: GraphQLError) {
-  return typeof error.extensions.code === "string";
+function hasPublicErrorCode(error: GraphQLError) {
+  return isGraphqlErrorCode(error.extensions.code);
 }
 
 function copyGraphqlError(
@@ -46,11 +46,18 @@ export function createGraphqlServer({
     fetchAPI: { Response },
     cors: false,
     graphiql: process.env.NODE_ENV === "development",
+    // TODO: Add query-cost and rate controls before the public schema becomes
+    // large enough for expensive nested requests to be a practical risk.
     plugins: [executionCancellationPlugin()],
-    context: ({ request }) => ({
-      request,
-      signal: request.signal,
-    }),
+    context: ({ request }) => {
+      // TODO: Authenticate the single-user principal here (or verify identity
+      // supplied by Specific's protected ingress) before financial resolvers
+      // are exposed, then authorize resolver work through this context.
+      return {
+        request,
+        signal: request.signal,
+      };
+    },
     maskedErrors: {
       errorMessage: "Internal server error.",
       maskError(error) {
@@ -64,7 +71,7 @@ export function createGraphqlServer({
                 },
               );
 
-        if (hasErrorCode(graphqlError)) {
+        if (hasPublicErrorCode(graphqlError)) {
           return graphqlError;
         }
 

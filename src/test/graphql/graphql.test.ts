@@ -11,6 +11,7 @@ import {
   graphqlTestMutationDocument,
   graphqlTestQueryDocument,
   graphqlTestSlowDocument,
+  graphqlTestUnknownErrorCodeDocument,
 } from "./operations";
 import { testGraphqlSchema, testGraphqlState } from "./schema";
 
@@ -106,6 +107,10 @@ test("preserves public codes and masks unexpected errors", async () => {
       variables: { unexpected: true },
       fetchPolicy: "no-cache",
     });
+    const unknownCodeResult = await client.query({
+      query: graphqlTestUnknownErrorCodeDocument,
+      fetchPolicy: "no-cache",
+    });
 
     expect(CombinedGraphQLErrors.is(expectedResult.error)).toBe(true);
     expect(normalizeGraphqlError(expectedResult.error)).toMatchObject({
@@ -118,8 +123,21 @@ test("preserves public codes and masks unexpected errors", async () => {
       kind: "graphql",
       message: "Internal server error.",
     });
-    expect(serverErrors).toHaveLength(1);
+    expect(normalizeGraphqlError(unknownCodeResult.error)).toMatchObject({
+      code: "INTERNAL_SERVER_ERROR",
+      kind: "graphql",
+      message: "Internal server error.",
+    });
+    expect(CombinedGraphQLErrors.is(unknownCodeResult.error)).toBe(true);
+    if (!CombinedGraphQLErrors.is(unknownCodeResult.error)) {
+      throw new Error("Expected a GraphQL error result.");
+    }
+    expect(unknownCodeResult.error.errors[0]?.extensions).not.toHaveProperty(
+      "privateDetail",
+    );
+    expect(serverErrors).toHaveLength(2);
     expect(serverErrors[0]).toContain("private test failure");
+    expect(serverErrors[1]).toContain("private coded failure");
   } finally {
     await client.clearStore();
     client.stop();

@@ -24,6 +24,9 @@ function defaultGraphqlUri() {
     return "/api/graphql";
   }
 
+  // TODO: Before server-rendered GraphQL operations are introduced, prefer
+  // direct application-service calls or configure a deployment-aware origin;
+  // a loopback HTTP request is not reliable in every hosting/build topology.
   return `http://127.0.0.1:${process.env.PORT ?? "3000"}/api/graphql`;
 }
 

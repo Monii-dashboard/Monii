@@ -8,4 +8,5 @@ type Query {
   testEcho(value: String!): String!
   testFailure(unexpected: Boolean!): String!
   testSlow(delayMs: Int!): String!
+  testUnknownErrorCode: String!
 }
