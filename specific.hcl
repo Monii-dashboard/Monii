@@ -29,3 +29,13 @@ service "web" {
     command = "pnpm run db:migrate"
   }
 }
+
+cron "daily-sync" {
+  build    = build.web
+  command  = "pnpm run cli -- sync"
+  schedule = "@daily"
+
+  env = {
+    DATABASE_URL = postgres.main.url
+  }
+}

@@ -147,11 +147,11 @@ External source
       -> wealth calculation and dashboard
 ```
 
-A background process will synchronize approximately once per day. Whether that
-process is a Specific cron, worker, workflow, or another simple mechanism should
-be chosen when implementation requirements are clearer. Whatever mechanism is
-selected must be defined through Specific with the rest of the project's
-infrastructure.
+A Specific cron runs the synchronization worker daily. It uses the application's
+build and invokes the CLI synchronization entrypoint with the same PostgreSQL
+database as the web service. The synchronization implementation may split into
+more jobs or move to durable workflows if real orchestration requirements emerge;
+that complexity is not needed for the initial once-daily fetch.
 
 Synchronization should isolate failures by connection or source where
 practical. A failure must preserve prior valid data, expose useful failure state,
@@ -223,7 +223,8 @@ needs, not inferred from this document:
 - the relational schema and migration sequence;
 - Powens endpoint selection, field mapping, and authentication details;
 - adapter interfaces and normalized ingestion types;
-- synchronization scheduling, orchestration, retries, and concurrency;
+- synchronization retries, concurrency, and any orchestration beyond the daily
+  Specific cron;
 - valuation precedence and fallback rules;
 - the threshold and language used to classify data as stale;
 - account matching, deduplication, and cross-source reconciliation;
