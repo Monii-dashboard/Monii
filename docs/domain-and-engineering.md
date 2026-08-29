@@ -196,6 +196,25 @@ accounting before they are needed.
 - Define services, databases, schedules, workflows, secrets, and development
   environments with Specific.
 
+## Application API boundary
+
+For now, frontend code communicates with Monii application services through a
+single GraphQL endpoint. GraphQL is the application transport and contract; it
+does not replace the internal domain model or provider adapters.
+
+The backend schema is defined with TypeGraphQL resolver and transport DTO
+classes and served through GraphQL Yoga. Decorated GraphQL classes belong to
+the transport boundary; financial domain objects should not depend on
+TypeGraphQL metadata. Apollo Client consumes generated typed operation
+documents. A generated SDL schema and operation types are committed under an
+explicit `generated` directory and checked for staleness. Powens and future
+provider payloads must still be normalized before they reach GraphQL-facing
+application logic.
+
+This decision does not introduce multiple GraphQL services, federation,
+subscriptions, or provider-facing GraphQL APIs. Add those only for a concrete
+need.
+
 ## Intentionally deferred decisions
 
 The following should be decided from real provider data and implementation

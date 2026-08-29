@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "pnpm graphql:check && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
@@ -14,16 +14,32 @@
     "cli": "tsx cli/index.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "graphql:generate": "graphql-codegen --config codegen.ts",
+    "graphql:check": "graphql-codegen --config codegen.ts --check"
   },
   "dependencies": {
+    "@apollo/client": "4.1.9",
+    "@apollo/client-integration-nextjs": "0.14.5",
+    "@graphql-typed-document-node/core": "3.2.0",
     "drizzle-orm": "0.45.2",
+    "graphql": "16.12.0",
+    "graphql-scalars": "1.25.0",
+    "graphql-yoga": "5.21.2",
     "next": "16.3.2",
     "postgres": "3.4.9",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "type-graphql": "2.0.0-rc.4"
   },
   "devDependencies": {
+    "@graphql-codegen/cli": "^7.1.3",
+    "@graphql-codegen/client-preset": "^6.0.1",
+    "@graphql-codegen/schema-ast": "^6.1.0",
+    "@graphql-codegen/typescript-operations": "^6.1.5",
+    "@graphql-eslint/eslint-plugin": "^4.4.1",
     "@testcontainers/postgresql": "^12.1.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
@@ -32,6 +48,7 @@
     "drizzle-kit": "0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.3.2",
+    "graphql-config": "^5.1.6",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5",

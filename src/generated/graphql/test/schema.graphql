@@ -1,0 +1,11 @@
+type Mutation {
+  testReverse(value: String!): String!
+}
+
+type Query {
+  """Reports whether the GraphQL API can execute requests."""
+  _health: Boolean!
+  testEcho(value: String!): String!
+  testFailure(unexpected: Boolean!): String!
+  testSlow(delayMs: Int!): String!
+}
