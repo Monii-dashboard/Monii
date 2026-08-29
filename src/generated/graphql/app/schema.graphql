@@ -1,0 +1,4 @@
+type Query {
+  """Reports whether the GraphQL API can execute requests."""
+  _health: Boolean!
+}

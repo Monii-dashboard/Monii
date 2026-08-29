@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Monii
 
-## Getting Started
+Monii is a personal wealth aggregation dashboard. Its first job is to answer a
+simple question: **what is the current value of everything I own across my
+financial accounts?**
 
-First, run the development server:
+The project is currently a pre-MVP foundation. The application and database
+still contain scaffold code; the product documents below define the direction
+for the first implementation.
+
+## Project context
+
+- [Product definition](docs/product.md) explains the vision, V1 outcome,
+  boundaries, and possible future directions.
+- [Domain and engineering principles](docs/domain-and-engineering.md) explains
+  the concepts and boundaries that should guide implementation without
+  prescribing a database schema or heavyweight architecture.
+
+These documents are the durable source of product context. Keep them aligned
+when product decisions change.
+
+## Current stack
+
+- Next.js 16 and React 19
+- TypeScript and Tailwind CSS 4
+- PostgreSQL with Drizzle ORM
+- GraphQL Yoga and TypeGraphQL, consumed through Apollo Client
+- Vitest and Testcontainers
+- Specific for development and infrastructure
+
+Powens is planned as the first financial data source, but no Powens integration
+has been implemented yet.
+
+## Development
+
+Use the `pnpm` version declared in `package.json` for package management and
+scripts. Use Specific to run the application and its PostgreSQL dependency:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+specific dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Useful checks and one-off commands include:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm lint
+pnpm typecheck
+pnpm graphql:generate
+pnpm graphql:check
+pnpm test
+specific exec web -- pnpm db:migrate
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+GraphQL operations may be declared in frontend TypeScript with the generated
+`graphql()` function. Run `pnpm graphql:generate` after changing the backend
+schema or an operation. Generated schema and client artifacts are committed
+under `src/generated/graphql`; `pnpm graphql:check` fails when they are stale.
+Backend operations are added as decorated TypeGraphQL resolver classes and
+registered in `src/server/graphql/schema.ts`. Keep decorated GraphQL DTOs at
+the transport boundary instead of annotating financial domain objects.
 
-## Learn More
+GitHub Actions runs lint, typechecking, tests, and the GraphQL staleness check
+as separate required-check candidates for pull requests to and pushes on
+`master`.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Infrastructure and development-environment changes belong in `specific.hcl`.
+Run `specific check` after changing that file.
