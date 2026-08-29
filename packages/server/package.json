@@ -1,0 +1,28 @@
+{
+  "name": "@monii/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./database": "./src/database/index.ts",
+    "./graphql": "./src/graphql/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@monii/application": "workspace:*",
+    "class-validator": "^0.14.4",
+    "drizzle-orm": "0.45.2",
+    "graphql": "16.12.0",
+    "graphql-scalars": "1.25.0",
+    "graphql-yoga": "5.21.2",
+    "postgres": "3.4.9",
+    "reflect-metadata": "0.2.2",
+    "type-graphql": "2.0.0-rc.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

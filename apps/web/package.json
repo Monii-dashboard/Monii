@@ -1,0 +1,30 @@
+{
+  "name": "@monii/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "next typegen && tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@apollo/client": "4.1.9",
+    "@apollo/client-integration-nextjs": "0.14.5",
+    "@graphql-typed-document-node/core": "3.2.0",
+    "@monii/server": "workspace:*",
+    "graphql": "16.12.0",
+    "next": "16.3.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

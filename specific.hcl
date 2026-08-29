@@ -1,12 +1,12 @@
-build "web" {
+build "application" {
   dockerfile = "Dockerfile"
 }
 
 postgres "main" {}
 
 service "web" {
-  build   = build.web
-  command = "pnpm start"
+  build   = build.application
+  command = "pnpm --filter @monii/web start"
 
   endpoint {
     public = true
@@ -22,7 +22,7 @@ service "web" {
   }
 
   dev {
-    command = "pnpm run dev"
+    command = "pnpm --filter @monii/web dev"
   }
 
   pre_deploy {
@@ -31,8 +31,8 @@ service "web" {
 }
 
 cron "daily-sync" {
-  build    = build.web
-  command  = "pnpm run cli -- sync"
+  build    = build.application
+  command  = "pnpm --filter @monii/cli cli -- sync"
   schedule = "@daily"
 
   env = {

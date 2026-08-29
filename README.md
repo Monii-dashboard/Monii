@@ -31,6 +31,26 @@ when product decisions change.
 Powens is planned as the first financial data source, but no Powens integration
 has been implemented yet.
 
+## Workspace structure
+
+Monii is a source-first pnpm workspace. Runtime code follows one dependency
+direction: the web and CLI applications compose server adapters, and server
+adapters depend on the framework-independent application package.
+
+```text
+apps/
+  web/          Next.js UI, route bootstraps, Apollo, and frontend GraphQL code
+  cli/          One-shot operator and cron commands
+packages/
+  application/  Domain concepts, use cases, and ports
+  server/       PostgreSQL, GraphQL, and provider/Node adapters
+tests/          Cross-package integration tests and fixtures
+```
+
+Shared packages are private and export TypeScript source through explicit
+package entry points. Next.js and `tsx` consume that source directly; there is
+no separate package build step or monorepo orchestrator.
+
 ## Development
 
 Use the `pnpm` version declared in `package.json` for package management and
@@ -54,10 +74,11 @@ specific exec web -- pnpm db:migrate
 GraphQL operations may be declared in frontend TypeScript with the generated
 `graphql()` function. Run `pnpm graphql:generate` after changing the backend
 schema or an operation. Generated schema and client artifacts are committed
-under `src/generated/graphql`; `pnpm graphql:check` fails when they are stale.
-Backend operations are added as decorated TypeGraphQL resolver classes and
-registered in `src/server/graphql/schema.ts`. Keep decorated GraphQL DTOs at
-the transport boundary instead of annotating financial domain objects.
+under `apps/web/src/generated/graphql` (frontend) and
+`tests/generated/graphql` (test contracts); `pnpm graphql:check` fails when
+they are stale. Backend operations are added as decorated TypeGraphQL resolver
+classes under `packages/server/src/graphql`. Keep decorated GraphQL DTOs at the
+transport boundary instead of annotating financial domain objects.
 
 GitHub Actions runs lint, typechecking, tests, and the GraphQL staleness check
 as separate required-check candidates for pull requests to and pushes on

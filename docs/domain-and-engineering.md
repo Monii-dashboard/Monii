@@ -10,6 +10,27 @@ The repository is currently an early full-stack scaffold: Next.js, TypeScript,
 PostgreSQL with Drizzle, Vitest/Testcontainers, and Specific. Its `dummy` table
 and generated home page are placeholders and do not represent domain decisions.
 
+## Source workspace boundaries
+
+Monii is organized as a small, source-first pnpm workspace:
+
+- `apps/web` owns the Next.js UI, frontend GraphQL client, and thin HTTP route
+  bootstraps.
+- `apps/cli` owns one-shot operator and scheduled-command bootstraps.
+- `packages/application` owns framework-independent domain concepts, use cases,
+  and ports. It must not read environment variables or depend on Next.js,
+  GraphQL, Drizzle, provider SDKs, or Node bootstraps.
+- `packages/server` owns PostgreSQL, GraphQL transport, provider integrations,
+  environment-backed configuration, and other Node adapters.
+- root `tests` owns cross-package integration tests and their fixtures.
+
+The runtime dependency direction is `apps/web` and `apps/cli` to
+`packages/server` to `packages/application`. Shared packages expose only
+explicit package entry points and ship TypeScript source directly; package
+compilation and a monorepo task orchestrator are intentionally unnecessary at
+this scale. A future UI, console, or worker should be added at the boundary
+that owns its runtime responsibility rather than weakening this direction.
+
 ## Conceptual model
 
 External financial data should be understood through distinct concepts:

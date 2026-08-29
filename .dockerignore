@@ -1,5 +1,8 @@
 node_modules
+**/node_modules
 .next
+**/.next
 .git
 .specific
+.pnpm-store
 specific_examples
