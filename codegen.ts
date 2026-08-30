@@ -1,20 +1,20 @@
 import type { CodegenConfig } from "@graphql-codegen/cli";
 import { printSchema } from "graphql";
 
-import { graphqlSchema } from "./src/server/graphql/schema";
-import { testGraphqlSchema } from "./src/test/graphql/schema";
+import { graphqlSchema } from "@monii/server/graphql";
+
+import { testGraphqlSchema } from "./tests/graphql/schema";
 
 const applicationSchema = printSchema(graphqlSchema);
 const testSchema = printSchema(testGraphqlSchema);
 
 const applicationDocuments = [
-  "src/**/*.{ts,tsx}",
-  "!src/{db,server,test}/**/*",
-  "!src/generated/**/*",
+  "apps/web/src/**/*.{ts,tsx}",
+  "!apps/web/src/generated/**/*",
 ];
 const testDocuments = [
-  "src/test/graphql/**/*.{ts,tsx}",
-  "!src/test/graphql/**/*.test.{ts,tsx}",
+  "tests/graphql/**/*.{ts,tsx}",
+  "!tests/graphql/**/*.test.{ts,tsx}",
 ];
 
 const config: CodegenConfig = {
@@ -26,11 +26,11 @@ const config: CodegenConfig = {
     globalGqlIdentifierName: ["graphql"],
   },
   generates: {
-    "src/generated/graphql/app/schema.graphql": {
+    "apps/web/src/generated/graphql/app/schema.graphql": {
       schema: applicationSchema,
       plugins: ["schema-ast"],
     },
-    "src/generated/graphql/app/client/": {
+    "apps/web/src/generated/graphql/app/client/": {
       schema: applicationSchema,
       documents: applicationDocuments,
       preset: "client",
@@ -40,11 +40,11 @@ const config: CodegenConfig = {
         strictScalars: true,
       },
     },
-    "src/generated/graphql/test/schema.graphql": {
+    "tests/generated/graphql/test/schema.graphql": {
       schema: testSchema,
       plugins: ["schema-ast"],
     },
-    "src/generated/graphql/test/client/": {
+    "tests/generated/graphql/test/client/": {
       schema: testSchema,
       documents: testDocuments,
       preset: "client",

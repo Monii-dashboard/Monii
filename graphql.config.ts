@@ -1,22 +1,21 @@
 // Keep these document globs aligned with codegen.ts and eslint.config.mjs.
 // Extract shared config if the patterns begin changing independently.
 const frontendDocuments = [
-  "src/**/*.{ts,tsx}",
-  "!src/{db,server,test}/**/*",
-  "!src/generated/**/*",
+  "apps/web/src/**/*.{ts,tsx}",
+  "!apps/web/src/generated/**/*",
 ];
 
 const graphqlConfig = {
   projects: {
     app: {
-      schema: "src/generated/graphql/app/schema.graphql",
+      schema: "apps/web/src/generated/graphql/app/schema.graphql",
       documents: frontendDocuments,
     },
     test: {
-      schema: "src/generated/graphql/test/schema.graphql",
+      schema: "tests/generated/graphql/test/schema.graphql",
       documents: [
-        "src/test/graphql/**/*.{ts,tsx}",
-        "!src/test/graphql/**/*.test.{ts,tsx}",
+        "tests/graphql/**/*.{ts,tsx}",
+        "!tests/graphql/**/*.test.{ts,tsx}",
       ],
     },
   },

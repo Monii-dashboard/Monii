@@ -1,0 +1,19 @@
+{
+  "name": "@monii/cli",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "cli": "node --import tsx src/index.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@monii/application": "workspace:*",
+    "@monii/runtime": "workspace:*",
+    "@monii/server": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4.23.12",
+    "typescript": "^5"
+  }
+}
