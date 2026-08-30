@@ -1,3 +1,12 @@
-// Currently empty, will contains development tools for the project
-// or execution of some part of the business code for testing
-console.log("Hello, world!");
+const command = process.argv.slice(2).find((argument) => argument !== "--");
+
+if (command === "sync") {
+  console.log(
+    JSON.stringify({
+      level: "info",
+      event: "sync.started",
+      message: "Daily synchronization started",
+      dummy: true,
+    }),
+  );
+}
