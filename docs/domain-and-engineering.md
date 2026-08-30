@@ -39,8 +39,9 @@ request, CLI run, or future worker action establishes an operation context at
 its surface before invoking deeper code. The current context contains only a
 surface and an action ID, propagates through Node's asynchronous execution, and
 is available to application and adapter logging without explicit parameter
-threading. Business inputs and dependencies remain explicit; operation context
-must not become a general service container.
+threading. The runtime generates each action ID as the surface followed by a
+hyphen and a UUID. Business inputs and dependencies remain explicit; operation
+context must not become a general service container.
 
 ## Conceptual model
 

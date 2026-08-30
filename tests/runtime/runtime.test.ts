@@ -7,10 +7,10 @@ import { log } from "@monii/runtime/log";
 import { runWithOperationContext } from "@monii/runtime/operation";
 
 test("provides operation context throughout asynchronous work", async () => {
-  const context = { action_id: "action-1", surface: "web" } as const;
-
-  await runWithOperationContext(context, async () => {
-    expect(getOperationContext()).toEqual(context);
+  await runWithOperationContext({ surface: "web" }, async () => {
+    const context = getOperationContext();
+    expect(context.surface).toBe("web");
+    expect(context.action_id).toMatch(/^web-/);
     await sleep(0);
     expect(getOperationContext()).toEqual(context);
   });
@@ -23,22 +23,16 @@ test("isolates concurrent operation contexts", async () => {
   });
 
   const first = runWithOperationContext(
-    { action_id: "action-1", surface: "web" },
+    { surface: "web" },
     async () => {
       await firstCanFinish;
-      expect(getOperationContext()).toEqual({
-        action_id: "action-1",
-        surface: "web",
-      });
+      expect(getOperationContext().surface).toBe("web");
     },
   );
   const second = runWithOperationContext(
-    { action_id: "action-2", surface: "cli" },
+    { surface: "cli" },
     async () => {
-      expect(getOperationContext()).toEqual({
-        action_id: "action-2",
-        surface: "cli",
-      });
+      expect(getOperationContext().surface).toBe("cli");
       releaseFirst();
     },
   );
@@ -62,7 +56,7 @@ test("logs structured events with protected operation fields", () => {
 
   try {
     runWithOperationContext(
-      { action_id: "action-1", surface: "web" },
+      { surface: "web" },
       () =>
         log("wealth.calculated", {
           action_id: "cannot-override",
@@ -73,12 +67,13 @@ test("logs structured events with protected operation fields", () => {
     );
 
     expect(consoleLog).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(String(consoleLog.mock.calls[0]?.[0]))).toEqual({
+    const record = JSON.parse(String(consoleLog.mock.calls[0]?.[0]));
+    expect(record).toMatchObject({
       account_count: 3,
       event: "wealth.calculated",
-      action_id: "action-1",
       surface: "web",
     });
+    expect(record.action_id).toMatch(/^web-/);
   } finally {
     consoleLog.mockRestore();
   }
