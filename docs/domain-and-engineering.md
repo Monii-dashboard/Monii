@@ -17,6 +17,9 @@ Monii is organized as a small, source-first pnpm workspace:
 - `apps/web` owns the Next.js UI, frontend GraphQL client, and thin HTTP route
   bootstraps.
 - `apps/cli` owns one-shot operator and scheduled-command bootstraps.
+- `apps/console` owns the local, interactive TypeScript developer bootstrap.
+  It discovers explicit workspace-package exports without making private source
+  files part of those packages' supported APIs.
 - `packages/runtime` owns Node-backed operation context, logging, and future
   process-wide observability capabilities used across backend code.
 - `packages/application` owns framework-independent domain concepts, use cases,
@@ -26,22 +29,22 @@ Monii is organized as a small, source-first pnpm workspace:
   environment-backed configuration, and other Node adapters.
 - root `tests` owns cross-package integration tests and their fixtures.
 
-The main dependency direction is `apps/web` and `apps/cli` to `packages/server`
-to `packages/application`. Apps, server, and application may also depend on
-`packages/runtime`; runtime must not depend on them. Shared packages expose only
-explicit package entry points and ship TypeScript source directly; package
-compilation and a monorepo task orchestrator are intentionally unnecessary at
-this scale. A future UI, console, or worker should be added at the boundary that
-owns its runtime responsibility rather than weakening this direction.
+The main dependency direction is `apps/web`, `apps/cli`, and `apps/console` to
+`packages/server` to `packages/application`. Apps, server, and application may
+also depend on `packages/runtime`; runtime must not depend on them. Shared
+packages expose only explicit package entry points and ship TypeScript source
+directly; package compilation and a monorepo task orchestrator are intentionally
+unnecessary at this scale. A future UI or worker should be added at the boundary
+that owns its runtime responsibility rather than weakening this direction.
 
 `packages/runtime` exposes focused subpaths rather than a root barrel. Each HTTP
-request, CLI run, or future worker action establishes an operation context at
-its surface before invoking deeper code. The current context contains only a
-surface and an action ID, propagates through Node's asynchronous execution, and
-is available to application and adapter logging without explicit parameter
-threading. The runtime generates each action ID as the surface followed by a
-hyphen and a UUID. Business inputs and dependencies remain explicit; operation
-context must not become a general service container.
+request, CLI run, console session, or future worker action establishes an
+operation context at its surface before invoking deeper code. The current
+context contains only a surface and an action ID, propagates through Node's
+asynchronous execution, and is available to application and adapter logging
+without explicit parameter threading. The runtime generates each action ID as
+the surface followed by a hyphen and a UUID. Business inputs and dependencies
+remain explicit; operation context must not become a general service container.
 
 ## Conceptual model
 

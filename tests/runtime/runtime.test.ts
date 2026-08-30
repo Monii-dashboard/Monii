@@ -16,6 +16,13 @@ test("provides operation context throughout asynchronous work", async () => {
   });
 });
 
+test("identifies console sessions as operations", () => {
+  runWithOperationContext({ surface: "console" }, () => {
+    expect(getOperationContext().surface).toBe("console");
+    expect(getOperationContext().action_id).toMatch(/^console-/);
+  });
+});
+
 test("isolates concurrent operation contexts", async () => {
   let releaseFirst: () => void = () => undefined;
   const firstCanFinish = new Promise<void>((resolve) => {
