@@ -7,8 +7,7 @@ if (command === "sync") {
   runWithOperationContext(
     { surface: "cli" },
     () =>
-      log("sync.started", {
-        message: "Daily synchronization started",
+      log("Daily synchronization started", "sync.started", {
         dummy: true,
       }),
   );

@@ -44,12 +44,12 @@ test("fails when context is accessed outside an operation", () => {
   expect(() => getOperationContext()).toThrow(
     "Operation context is not available outside an operation",
   );
-  expect(() => log("outside.operation")).toThrow(
+  expect(() => log({ event: "outside.operation" })).toThrow(
     "Operation context is not available outside an operation",
   );
 });
 
-test("logs structured events with protected operation fields", () => {
+test("logs structured records with protected operation fields", () => {
   const consoleLog = vi
     .spyOn(globalThis.console, "log")
     .mockImplementation(() => {});
@@ -58,10 +58,9 @@ test("logs structured events with protected operation fields", () => {
     runWithOperationContext(
       { surface: "web" },
       () =>
-        log("wealth.calculated", {
+        log.info("Wealth calculated", "wealth.calculated", {
           action_id: "cannot-override",
           account_count: 3,
-          event: "cannot.override",
           surface: "cli",
         }),
     );
@@ -71,9 +70,44 @@ test("logs structured events with protected operation fields", () => {
     expect(record).toMatchObject({
       account_count: 3,
       event: "wealth.calculated",
+      level: "info",
       surface: "web",
     });
+    expect(record.message).toBe("Wealth calculated");
     expect(record.action_id).toMatch(/^web-/);
+  } finally {
+    consoleLog.mockRestore();
+  }
+});
+
+test("supports structured-only and severity-specific logging", () => {
+  const consoleLog = vi
+    .spyOn(globalThis.console, "log")
+    .mockImplementation(() => {});
+
+  try {
+    runWithOperationContext({ surface: "cli" }, () => {
+      log({ body: { account_count: 2 } });
+      log.warning("Partial synchronization", "sync.partial", {
+        body: { account_count: 1 },
+      });
+      log.error({ event: "sync.failed", body: { retryable: true } });
+    });
+
+    expect(consoleLog).toHaveBeenCalledTimes(3);
+    expect(JSON.parse(String(consoleLog.mock.calls[0]?.[0]))).toMatchObject({
+      level: "info",
+      body: { account_count: 2 },
+    });
+    expect(JSON.parse(String(consoleLog.mock.calls[1]?.[0]))).toMatchObject({
+      level: "warn",
+      message: "Partial synchronization",
+      event: "sync.partial",
+    });
+    expect(JSON.parse(String(consoleLog.mock.calls[2]?.[0]))).toMatchObject({
+      level: "error",
+      event: "sync.failed",
+    });
   } finally {
     consoleLog.mockRestore();
   }
