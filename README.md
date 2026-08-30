@@ -108,3 +108,21 @@ as separate required-check candidates for pull requests to and pushes on
 
 Infrastructure and development-environment changes belong in `specific.hcl`.
 Run `specific check` after changing that file.
+
+## Powens configuration
+
+The server Powens adapter reads one project and one permanent user context from
+environment variables for the single-user V1:
+
+- `POWENS_API_BASE_URL`: the full versioned API URL, such as
+  `https://example-sandbox.biapi.pro/2.0`;
+- `POWENS_CLIENT_ID`: the project client ID;
+- `POWENS_CLIENT_SECRET`: the project client secret; and
+- `POWENS_USER_ACCESS_TOKEN`: the permanent access token for the configured
+  Powens user.
+
+Specific injects these values only into the `daily-sync` cron. For local
+development, `specific dev` prompts for missing values and stores them in the
+gitignored `specific.local`; deployed values are managed as Specific config and
+secrets. The user access token represents the Powens user, so a separate Powens
+user ID and the user's bank credentials are not application configuration.
