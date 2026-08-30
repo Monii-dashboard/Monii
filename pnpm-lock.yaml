@@ -121,6 +121,28 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  apps/console:
+    dependencies:
+      '@monii/application':
+        specifier: workspace:*
+        version: link:../../packages/application
+      '@monii/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
+      '@monii/server':
+        specifier: workspace:*
+        version: link:../../packages/server
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      tsx:
+        specifier: ^4.23.12
+        version: 4.23.12
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   apps/web:
     dependencies:
       '@apollo/client':

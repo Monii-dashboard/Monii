@@ -41,6 +41,7 @@ adapters depend on the framework-independent application package.
 apps/
   web/          Next.js UI, route bootstraps, Apollo, and frontend GraphQL code
   cli/          One-shot operator and cron commands
+  console/      Local TypeScript console for developer exploration
 packages/
   application/  Domain concepts, use cases, and ports
   server/       PostgreSQL, GraphQL, and provider/Node adapters
@@ -69,7 +70,28 @@ pnpm graphql:generate
 pnpm graphql:check
 pnpm test
 specific exec web -- pnpm db:migrate
+specific exec web -- pnpm console
 ```
+
+The local console runs a complete session inside a `console` operation context
+and automatically exposes every explicit `@monii/*` package export under the
+`monii` namespace. For example, database exports are available from
+`monii.server.database`, and runtime context helpers are available from
+`monii.runtime.context`.
+
+Console input supports TypeScript syntax and top-level `await`, but it is
+transpiled without type-checking or editor-style TypeScript completion. Node's
+REPL does not accept static `import` declarations. Public package entry points
+are already preloaded; a private source file can be loaded explicitly from the
+repository root instead:
+
+```ts
+const schema = await import("./packages/server/src/database/schema.ts");
+```
+
+The console does not retain command history between sessions. It is trusted
+local development tooling and must not be exposed as a network or production
+service.
 
 GraphQL operations may be declared in frontend TypeScript with the generated
 `graphql()` function. Run `pnpm graphql:generate` after changing the backend

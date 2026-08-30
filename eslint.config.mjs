@@ -48,9 +48,15 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    files: ["packages/runtime/src/log.ts"],
+    files: ["packages/runtime/src/log.ts", "apps/console/src/**/*.ts"],
     rules: {
       "no-console": "off",
+    },
+  },
+  {
+    files: ["apps/console/src/preflight.cjs"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
     },
   },
   {

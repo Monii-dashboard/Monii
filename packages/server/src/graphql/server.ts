@@ -82,10 +82,13 @@ export function createGraphqlServer({
           );
         }
 
-        logger("graphql.unexpected_error", {
-          message: graphqlError.originalError.message,
+        logger.error(
+          graphqlError.originalError.message,
+          "graphql.unexpected_error",
+          {
           path: graphqlError.path,
-        });
+          },
+        );
 
         return copyGraphqlError(
           graphqlError,

@@ -1,6 +1,6 @@
 import { operationContextStorage } from "./storage";
 
-export type OperationSurface = "cli" | "web";
+export type OperationSurface = "cli" | "console" | "web";
 
 export type OperationContext = Readonly<{
   action_id: string;

@@ -5,6 +5,7 @@ import {
   createGraphqlServer,
   graphqlSchema,
 } from "@monii/server/graphql";
+import type { Log } from "@monii/runtime/log";
 
 import { createApolloGraphqlClient } from "../../apps/web/src/graphql/client/apollo-client";
 import { normalizeGraphqlError } from "../../apps/web/src/graphql/client/errors";
@@ -27,10 +28,30 @@ function createInMemoryFetch(
 
 function createTestClient(timeoutMs = 30_000) {
   const serverErrors: string[] = [];
+  const captureLog = (...args: unknown[]) => {
+    const message = typeof args[0] === "string" ? args[0] : undefined;
+    const event = typeof args[1] === "string" ? args[1] : undefined;
+    const fields = (typeof args[0] === "object" ? args[0] : args[2] ?? args[1]) as Record<
+      string,
+      unknown
+    >;
+
+    serverErrors.push(
+      JSON.stringify({
+        ...fields,
+        ...(message === undefined ? {} : { message }),
+        ...(event === undefined ? {} : { event }),
+      }),
+    );
+  };
+  const logger = Object.assign(captureLog, {
+    info: captureLog,
+    warning: captureLog,
+    error: captureLog,
+  }) as Log;
   const server = createGraphqlServer({
     schema: testGraphqlSchema,
-    logger: (event, fields) =>
-      serverErrors.push(JSON.stringify({ event, ...fields })),
+    logger,
   });
   const client = createApolloGraphqlClient({
     uri: "http://graphql.test/api/graphql",
