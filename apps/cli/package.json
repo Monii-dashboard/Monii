@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@monii/application": "workspace:*",
+    "@monii/runtime": "workspace:*",
     "@monii/server": "workspace:*"
   },
   "devDependencies": {

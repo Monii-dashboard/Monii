@@ -3,16 +3,15 @@ import {
   createYoga,
   useExecutionCancellation as executionCancellationPlugin,
 } from "graphql-yoga";
+import { log, type Log } from "@monii/runtime/log";
 
 import { graphqlErrorCodes, isGraphqlErrorCode } from "./errors";
 import { graphqlSchema } from "./schema";
 
 const graphqlEndpoint = "/api/graphql";
 
-type ErrorLogger = Pick<Console, "error">;
-
 type CreateGraphqlServerOptions = {
-  logger?: ErrorLogger;
+  logger?: Log;
   schema: GraphQLSchema;
 };
 
@@ -37,7 +36,7 @@ function copyGraphqlError(
 }
 
 export function createGraphqlServer({
-  logger = console,
+  logger = log,
   schema,
 }: CreateGraphqlServerOptions) {
   return createYoga({
@@ -83,13 +82,10 @@ export function createGraphqlServer({
           );
         }
 
-        logger.error(
-          JSON.stringify({
-            event: "graphql.unexpected_error",
-            message: graphqlError.originalError.message,
-            path: graphqlError.path,
-          }),
-        );
+        logger("graphql.unexpected_error", {
+          message: graphqlError.originalError.message,
+          path: graphqlError.path,
+        });
 
         return copyGraphqlError(
           graphqlError,

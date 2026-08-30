@@ -1,18 +1,18 @@
 {
-  "name": "@monii/application",
+  "name": "@monii/runtime",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    "./context": "./src/context.ts",
+    "./log": "./src/log.ts",
+    "./operation": "./src/operation.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "dependencies": {
-    "@monii/runtime": "workspace:*"
-  },
   "devDependencies": {
+    "@types/node": "^20",
     "typescript": "^5"
   }
 }

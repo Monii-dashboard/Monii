@@ -30,14 +30,7 @@ function defaultGraphqlUri() {
   return `http://127.0.0.1:${process.env.PORT ?? "3000"}/api/graphql`;
 }
 
-const defaultReportError: GraphqlErrorReporter = (failure) => {
-  console.error(
-    JSON.stringify({
-      event: "graphql.operation_error",
-      ...failure,
-    }),
-  );
-};
+const defaultReportError: GraphqlErrorReporter = () => undefined;
 
 export function createApolloGraphqlClient({
   fetchImplementation = fetch,

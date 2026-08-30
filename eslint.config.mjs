@@ -43,6 +43,17 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    rules: {
+      "no-console": "error",
+    },
+  },
+  {
+    files: ["packages/runtime/src/log.ts"],
+    rules: {
+      "no-console": "off",
+    },
+  },
+  {
     files: ["packages/application/src/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [

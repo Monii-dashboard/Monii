@@ -29,6 +29,9 @@ importers:
       '@graphql-typed-document-node/core':
         specifier: 3.2.0
         version: 3.2.0(graphql@16.12.0)
+      '@monii/runtime':
+        specifier: workspace:*
+        version: link:packages/runtime
       '@monii/server':
         specifier: workspace:*
         version: link:packages/server
@@ -101,6 +104,9 @@ importers:
       '@monii/application':
         specifier: workspace:*
         version: link:../../packages/application
+      '@monii/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
       '@monii/server':
         specifier: workspace:*
         version: link:../../packages/server
@@ -126,6 +132,9 @@ importers:
       '@graphql-typed-document-node/core':
         specifier: 3.2.0
         version: 3.2.0(graphql@16.12.0)
+      '@monii/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
       '@monii/server':
         specifier: workspace:*
         version: link:../../packages/server
@@ -165,6 +174,10 @@ importers:
         version: 5.9.3
 
   packages/application:
+    dependencies:
+      '@monii/runtime':
+        specifier: workspace:*
+        version: link:../runtime
     devDependencies:
       typescript:
         specifier: ^5
@@ -175,6 +188,9 @@ importers:
       '@monii/application':
         specifier: workspace:*
         version: link:../application
+      '@monii/runtime':
+        specifier: workspace:*
+        version: link:../runtime
       class-validator:
         specifier: ^0.14.4
         version: 0.14.4
@@ -199,6 +215,15 @@ importers:
       type-graphql:
         specifier: 2.0.0-rc.4
         version: 2.0.0-rc.4(class-validator@0.14.4)(graphql-scalars@1.25.0(graphql@16.12.0))(graphql@16.12.0)
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/runtime:
     devDependencies:
       '@types/node':
         specifier: ^20

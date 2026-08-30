@@ -12,6 +12,7 @@
     "@apollo/client": "4.1.9",
     "@apollo/client-integration-nextjs": "0.14.5",
     "@graphql-typed-document-node/core": "3.2.0",
+    "@monii/runtime": "workspace:*",
     "@monii/server": "workspace:*",
     "graphql": "16.12.0",
     "next": "16.3.2",

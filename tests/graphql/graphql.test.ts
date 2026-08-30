@@ -29,9 +29,8 @@ function createTestClient(timeoutMs = 30_000) {
   const serverErrors: string[] = [];
   const server = createGraphqlServer({
     schema: testGraphqlSchema,
-    logger: {
-      error: (message) => serverErrors.push(String(message)),
-    },
+    logger: (event, fields) =>
+      serverErrors.push(JSON.stringify({ event, ...fields })),
   });
   const client = createApolloGraphqlClient({
     uri: "http://graphql.test/api/graphql",
@@ -139,7 +138,9 @@ test("preserves public codes and masks unexpected errors", async () => {
       "privateDetail",
     );
     expect(serverErrors).toHaveLength(2);
+    expect(serverErrors[0]).toContain("graphql.unexpected_error");
     expect(serverErrors[0]).toContain("private test failure");
+    expect(serverErrors[1]).toContain("graphql.unexpected_error");
     expect(serverErrors[1]).toContain("private coded failure");
   } finally {
     await client.clearStore();

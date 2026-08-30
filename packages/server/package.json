@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@monii/application": "workspace:*",
+    "@monii/runtime": "workspace:*",
     "class-validator": "^0.14.4",
     "drizzle-orm": "0.45.2",
     "graphql": "16.12.0",
