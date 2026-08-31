@@ -6,7 +6,8 @@
   "exports": {
     "./database": "./src/database/index.ts",
     "./graphql": "./src/graphql/index.ts",
-    "./powens": "./src/powens/index.ts"
+    "./powens": "./src/powens/index.ts",
+    "./powens/console": "./src/powens/console/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"

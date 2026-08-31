@@ -2,9 +2,13 @@ const POWENS_API_VERSION_PATH = "/2.0";
 
 export type PowensConfig = Readonly<{
   apiBaseUrl: string;
+  userAccessToken: string;
+}>;
+
+export type PowensConsoleConfig = Readonly<{
+  apiBaseUrl: string;
   clientId: string;
   clientSecret: string;
-  userAccessToken: string;
 }>;
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -56,14 +60,24 @@ export function readPowensConfig(
     apiBaseUrl: parseApiBaseUrl(
       requireEnvironmentVariable(environment, "POWENS_API_BASE_URL"),
     ),
+    userAccessToken: requireEnvironmentVariable(
+      environment,
+      "POWENS_USER_ACCESS_TOKEN",
+    ),
+  };
+}
+
+export function readPowensConsoleConfig(
+  environment: Environment = process.env,
+): PowensConsoleConfig {
+  return {
+    apiBaseUrl: parseApiBaseUrl(
+      requireEnvironmentVariable(environment, "POWENS_API_BASE_URL"),
+    ),
     clientId: requireEnvironmentVariable(environment, "POWENS_CLIENT_ID"),
     clientSecret: requireEnvironmentVariable(
       environment,
       "POWENS_CLIENT_SECRET",
-    ),
-    userAccessToken: requireEnvironmentVariable(
-      environment,
-      "POWENS_USER_ACCESS_TOKEN",
     ),
   };
 }
