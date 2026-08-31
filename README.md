@@ -28,8 +28,9 @@ when product decisions change.
 - Vitest and Testcontainers
 - Specific for development and infrastructure
 
-Powens is planned as the first financial data source, but no Powens integration
-has been implemented yet.
+Powens is the first financial data source. Its server package is a thin adapter
+over the provider API; synchronization and persistence are intentionally
+separate concerns.
 
 ## Workspace structure
 
@@ -108,3 +109,51 @@ as separate required-check candidates for pull requests to and pushes on
 
 Infrastructure and development-environment changes belong in `specific.hcl`.
 Run `specific check` after changing that file.
+
+## Powens adapter
+
+The normal adapter is exported from `@monii/server/powens`. It requires only a
+versioned API base URL and a permanent user token, and supports:
+
+- `getCurrentUser()`;
+- `listConnections()` with each connection's connector expanded;
+- `getConnector(connectorUuid)`, which uses Powens' unauthenticated connector
+  endpoint; and
+- `listAccounts()` for active accounts, their current balances and optional
+  Wealth valuations, freshness metadata, currencies, and aggregate balances.
+
+The console-only adapter is exported separately from
+`@monii/server/powens/console`. It uses project credentials to create a permanent
+user with `createUser()` or renew a user's permanent token with
+`renewUserAccessToken()`. These calls refuse to run outside a `console` operation
+context, and ordinary client requests never receive or send project credentials.
+
+The adapters read the following environment variables:
+
+- `POWENS_API_BASE_URL`: the full versioned API URL, such as
+  `https://example-sandbox.biapi.pro/2.0`;
+- `POWENS_CLIENT_ID`: the project client ID;
+- `POWENS_CLIENT_SECRET`: the project client secret; and
+- `POWENS_USER_ACCESS_TOKEN`: the permanent access token for the configured
+  Powens user.
+
+`readPowensConfig()` reads the base URL and user token;
+`readPowensConsoleConfig()` reads the base URL and project credentials. Specific
+injects all four values into the `daily-sync` cron. For local development,
+Specific prompts for missing values and stores them in the gitignored
+`specific.local`; deployed values are managed as Specific config and secrets.
+The user access token represents the Powens user, so a separate Powens user ID
+and the user's bank credentials are not application configuration.
+
+Run the local TypeScript console with the cron's Powens environment:
+
+```bash
+specific exec daily-sync -- pnpm console
+```
+
+Then create a console client from the preloaded package export:
+
+```ts
+const powens = monii.server.powens.console;
+const client = powens.createPowensConsoleClient(powens.readPowensConsoleConfig());
+```

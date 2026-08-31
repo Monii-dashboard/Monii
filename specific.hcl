@@ -4,6 +4,14 @@ build "application" {
 
 postgres "main" {}
 
+config "powens_api_base_url" {}
+
+config "powens_client_id" {}
+
+secret "powens_client_secret" {}
+
+secret "powens_user_access_token" {}
+
 service "web" {
   build   = build.application
   command = "pnpm --filter @monii/web start"
@@ -36,6 +44,10 @@ cron "daily-sync" {
   schedule = "@daily"
 
   env = {
-    DATABASE_URL = postgres.main.url
+    DATABASE_URL             = postgres.main.url
+    POWENS_API_BASE_URL      = config.powens_api_base_url
+    POWENS_CLIENT_ID         = config.powens_client_id
+    POWENS_CLIENT_SECRET     = secret.powens_client_secret
+    POWENS_USER_ACCESS_TOKEN = secret.powens_user_access_token
   }
 }
