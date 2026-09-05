@@ -14,5 +14,8 @@
   "devDependencies": {
     "@types/node": "^20",
     "typescript": "^5"
+  },
+  "monii": {
+    "platform": "node"
   }
 }

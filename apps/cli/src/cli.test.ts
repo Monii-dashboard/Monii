@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import type { SynchronizationResult } from "@monii/application";
+import type { SynchronizationResult } from "@monii/wealth";
 import { getOperationContext } from "@monii/runtime/context";
-import { synchronizeFinancialSource } from "@monii/application";
+import { synchronizeFinancialSource } from "@monii/wealth";
 import { createDatabase } from "@monii/server/database";
 import { readPowensConfig } from "@monii/server/powens";
 import { createFinancialRepository } from "@monii/server/wealth";
@@ -10,7 +10,7 @@ import { run } from "@oclif/core";
 import Sync from "./commands/sync";
 import { runCli } from "./cli";
 
-vi.mock("@monii/application", () => ({ synchronizeFinancialSource: vi.fn() }));
+vi.mock("@monii/wealth", () => ({ synchronizeFinancialSource: vi.fn() }));
 vi.mock("@monii/server/database", () => ({ createDatabase: vi.fn() }));
 vi.mock("@monii/server/powens", () => ({
   readPowensConfig: vi.fn(() => ({})),

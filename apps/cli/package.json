@@ -7,7 +7,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@monii/application": "workspace:*",
+    "@monii/wealth": "workspace:*",
     "@monii/runtime": "workspace:*",
     "@monii/server": "workspace:*",
     "@oclif/core": "5.0.0",
@@ -30,5 +30,8 @@
     "additionalHelpFlags": [
       "-h"
     ]
+  },
+  "monii": {
+    "platform": "node"
   }
 }

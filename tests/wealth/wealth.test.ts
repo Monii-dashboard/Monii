@@ -7,7 +7,7 @@ import {
   type FinancialSource,
   type IdentityAccount,
   type SynchronizationRepository,
-} from "../../packages/application/src/index";
+} from "@monii/wealth";
 import { describe, expect, test, vi } from "vitest";
 
 const observedAt = new Date("2026-08-30T12:00:00Z");

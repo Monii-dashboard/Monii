@@ -273,18 +273,18 @@ apps/
   cli/src/operations/sync.ts               sync composition, reporting, cleanup
 
 packages/
-  application/src/
+  wealth/src/
     account-identity.ts                   pure conservative identity policy
     synchronization.ts                    normalized outcomes, ports, orchestration
     wealth.ts                             wealth rules, exact decimal math, use cases
-    index.ts                              public application exports
+    index.ts                              public wealth exports
 
   server/src/
     database/schema.ts                    Drizzle table and constraint definitions
     powens/
       client.ts                           Powens HTTP transport
       endpoints/                          provider request/response DTOs
-      source.ts                           Powens-to-application normalization adapter
+      source.ts                           Powens-to-wealth normalization adapter
     wealth/repository.ts                  PostgreSQL synchronization/wealth adapter
 
 drizzle/
@@ -301,10 +301,10 @@ tests/
 The dependency direction is deliberate:
 
 ```text
-CLI -> server adapters -> application rules and ports
+CLI -> server adapters -> wealth rules and contracts
 ```
 
-`packages/application` has no knowledge of Drizzle, PostgreSQL, Powens,
+`packages/wealth` has no knowledge of Drizzle, PostgreSQL, Powens,
 environment variables, or CLI execution. It owns provider-neutral inputs,
 business decisions, exact fixed-scale decimal arithmetic, and interfaces for
 external work. `packages/server` implements those interfaces at the database and
@@ -321,7 +321,7 @@ historical record.
 A second source should normally require a new server-side adapter, not changes
 to wealth calculation. The implementation sequence is:
 
-1. Implement the application `FinancialSource` contract and normalize provider
+1. Implement the wealth `FinancialSource` contract and normalize provider
    institution, connection, account, lifecycle, kind, usage, timestamps, and
    decimal values.
 2. Keep provider DTOs, authentication, pagination, and error details inside the
@@ -331,7 +331,7 @@ to wealth calculation. The implementation sequence is:
    objects and immutable observations.
 5. Reuse the opaque identity-evidence contract. Only the documented composite
    identity may auto-merge; labels may create candidates but never confirmation.
-6. Add adapter tests for mapping and failure behavior. Reuse application wealth
+6. Add adapter tests for mapping and failure behavior. Reuse wealth
    tests unless the product semantics themselves change.
 
 If a new provider exposes information that the normalized contract cannot

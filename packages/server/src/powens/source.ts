@@ -7,7 +7,7 @@ import type {
   NormalizedAccount,
   NormalizedConnection,
   SourceLifecycle,
-} from "@monii/application";
+} from "@monii/wealth";
 import { log } from "@monii/runtime/log";
 
 import type { PowensClient } from "./client";

@@ -1,5 +1,5 @@
 {
-  "name": "@monii/application",
+  "name": "@monii/wealth",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,10 +9,10 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "dependencies": {
-    "@monii/runtime": "workspace:*"
-  },
   "devDependencies": {
     "typescript": "^5"
+  },
+  "monii": {
+    "platform": "portable"
   }
 }

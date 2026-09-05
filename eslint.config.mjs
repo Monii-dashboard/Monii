@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+import { workspaceLintConfig } from "./tooling/workspace-policy.mjs";
 import { defineConfig, globalIgnores } from "eslint/config";
 import graphqlPlugin from "@graphql-eslint/eslint-plugin";
 import nextVitals from "eslint-config-next/core-web-vitals";
@@ -27,11 +29,6 @@ function graphqlOperationConfig(schema, documents) {
   };
 }
 
-const serverImportRestriction = {
-  group: ["@monii/server", "@monii/server/*"],
-  message: "Import server adapters only from a server-side composition root.",
-};
-
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -59,55 +56,7 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-require-imports": "off",
     },
   },
-  {
-    files: ["packages/application/src/**/*.{ts,tsx}"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            serverImportRestriction,
-            {
-              group: [
-                "next",
-                "next/*",
-                "node:*",
-                "graphql",
-                "graphql/*",
-                "type-graphql",
-                "drizzle-orm",
-                "drizzle-orm/*",
-                "postgres",
-              ],
-              message:
-                "Keep the application package independent of frameworks and adapters.",
-            },
-          ],
-        },
-      ],
-      "no-restricted-syntax": [
-        "error",
-        {
-          selector:
-            "MemberExpression[object.name='process'][property.name='env']",
-          message:
-            "Pass configured dependencies or values into application code instead of reading process.env.",
-        },
-      ],
-    },
-  },
-  {
-    files: ["apps/web/src/**/*.{ts,tsx}"],
-    ignores: ["apps/web/src/app/api/**/*.{ts,tsx}"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [serverImportRestriction],
-        },
-      ],
-    },
-  },
+  ...workspaceLintConfig(fileURLToPath(new URL(".", import.meta.url))),
   {
     files: ["apps/web/src/**/*.{ts,tsx}"],
     ignores: ["apps/web/src/generated/**/*"],
