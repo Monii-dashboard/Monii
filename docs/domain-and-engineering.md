@@ -6,9 +6,14 @@ This document establishes shared language and implementation guardrails for
 Monii. It is deliberately not a database schema, provider contract, or mandate
 for a particular architecture.
 
-The repository is currently an early full-stack scaffold: Next.js, TypeScript,
-PostgreSQL with Drizzle, Vitest/Testcontainers, and Specific. Its `dummy` table
-and generated home page are placeholders and do not represent domain decisions.
+The repository is an early full-stack implementation: Next.js, TypeScript,
+PostgreSQL with Drizzle, Vitest/Testcontainers, and Specific. The persisted
+financial foundation is implemented; the generated home page remains a
+placeholder and does not represent a product decision.
+
+For a table-by-table description, relationship diagram, synchronization flow,
+and code map of that foundation, see
+[Financial persistence foundation](financial-foundation.md).
 
 ## Source workspace boundaries
 
@@ -153,9 +158,11 @@ The V1 aggregate is based on account-level valuations in EUR:
 - Positions and cash inside an investment account must not be counted again if
   they are already represented by the account valuation.
 
-The exact precedence between a provider-reported account value, position-derived
-value, and other fallbacks is intentionally undecided. That policy should be
-made explicit and tested when the available Powens data is understood.
+For V1, cash accounts use an account-level EUR balance and investment accounts
+use an account-level EUR valuation. Investment balances and position-derived
+values are not fallbacks. The normalized observation retains both account-level
+candidates when supplied, while the wealth snapshot records the one candidate
+selected by this policy.
 
 ### Preserve provenance and freshness
 
@@ -189,21 +196,53 @@ database as the web service. The synchronization implementation may split into
 more jobs or move to durable workflows if real orchestration requirements emerge;
 that complexity is not needed for the initial once-daily fetch.
 
-Synchronization should isolate failures by connection or source where
-practical. A failure must preserve prior valid data, expose useful failure state,
-and allow unaffected data to remain readable. Retries and error categorization
+Synchronization isolates failures by source, connection, and identifiable
+account item. A failure must preserve prior valid data, expose useful failure
+state, and allow unaffected data to remain readable. A complete listing may
+mark a known account as not seen; a truncated listing may not infer absence.
+Run finalization, identity reconciliation, and snapshot creation are atomic,
+and overlapping runs for the same source are rejected. Retries and error categorization
 should be introduced in proportion to observed needs rather than designed
 speculatively.
 
-## Historical observations
+## Persistence and historical observations
 
-V1 must retain daily observations rather than overwriting the only known value.
-This is a data-collection requirement, not a requirement to deliver historical
-charts or advanced performance calculations.
+Financial concepts use Monii UUID identities. Source-scoped text references map
+external institutions, connections, and accounts to those identities. A new
+source reference initially creates a new domain object. Monii may then merge it
+automatically only from strong provider-boundary evidence: the same canonical
+institution, a validated matching IBAN, currency, compatible account kind, and
+no contradictory account-number evidence. Names alone never confirm identity;
+they may create a likely-duplicate candidate when strong identifiers are
+unavailable. Candidates remain included until a future review surface resolves
+them.
 
-The storage strategy remains open. It should preserve enough meaning to
-reconstruct best-known account and total wealth over time without assuming that
-every account updates successfully every day.
+Sensitive identity evidence is persisted only as versioned keyed fingerprints.
+A confirmed merge is durable and retains every source reference; later
+contradictory evidence creates a visible conflict rather than automatically
+splitting identity. The newest healthy observation across all linked references
+supplies the canonical value. Historical snapshots and merged account records
+remain immutable and traceable.
+
+Stable domain facts use relational PostgreSQL columns. Monetary values use exact
+decimal storage and unknown values remain null. Provider payloads are not kept
+as JSON or JSONB in the domain database. If replay becomes necessary, raw
+payload retention should be introduced as a separate, access-controlled,
+time-bounded integration facility rather than a shadow domain model.
+
+V1 retains immutable normalized account observations rather than overwriting
+the only known value. It also records a wealth snapshot, including every
+account's contribution or exclusion decision, after each synchronization and
+inclusion change. A failed refresh may therefore reuse an earlier usable value
+without changing its provenance. This is a data-collection requirement, not a
+requirement to deliver historical charts or advanced performance calculations.
+
+Source-explicit disabled or deleted accounts are excluded automatically;
+temporary absence or failure leaves the source lifecycle unchanged. An account
+value becomes stale after 48 hours, while a newer failed synchronization is
+reported immediately. Professional accounts are excluded by automatic policy
+but can be deliberately included. Unknown account types remain visible, do not
+contribute, and make the total incomplete.
 
 ## Single-user and currency assumptions
 
@@ -256,15 +295,12 @@ need.
 The following should be decided from real provider data and implementation
 needs, not inferred from this document:
 
-- the relational schema and migration sequence;
 - Powens endpoint selection, field mapping, and authentication details;
-- adapter interfaces and normalized ingestion types;
 - synchronization retries, concurrency, and any orchestration beyond the daily
   Specific cron;
-- valuation precedence and fallback rules;
-- the threshold and language used to classify data as stale;
-- account matching, deduplication, and cross-source reconciliation;
-- the representation and retention policy for historical observations;
+- operator confirmation or dismissal of likely duplicates and broader
+  cross-provider institution reconciliation;
+- the long-term retention policy for historical observations and snapshots;
 - whether and how optional positions and instrument metadata are persisted;
 - self-service authentication, multi-user ownership, and tenant isolation;
 - non-EUR valuation and foreign-exchange policy; and

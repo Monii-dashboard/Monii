@@ -2,6 +2,9 @@ const POWENS_API_VERSION_PATH = "/2.0";
 
 export type PowensConfig = Readonly<{
   apiBaseUrl: string;
+  fingerprintKey: string;
+  fingerprintKeyVersion: string;
+  sourceTimeZone: string;
   userAccessToken: string;
 }>;
 
@@ -60,11 +63,29 @@ export function readPowensConfig(
     apiBaseUrl: parseApiBaseUrl(
       requireEnvironmentVariable(environment, "POWENS_API_BASE_URL"),
     ),
+    fingerprintKey: requireEnvironmentVariable(
+      environment,
+      "ACCOUNT_IDENTITY_FINGERPRINT_KEY",
+    ),
+    fingerprintKeyVersion:
+      environment.ACCOUNT_IDENTITY_FINGERPRINT_KEY_VERSION?.trim() || "v1",
+    sourceTimeZone: parseTimeZone(
+      environment.POWENS_API_TIME_ZONE?.trim() || "Europe/Paris",
+    ),
     userAccessToken: requireEnvironmentVariable(
       environment,
       "POWENS_USER_ACCESS_TOKEN",
     ),
   };
+}
+
+function parseTimeZone(value: string) {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: value }).format();
+    return value;
+  } catch {
+    throw new Error("POWENS_API_TIME_ZONE must be a valid IANA time zone");
+  }
 }
 
 export function readPowensConsoleConfig(

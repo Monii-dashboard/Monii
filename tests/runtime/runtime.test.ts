@@ -119,3 +119,35 @@ test("supports structured-only and severity-specific logging", () => {
     consoleLog.mockRestore();
   }
 });
+
+test("redacts sensitive identity fields and serializes errors safely", () => {
+  const consoleLog = vi
+    .spyOn(globalThis.console, "log")
+    .mockImplementation(() => {});
+
+  try {
+    runWithOperationContext({ surface: "cli" }, () => {
+      log.error("Safe failure", "sync.failed", {
+        account_number: "raw-account-number",
+        error: new Error("provider response containing sensitive details"),
+        iban: "raw-iban",
+        nested: { access_token: "raw-nested-token" },
+        token: "raw-token",
+      });
+    });
+
+    const serialized = String(consoleLog.mock.calls[0]?.[0]);
+    const record = JSON.parse(serialized);
+    expect(record).toMatchObject({
+      account_number: "[redacted]",
+      error: { name: "Error" },
+      iban: "[redacted]",
+      nested: { access_token: "[redacted]" },
+      token: "[redacted]",
+    });
+    expect(serialized).not.toContain("raw-");
+    expect(serialized).not.toContain("provider response");
+  } finally {
+    consoleLog.mockRestore();
+  }
+});

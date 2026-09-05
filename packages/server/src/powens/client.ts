@@ -24,7 +24,13 @@ export type PowensClient = Readonly<{
     options?: PowensRequestOptions,
   ): Promise<PowensConnector>;
   getCurrentUser(options?: PowensRequestOptions): Promise<PowensUser>;
-  listAccounts(options?: PowensRequestOptions): Promise<PowensAccounts>;
+  listAccounts(
+    input?: Readonly<{
+      connectionId?: number;
+      includeDisabled?: boolean;
+    }>,
+    options?: PowensRequestOptions,
+  ): Promise<PowensAccounts>;
   listConnections(options?: PowensRequestOptions): Promise<PowensConnections>;
 }>;
 
@@ -39,8 +45,8 @@ export function createPowensClient(
       getConnector(request, connectorUuid, options),
     getCurrentUser: (options) =>
       getCurrentUser(request, config.userAccessToken, options),
-    listAccounts: (options) =>
-      listAccounts(request, config.userAccessToken, options),
+    listAccounts: (input, options) =>
+      listAccounts(request, config.userAccessToken, input, options),
     listConnections: (options) =>
       listConnections(request, config.userAccessToken, options),
   };
