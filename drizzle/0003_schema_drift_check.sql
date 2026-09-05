@@ -1,0 +1,1 @@
+ALTER TABLE "connection_sync_results" ALTER COLUMN "source_active" SET DEFAULT true;

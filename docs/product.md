@@ -23,15 +23,19 @@ source.
 The dashboard must provide:
 
 - one headline current-wealth value in EUR;
+- a candidate-adjusted estimate when unresolved likely duplicates could affect
+  that headline;
 - a breakdown by financial institution and account;
 - each account's contribution to the headline value;
 - the last successful update and a visible stale or failed-sync state; and
 - continued access to the latest valid data when a refresh fails.
 
 Synchronization should happen approximately once per day. Each synchronization
-should also retain a historical observation so later versions can explain how
-wealth changed over time. A history chart or historical analysis is not
-required in V1.
+retains normalized observations and an immutable snapshot of the total and its
+per-account decisions. Inclusion changes also create a snapshot. Later versions
+can therefore explain what Monii knew at the time without recomputing history
+under newer policy. A history chart or historical analysis is not required in
+V1.
 
 Connecting and reauthorizing Powens institutions may be operator-assisted in
 V1. A polished onboarding and connection-management experience is not required
@@ -55,8 +59,32 @@ The number is necessarily best-known rather than guaranteed real-time:
   the calculation. The aggregate must be marked incomplete rather than
   presented as comprehensive.
 - A failed synchronization must not erase previously valid values.
+- A confirmed duplicate contributes once even when multiple source references
+  report it. A likely duplicate remains included in the headline, makes the
+  total incomplete, and is reflected in a candidate-adjusted estimate and
+  possible range.
 - The total covers configured and supported accounts only. It cannot claim to
   include assets the system does not know about.
+
+A usable value becomes stale after 48 hours. A newer failed synchronization is
+shown immediately as a failure even while the last valid value remains in the
+total.
+
+For V1, a supported cash account uses its EUR account balance and a supported
+investment account uses its EUR account valuation. A missing investment
+valuation does not fall back to its balance, and positions are never summed into
+the headline. Values in other currencies remain visible but are not usable
+without the deferred foreign-exchange policy.
+
+Accounts explicitly disabled or deleted by their source stop contributing;
+temporary absence and synchronization failure do not have that effect.
+An account-specific error, malformed item, or absence from an otherwise complete
+listing preserves its last valid value but makes the snapshot incomplete. A
+whole-connection outage is reported through synchronization health without
+claiming that individual accounts disappeared.
+Professional accounts are visible but excluded unless deliberately included by
+the operator. When a joint account is otherwise eligible, V1 uses its full
+provider-reported value because fractional ownership is not yet modeled.
 
 For an investment account, V1 needs its current estimated account value, not
 the amount originally invested. Available position data may help explain or
@@ -76,6 +104,8 @@ V1 is successful when:
    institutions and accounts contribute to it.
 3. Included account contributions reconcile with the headline total without
    double counting cash, account balances, or investment positions.
+   Confirmed duplicate account references also reconcile to one canonical
+   contribution.
 4. A failure or incomplete response from one connection does not make other
    accounts unavailable or discard the last valid data.
 5. The user can tell when displayed information was last updated and whether
@@ -115,8 +145,8 @@ simple V1 decision could otherwise create an obvious and unnecessary obstacle.
 - EUR is the reporting currency for V1.
 - Powens is the primary initial source, not the product's domain model.
 - Synchronization runs approximately daily rather than on every page load.
-- Exact provider coverage, freshness thresholds, synchronization scheduling,
-  and valuation fallback rules will be decided during implementation.
+- Exact provider coverage and synchronization scheduling beyond the daily cron
+  will be decided from operational evidence.
 
 The conceptual boundaries for those later decisions are recorded in
 [Domain and engineering principles](domain-and-engineering.md).

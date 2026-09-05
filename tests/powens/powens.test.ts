@@ -1,6 +1,7 @@
 import { runWithOperationContext } from "@monii/runtime/operation";
 import {
   createPowensClient,
+  createPowensFinancialSource,
   PowensApiError,
   PowensTransportError,
   readPowensConfig,
@@ -15,6 +16,9 @@ import { describe, expect, test, vi } from "vitest";
 
 const config: PowensConfig = {
   apiBaseUrl: "https://monii-sandbox.biapi.pro/2.0",
+  fingerprintKey: "test-fingerprint-key-that-is-not-production",
+  fingerprintKeyVersion: "v1",
+  sourceTimeZone: "Europe/Paris",
   userAccessToken: "user-access-token",
 };
 
@@ -24,8 +28,11 @@ const consoleConfig: PowensConsoleConfig = {
   clientSecret: "client-secret",
 };
 
-function requestDetails(fetchMock: ReturnType<typeof vi.fn<typeof fetch>>) {
-  const [input, init] = fetchMock.mock.calls[0] ?? [];
+function requestDetails(
+  fetchMock: ReturnType<typeof vi.fn<typeof fetch>>,
+  index = 0,
+) {
+  const [input, init] = fetchMock.mock.calls[index] ?? [];
 
   return {
     body: init?.body === undefined ? undefined : JSON.parse(String(init.body)),
@@ -38,7 +45,10 @@ function requestDetails(fetchMock: ReturnType<typeof vi.fn<typeof fetch>>) {
 describe("Powens configuration", () => {
   test("separates user-token configuration from project credentials", () => {
     const environment = {
+      ACCOUNT_IDENTITY_FINGERPRINT_KEY: config.fingerprintKey,
+      ACCOUNT_IDENTITY_FINGERPRINT_KEY_VERSION: config.fingerprintKeyVersion,
       POWENS_API_BASE_URL: " https://monii-sandbox.biapi.pro/2.0/ ",
+      POWENS_API_TIME_ZONE: config.sourceTimeZone,
       POWENS_CLIENT_ID: consoleConfig.clientId,
       POWENS_CLIENT_SECRET: consoleConfig.clientSecret,
       POWENS_USER_ACCESS_TOKEN: config.userAccessToken,
@@ -51,11 +61,13 @@ describe("Powens configuration", () => {
   test.each([
     ["normal", "POWENS_API_BASE_URL"],
     ["normal", "POWENS_USER_ACCESS_TOKEN"],
+    ["normal", "ACCOUNT_IDENTITY_FINGERPRINT_KEY"],
     ["console", "POWENS_API_BASE_URL"],
     ["console", "POWENS_CLIENT_ID"],
     ["console", "POWENS_CLIENT_SECRET"],
   ])("rejects missing %s configuration variable %s", (reader, name) => {
     const environment = {
+      ACCOUNT_IDENTITY_FINGERPRINT_KEY: config.fingerprintKey,
       POWENS_API_BASE_URL: config.apiBaseUrl,
       POWENS_CLIENT_ID: consoleConfig.clientId,
       POWENS_CLIENT_SECRET: consoleConfig.clientSecret,
@@ -77,6 +89,7 @@ describe("Powens configuration", () => {
   ])("rejects invalid API base URL %s", (apiBaseUrl, message) => {
     expect(() =>
       readPowensConfig({
+        ACCOUNT_IDENTITY_FINGERPRINT_KEY: config.fingerprintKey,
         POWENS_API_BASE_URL: apiBaseUrl,
         POWENS_USER_ACCESS_TOKEN: config.userAccessToken,
       }),
@@ -129,7 +142,7 @@ describe("Powens read endpoints", () => {
       createPowensClient(config, { fetch: fetchMock }).listConnections(),
     ).resolves.toEqual(response);
     expect(requestDetails(fetchMock)).toMatchObject({
-      input: `${config.apiBaseUrl}/users/me/connections?expand=connector`,
+      input: `${config.apiBaseUrl}/users/me/connections?expand=connector&limit=1000&offset=0`,
       method: "GET",
     });
   });
@@ -193,11 +206,153 @@ describe("Powens read endpoints", () => {
 
     await expect(
       createPowensClient(config, { fetch: fetchMock }).listAccounts(),
-    ).resolves.toEqual(response);
+    ).resolves.toEqual({
+      ...response,
+      isComplete: true,
+      rejectedAccounts: [],
+      reportedTotal: null,
+    });
     expect(requestDetails(fetchMock)).toMatchObject({
-      input: `${config.apiBaseUrl}/users/me/accounts`,
+      input: `${config.apiBaseUrl}/users/me/accounts?limit=1000&offset=0`,
       method: "GET",
     });
+  });
+
+  test("lists all accounts for one connection during synchronization", async () => {
+    const response = { accounts: [] };
+    const fetchMock = vi.fn<typeof fetch>(async () => Response.json(response));
+    const client = createPowensClient(config, { fetch: fetchMock });
+
+    await expect(
+      client.listAccounts({ connectionId: 27, includeDisabled: true }),
+    ).resolves.toEqual({
+      ...response,
+      isComplete: true,
+      rejectedAccounts: [],
+      reportedTotal: null,
+    });
+    expect(requestDetails(fetchMock)).toMatchObject({
+      input: `${config.apiBaseUrl}/users/me/connections/27/accounts?all&limit=1000&offset=0`,
+      method: "GET",
+    });
+  });
+
+  test("follows account pagination to the reported total", async () => {
+    const pages = [
+      {
+        accounts: [{ id: 1, name: "First" }],
+        total: 2,
+      },
+      {
+        accounts: [{ id: 2, name: "Second" }],
+        total: 2,
+      },
+    ];
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json(pages.shift()),
+    );
+
+    await expect(
+      createPowensClient(config, { fetch: fetchMock }).listAccounts(),
+    ).resolves.toMatchObject({
+      accounts: [{ id: 1 }, { id: 2 }],
+      isComplete: true,
+      reportedTotal: 2,
+    });
+    expect(requestDetails(fetchMock, 1).input).toBe(
+      `${config.apiBaseUrl}/users/me/accounts?limit=1000&offset=1`,
+    );
+  });
+
+  test("normalizes provider accounts without leaking provider identity", async () => {
+    const responses = [
+      { id: 42, signin: "2026-08-30T12:00:00Z" },
+      {
+        connections: [
+          {
+            connector: {
+              id: 7,
+              name: "Example Bank",
+              uuid: "stable-connector-uuid",
+            },
+            id: 27,
+            id_connector: 7,
+          },
+        ],
+      },
+      {
+        accounts: [
+          {
+            balance: 10.25,
+            currency: { id: "eur" },
+            id: 101,
+            last_update: "2026-09-01 23:27:00",
+            name: "Current account",
+            type: { id: 1, is_invest: false, name: "checking" },
+            usage: "PRIV",
+          },
+          {
+            balance: 999,
+            currency: { id: "EUR" },
+            disabled: "2026-08-31T12:00:00Z",
+            id: 102,
+            name: "Brokerage",
+            type: { id: 2, is_invest: true, name: "market" },
+            usage: "ORGA",
+            valuation: 123.45,
+          },
+        ],
+      },
+    ];
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json(responses.shift()),
+    );
+    const source = createPowensFinancialSource(
+      createPowensClient(config, { fetch: fetchMock }),
+      config,
+    );
+
+    await expect(source.getExternalSubjectId()).resolves.toBe("42");
+    await expect(source.listConnections()).resolves.toEqual([
+      {
+        active: true,
+        externalId: "27",
+        institution: {
+          externalId: "stable-connector-uuid",
+          name: "Example Bank",
+        },
+        nextTryAt: null,
+        sourceErrorCode: null,
+        sourceState: null,
+        sourceUpdatedAt: null,
+      },
+    ]);
+    await expect(source.listAccounts("27")).resolves.toMatchObject({
+      accounts: [
+        {
+          balance: "10.25",
+          currency: "EUR",
+          externalId: "101",
+          kind: "cash",
+          lifecycle: "active",
+          sourceValidAt: new Date("2026-09-01T21:27:00.000Z"),
+          usage: "private",
+        },
+        {
+          balance: "999",
+          estimatedValue: "123.45",
+          externalId: "102",
+          kind: "investment",
+          lifecycle: "disabled",
+          usage: "professional",
+        },
+      ],
+      failures: [],
+      isComplete: true,
+    });
+    expect(requestDetails(fetchMock, 2).input).toBe(
+      `${config.apiBaseUrl}/users/me/connections/27/accounts?all&limit=1000&offset=0`,
+    );
   });
 
   test.each([
@@ -218,7 +373,14 @@ describe("Powens read endpoints", () => {
             ? client.listAccounts()
             : client.getCurrentUser();
 
-    await expect(request).rejects.toMatchObject({ kind: "invalid-response" });
+    if (method === "listAccounts") {
+      await expect(request).resolves.toMatchObject({
+        accounts: [],
+        rejectedAccounts: [{ externalId: "1", reason: "malformed" }],
+      });
+    } else {
+      await expect(request).rejects.toMatchObject({ kind: "invalid-response" });
+    }
   });
 });
 
@@ -250,6 +412,40 @@ describe("Powens console endpoints", () => {
     });
     expect(request.headers.has("authorization")).toBe(false);
     expect(request.headers.get("content-type")).toBe("application/json");
+  });
+
+  test("creates an add-connection webview link for the configured user", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({ access: "single", code: "temporary-webview-code", type: "temporary" }),
+    );
+    const client = createPowensConsoleClient(consoleConfig, { fetch: fetchMock });
+
+    const link = await runWithOperationContext({ surface: "console" }, () =>
+      client.createAddConnectionWebviewUrl({
+        language: "en",
+        redirectUri: "https://monii.example/powens/complete",
+        userAccessToken: config.userAccessToken,
+      }),
+    );
+
+    const url = new URL(link);
+    expect(url.origin + url.pathname).toBe("https://webview.powens.com/en/connect");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      client_id: consoleConfig.clientId,
+      code: "temporary-webview-code",
+      domain: "monii-sandbox.biapi.pro",
+      redirect_uri: "https://monii.example/powens/complete",
+    });
+    expect(link).not.toContain(config.userAccessToken);
+
+    const request = requestDetails(fetchMock);
+    expect(request).toMatchObject({
+      input: `${config.apiBaseUrl}/auth/token/code?type=singleAccess`,
+      method: "GET",
+    });
+    expect(request.headers.get("authorization")).toBe(
+      `Bearer ${config.userAccessToken}`,
+    );
   });
 
   test.each([
@@ -290,6 +486,14 @@ describe("Powens console endpoints", () => {
 
       await expect(
         runWithOperationContext({ surface }, () => client.createUser()),
+      ).rejects.toThrow("require the console surface");
+      await expect(
+        runWithOperationContext({ surface }, () =>
+          client.createAddConnectionWebviewUrl({
+            redirectUri: "https://monii.example/powens/complete",
+            userAccessToken: config.userAccessToken,
+          }),
+        ),
       ).rejects.toThrow("require the console surface");
       await expect(
         runWithOperationContext({ surface }, () =>

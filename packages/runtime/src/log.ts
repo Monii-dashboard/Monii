@@ -16,6 +16,27 @@ export type Log = {
   error: (...args: LogArguments) => void;
 };
 
+function sanitize(value: unknown, key = "", depth = 0): unknown {
+  if (/iban|account_number|fingerprint_key|secret|token/i.test(key)) {
+    return "[redacted]";
+  }
+  if (value instanceof Error) return { name: value.name };
+  if (typeof value === "bigint") return value.toString();
+  if (depth >= 6) return "[truncated]";
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitize(item, "", depth + 1));
+  }
+  if (typeof value === "object" && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([childKey, childValue]) => [
+        childKey,
+        sanitize(childValue, childKey, depth + 1),
+      ]),
+    );
+  }
+  return value;
+}
+
 function write(level: LogLevel, ...args: LogArguments) {
   let message: string | undefined;
   let event: string | undefined;
@@ -35,12 +56,11 @@ function write(level: LogLevel, ...args: LogArguments) {
 
   const context = getOperationContext();
 
-  // Add levels, redaction, safer serialization, configurable sinks, metrics,
-  // and tracing integration when their concrete requirements are known.
+  const safeFields = sanitize(fields) as LogFields;
   console.log(
     JSON.stringify({
       level,
-      ...fields,
+      ...safeFields,
       ...(message === undefined ? {} : { message }),
       ...(event === undefined ? {} : { event }),
       ...context,

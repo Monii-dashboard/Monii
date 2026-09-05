@@ -64,7 +64,7 @@ test("runs TypeScript code and private imports inside one console operation", as
     await evaluate(
       'const privateModule = await import("./packages/server/src/database/schema.ts")',
     );
-    await evaluate('"dummy" in privateModule');
+    await evaluate('"financialAccounts" in privateModule');
     input.write(".exit\n");
 
     await consoleExited;

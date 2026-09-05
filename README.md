@@ -4,17 +4,17 @@ Monii is a personal wealth aggregation dashboard. Its first job is to answer a
 simple question: **what is the current value of everything I own across my
 financial accounts?**
 
-The project is currently a pre-MVP foundation. The application and database
-still contain scaffold code; the product documents below define the direction
-for the first implementation.
+The project is an early V1 implementation. Its financial foundation persists
+provider-neutral accounts, synchronization outcomes, observations, and wealth
+snapshots; the dashboard still exposes only its initial transport scaffold.
 
 ## Project context
 
 - [Product definition](docs/product.md) explains the vision, V1 outcome,
   boundaries, and possible future directions.
 - [Domain and engineering principles](docs/domain-and-engineering.md) explains
-  the concepts and boundaries that should guide implementation without
-  prescribing a database schema or heavyweight architecture.
+  the concepts, accepted storage semantics, and boundaries that guide the
+  implementation.
 
 These documents are the durable source of product context. Keep them aligned
 when product decisions change.
@@ -119,14 +119,23 @@ versioned API base URL and a permanent user token, and supports:
 - `listConnections()` with each connection's connector expanded;
 - `getConnector(connectorUuid)`, which uses Powens' unauthenticated connector
   endpoint; and
-- `listAccounts()` for active accounts, their current balances and optional
-  Wealth valuations, freshness metadata, currencies, and aggregate balances.
+- `listAccounts()` for active accounts, or a specific connection with disabled
+  accounts included, returning current balances and optional Wealth valuations,
+  freshness metadata, currencies, and aggregate balances.
+
+The daily CLI synchronization maps these responses into Monii-owned
+institutions, accounts, observations, and immutable wealth snapshots. It reads
+each connection independently, preserves last-valid values on failure, and does
+not persist raw Powens payloads.
 
 The console-only adapter is exported separately from
 `@monii/server/powens/console`. It uses project credentials to create a permanent
 user with `createUser()` or renew a user's permanent token with
-`renewUserAccessToken()`. These calls refuse to run outside a `console` operation
-context, and ordinary client requests never receive or send project credentials.
+`renewUserAccessToken()`. It can also generate a one-time `singleAccess` code
+from the configured user's token and return an add-connection Powens webview link
+with `createAddConnectionWebviewUrl()`. These calls refuse to run outside a
+`console` operation context, and ordinary client requests never receive or send
+project credentials.
 
 The adapters read the following environment variables:
 
@@ -156,4 +165,11 @@ Then create a console client from the preloaded package export:
 ```ts
 const powens = monii.server.powens.console;
 const client = powens.createPowensConsoleClient(powens.readPowensConsoleConfig());
+const link = await client.createAddConnectionWebviewUrl({
+  redirectUri: "https://your-registered-callback.example/powens/complete",
+  userAccessToken: monii.server.powens.readPowensConfig().userAccessToken,
+});
 ```
+
+Open `link` in a browser before its one-time code expires. The callback URI must
+be registered for the Powens client application.
