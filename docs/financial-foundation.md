@@ -267,7 +267,10 @@ refresh is reported immediately while the last valid value remains available.
 
 ```text
 apps/
-  cli/src/index.ts                         sync composition root
+  cli/src/index.ts                         process bootstrap
+  cli/src/cli.ts                           oclif runner and operation context
+  cli/src/commands/sync.ts                 sync metadata, parsing, exit status
+  cli/src/operations/sync.ts               sync composition, reporting, cleanup
 
 packages/
   application/src/

@@ -9,11 +9,26 @@
   "dependencies": {
     "@monii/application": "workspace:*",
     "@monii/runtime": "workspace:*",
-    "@monii/server": "workspace:*"
+    "@monii/server": "workspace:*",
+    "@oclif/core": "5.0.0",
+    "@oclif/plugin-help": "7.0.0"
   },
   "devDependencies": {
     "@types/node": "^20",
     "tsx": "^4.23.12",
     "typescript": "^5"
+  },
+  "type": "module",
+  "oclif": {
+    "bin": "pnpm cli",
+    "description": "Internal Monii operator commands",
+    "commands": "./src/commands",
+    "topicSeparator": " ",
+    "plugins": [
+      "@oclif/plugin-help"
+    ],
+    "additionalHelpFlags": [
+      "-h"
+    ]
   }
 }
