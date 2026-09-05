@@ -41,6 +41,10 @@ Connecting and reauthorizing Powens institutions may be operator-assisted in
 V1. A polished onboarding and connection-management experience is not required
 for this personal, single-user version.
 
+An internal operator CLI offers discoverable command help without financial
+credentials and runs the existing synchronization on demand or from the daily
+schedule. It does not add a self-service onboarding interface.
+
 ## Meaning of the headline value
 
 In V1, **current wealth** means the signed sum of the most recent usable EUR

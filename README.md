@@ -110,6 +110,35 @@ as separate required-check candidates for pull requests to and pushes on
 Infrastructure and development-environment changes belong in `specific.hcl`.
 Run `specific check` after changing that file.
 
+## Operator CLI
+
+The private CLI provides generated help without database or Powens credentials:
+
+```bash
+pnpm cli
+pnpm cli --help
+pnpm cli help sync
+pnpm cli sync --help
+```
+
+`-h` also shows help. Run synchronization in the configured Specific environment
+with `specific exec daily-sync -- pnpm cli -- sync`. The daily cron retains its
+`pnpm --filter @monii/cli cli -- sync` invocation. Success and already-running
+skips exit `0`; degraded or failed synchronization exits `1`.
+
+To add a command, default-export an oclif `Command` subclass from
+`apps/cli/src/commands/<name>.ts` with its description, examples, arguments, and
+flags. Parse inputs before dynamically importing its implementation from
+`apps/cli/src/operations`. Operations compose public workspace exports, report
+results, and await resource cleanup; commands map results to exit status.
+Nested files such as `commands/accounts/list.ts` become `pnpm cli accounts list`
+without a registry. Keep only command classes in the discovery directory.
+
+The ESM entrypoint runs TypeScript source using `node --import tsx`; oclif's own
+transpiler registration is disabled. Help and discovery must stay independent
+of financial configuration and adapters. Every invocation, including runtime
+failure reporting, uses one CLI operation context.
+
 ## Powens adapter
 
 The normal adapter is exported from `@monii/server/powens`. It requires only a

@@ -34,6 +34,14 @@ Monii is organized as a small, source-first pnpm workspace:
   environment-backed configuration, and other Node adapters.
 - root `tests` owns cross-package integration tests and their fixtures.
 
+The private operator CLI uses oclif file-based discovery under
+`apps/cli/src/commands` and generated help. Commands own parsing, metadata, and
+exit status; framework-independent functions under `operations` compose server
+adapters, report results, and await cleanup. Commands load operations only after
+parsing, so help never initializes financial dependencies. The runner establishes
+one operation context around dispatch and error handling. Nested directories
+provide command groups without a central registry; source execution uses `tsx`.
+
 The main dependency direction is `apps/web`, `apps/cli`, and `apps/console` to
 `packages/server` to `packages/application`. Apps, server, and application may
 also depend on `packages/runtime`; runtime must not depend on them. Shared
