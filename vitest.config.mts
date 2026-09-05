@@ -11,11 +11,20 @@ export default defineConfig({
       {
         extends: true,
         test: {
+          name: "repository",
+          include: ["tests/repository/**/*.test.mjs"],
+          environment: "node",
+        },
+      },
+      {
+        extends: true,
+        test: {
           name: "unit",
           include: ["**/*.test.{ts,tsx}"],
           exclude: [
             ...applicationExcludes,
             "**/*.integration.test.{ts,tsx}",
+            "tests/repository/**",
           ],
         },
       },

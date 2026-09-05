@@ -35,6 +35,9 @@ importers:
       '@monii/server':
         specifier: workspace:*
         version: link:packages/server
+      '@monii/wealth':
+        specifier: workspace:*
+        version: link:packages/wealth
       '@tailwindcss/postcss':
         specifier: ^4
         version: 4.3.3
@@ -101,15 +104,15 @@ importers:
 
   apps/cli:
     dependencies:
-      '@monii/application':
-        specifier: workspace:*
-        version: link:../../packages/application
       '@monii/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
       '@monii/server':
         specifier: workspace:*
         version: link:../../packages/server
+      '@monii/wealth':
+        specifier: workspace:*
+        version: link:../../packages/wealth
       '@oclif/core':
         specifier: 5.0.0
         version: 5.0.0
@@ -129,15 +132,15 @@ importers:
 
   apps/console:
     dependencies:
-      '@monii/application':
-        specifier: workspace:*
-        version: link:../../packages/application
       '@monii/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
       '@monii/server':
         specifier: workspace:*
         version: link:../../packages/server
+      '@monii/wealth':
+        specifier: workspace:*
+        version: link:../../packages/wealth
     devDependencies:
       '@types/node':
         specifier: ^20
@@ -201,16 +204,6 @@ importers:
         specifier: ^5
         version: 5.9.3
 
-  packages/application:
-    dependencies:
-      '@monii/runtime':
-        specifier: workspace:*
-        version: link:../runtime
-    devDependencies:
-      typescript:
-        specifier: ^5
-        version: 5.9.3
-
   packages/runtime:
     devDependencies:
       '@types/node':
@@ -222,12 +215,12 @@ importers:
 
   packages/server:
     dependencies:
-      '@monii/application':
-        specifier: workspace:*
-        version: link:../application
       '@monii/runtime':
         specifier: workspace:*
         version: link:../runtime
+      '@monii/wealth':
+        specifier: workspace:*
+        version: link:../wealth
       class-validator:
         specifier: ^0.14.4
         version: 0.14.4
@@ -256,6 +249,12 @@ importers:
       '@types/node':
         specifier: ^20
         version: 20.19.43
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/wealth:
+    devDependencies:
       typescript:
         specifier: ^5
         version: 5.9.3

@@ -9,10 +9,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && chown app:app /app
 
 COPY --chown=app:app package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY --chown=app:app apps/cli/package.json apps/cli/package.json
-COPY --chown=app:app apps/web/package.json apps/web/package.json
-COPY --chown=app:app packages/application/package.json packages/application/package.json
-COPY --chown=app:app packages/server/package.json packages/server/package.json
+COPY --chown=app:app apps/ apps/
+COPY --chown=app:app packages/ packages/
 
 USER app
 

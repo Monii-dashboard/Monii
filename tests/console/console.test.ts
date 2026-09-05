@@ -57,6 +57,7 @@ test("runs TypeScript code and private imports inside one console operation", as
     await waitForNextPrompt("startup");
     await evaluate("const answer: number = 42");
     await evaluate("answer");
+    await evaluate("typeof monii.wealth.calculateWealthSnapshot");
     await evaluate("monii.runtime.context.getOperationContext()");
     await evaluate(".clear");
     await evaluate("typeof monii");
@@ -72,6 +73,8 @@ test("runs TypeScript code and private imports inside one console operation", as
 
   expect(writtenOutput).toContain("Monii TypeScript console (console-");
   expect(writtenOutput).toContain("@monii/server/database");
+  expect(writtenOutput).toContain("@monii/wealth");
+  expect(writtenOutput).toContain("'function'");
   expect(writtenOutput).toMatch(/\b42\b/);
   expect(writtenOutput).toContain("surface: 'console'");
   expect(writtenOutput).toContain("'object'");

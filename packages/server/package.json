@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@monii/application": "workspace:*",
+    "@monii/wealth": "workspace:*",
     "@monii/runtime": "workspace:*",
     "class-validator": "^0.14.4",
     "drizzle-orm": "0.45.2",
@@ -28,5 +28,8 @@
   "devDependencies": {
     "@types/node": "^20",
     "typescript": "^5"
+  },
+  "monii": {
+    "platform": "node"
   }
 }

@@ -34,9 +34,11 @@ separate concerns.
 
 ## Workspace structure
 
-Monii is a source-first pnpm workspace. Runtime code follows one dependency
-direction: the web and CLI applications compose server adapters, and server
-adapters depend on the framework-independent application package.
+Monii is a source-first pnpm workspace. Packages are named after
+capabilities: app bootstraps compose Node adapters, and server adapters implement
+the portable wealth package’s contracts. Workspace manifests declare a `portable`
+or `node` platform; lint enforces compatible, acyclic workspace dependencies and
+public imports. App-specific features stay inside their owning app.
 
 ```text
 apps/
@@ -44,7 +46,8 @@ apps/
   cli/          One-shot operator and cron commands
   console/      Local TypeScript console for developer exploration
 packages/
-  application/  Domain concepts, use cases, and ports
+  wealth/       Portable wealth calculation, account identity, sync and contracts
+  runtime/      Node operation context and logging
   server/       PostgreSQL, GraphQL, and provider/Node adapters
 tests/          Cross-package integration tests and fixtures
 ```
@@ -70,6 +73,7 @@ pnpm typecheck
 pnpm graphql:generate
 pnpm graphql:check
 pnpm test
+pnpm test:repository
 specific exec web -- pnpm db:migrate
 specific exec web -- pnpm console
 ```
@@ -78,7 +82,8 @@ The local console runs a complete session inside a `console` operation context
 and automatically exposes every explicit `@monii/*` package export under the
 `monii` namespace. For example, database exports are available from
 `monii.server.database`, and runtime context helpers are available from
-`monii.runtime.context`.
+`monii.runtime.context`. Wealth functions are available from `monii.wealth`.
+The runtime demonstration lives in `apps/console/src/runtime-demo.ts`.
 
 Console input supports TypeScript syntax and top-level `await`, but it is
 transpiled without type-checking or editor-style TypeScript completion. Node's

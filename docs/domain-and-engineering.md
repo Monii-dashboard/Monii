@@ -27,12 +27,14 @@ Monii is organized as a small, source-first pnpm workspace:
   files part of those packages' supported APIs.
 - `packages/runtime` owns Node-backed operation context, logging, and future
   process-wide observability capabilities used across backend code.
-- `packages/application` owns framework-independent domain concepts, use cases,
-  and ports. It must not read environment variables or depend on Next.js,
-  GraphQL, Drizzle, provider SDKs, or Node bootstraps.
+- `packages/wealth` owns wealth calculation, account identity, synchronization
+  use cases, and their caller-supplied contracts. It is portable and preserves
+  explicit dependency injection; portable code may perform work through contracts.
 - `packages/server` owns PostgreSQL, GraphQL transport, provider integrations,
-  environment-backed configuration, and other Node adapters.
-- root `tests` owns cross-package integration tests and their fixtures.
+  environment-backed configuration, and other Node adapters. It implements
+  wealth-owned contracts.
+- root `tests` owns cross-package tests and fixtures; `tests/repository` contains
+  repository-quality checks separately from application tests.
 
 The private operator CLI uses oclif file-based discovery under
 `apps/cli/src/commands` and generated help. Commands own parsing, metadata, and
@@ -42,22 +44,39 @@ parsing, so help never initializes financial dependencies. The runner establishe
 one operation context around dispatch and error handling. Nested directories
 provide command groups without a central registry; source execution uses `tsx`.
 
-The main dependency direction is `apps/web`, `apps/cli`, and `apps/console` to
-`packages/server` to `packages/application`. Apps, server, and application may
-also depend on `packages/runtime`; runtime must not depend on them. Shared
-packages expose only explicit package entry points and ship TypeScript source
-directly; package compilation and a monorepo task orchestrator are intentionally
-unnecessary at this scale. A future UI or worker should be added at the boundary
-that owns its runtime responsibility rather than weakening this direction.
+Keep `packages/` flat and name packages after cohesive capabilities. App-specific
+behavior stays in feature or command folders inside its owning app until a
+meaningful independent API or reuse warrants extraction. A single consumer is
+acceptable. Apps must not import another app's internals.
+
+Every workspace manifest declares `monii.platform` as `portable` or `node`.
+Portable packages may depend only on portable workspace packages and cannot use
+Node APIs, environment access, or concrete backend/framework adapters. Node
+packages may depend on portable or Node packages. Wealth is portable; server,
+runtime, and the app composition roots are Node. Web frontend code retains its
+server-import restriction outside HTTP route bootstraps.
+
+The workspace graph must be acyclic. Wealth cannot import server; future backend
+capabilities may compose both. Runtime remains independent of other workspace
+packages. Third-party compatibility remains an explicit dependency-review
+responsibility: workspace metadata does not certify external libraries.
+
+Shared packages expose explicit package entry points and ship TypeScript source
+directly. Cross-package production imports must use these public exports rather
+than private source paths. Package compilation and a task orchestrator are
+unnecessary at this scale. Adding a package requires its source, a manifest with
+platform, dependencies and exports, and standard TypeScript configuration with a
+`typecheck` script. Lint discovers manifests through `tooling/workspace-policy.mjs`
+and checks metadata, dependency compatibility, cycles, and import boundaries.
+Workspace typechecking runs recursively before the root TypeScript check.
 
 `packages/runtime` exposes focused subpaths rather than a root barrel. Each HTTP
 request, CLI run, console session, or future worker action establishes an
 operation context at its surface before invoking deeper code. The current
-context contains only a surface and an action ID, propagates through Node's
-asynchronous execution, and is available to application and adapter logging
-without explicit parameter threading. The runtime generates each action ID as
-the surface followed by a hyphen and a UUID. Business inputs and dependencies
-remain explicit; operation context must not become a general service container.
+context contains only a surface and an action ID and propagates through Node's
+asynchronous execution for backend logging. Runtime generates each action ID as
+the surface followed by a hyphen and a UUID. Wealth receives business inputs and
+dependencies explicitly; operation context must not become a service container.
 
 ## Conceptual model
 

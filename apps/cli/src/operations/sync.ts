@@ -1,4 +1,4 @@
-import { synchronizeFinancialSource } from "@monii/application";
+import { synchronizeFinancialSource } from "@monii/wealth";
 import { getOperationContext } from "@monii/runtime/context";
 import { log } from "@monii/runtime/log";
 import { createDatabase } from "@monii/server/database";

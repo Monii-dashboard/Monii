@@ -3,7 +3,7 @@ import {
   synchronizeFinancialSource,
   type FinancialSource,
   type NormalizedAccount,
-} from "../../packages/application/src/index";
+} from "@monii/wealth";
 import { sql } from "drizzle-orm";
 
 import { createFinancialRepository } from "@monii/server/wealth";

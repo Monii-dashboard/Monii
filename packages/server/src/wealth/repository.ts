@@ -20,7 +20,7 @@ import {
   type ValueCandidate,
   type WealthInclusion,
   type WealthRepository,
-} from "@monii/application";
+} from "@monii/wealth";
 import { and, asc, desc, eq, inArray, isNull, lt, ne, sql } from "drizzle-orm";
 
 import {

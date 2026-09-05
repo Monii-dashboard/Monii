@@ -41,8 +41,8 @@ async function createWorkspace(
 
 test("discovers workspace package exports and preserves partial usefulness", async () => {
   const workspaceRoot = await createWorkspace({
-    application: {
-      name: "@monii/application",
+    wealth: {
+      name: "@monii/wealth",
       exports: {
         ".": "./src/index.ts",
         "./useCases": { import: "./src/use-cases.ts" },
@@ -58,8 +58,8 @@ test("discovers workspace package exports and preserves partial usefulness", asy
     },
   });
   const importedModules: Record<string, Record<string, unknown> | Error> = {
-    "application/src/index.ts": { calculateWealth: () => 42 },
-    "application/src/use-cases.ts": { synchronize: "sync" },
+    "wealth/src/index.ts": { calculateWealth: () => 42 },
+    "wealth/src/use-cases.ts": { synchronize: "sync" },
     "server/src/broken.ts": new Error("missing provider configuration"),
     "server/src/database.ts": { getDb: () => "database" },
   };
@@ -78,16 +78,16 @@ test("discovers workspace package exports and preserves partial usefulness", asy
       return loaded;
     },
   });
-  const application = monii.application as Record<string, unknown>;
+  const wealth = monii.wealth as Record<string, unknown>;
   const server = monii.server as Record<string, Record<string, unknown>>;
 
-  expect(application.calculateWealth).toBeTypeOf("function");
-  expect(application.useCases).toEqual({ synchronize: "sync" });
+  expect(wealth.calculateWealth).toBeTypeOf("function");
+  expect(wealth.useCases).toEqual({ synchronize: "sync" });
   expect(server.database.getDb).toBeTypeOf("function");
   expect(monii.$console.loadedModules).toEqual([
-    "@monii/application",
-    "@monii/application/useCases",
     "@monii/server/database",
+    "@monii/wealth",
+    "@monii/wealth/useCases",
   ]);
   expect(monii.$console.loadErrors["@monii/server/broken"]?.message).toBe(
     "missing provider configuration",
@@ -96,13 +96,13 @@ test("discovers workspace package exports and preserves partial usefulness", asy
     "unsupported wildcard",
   );
   expect(Object.isFrozen(monii)).toBe(true);
-  expect(Object.isFrozen(application)).toBe(true);
+  expect(Object.isFrozen(wealth)).toBe(true);
 });
 
 test("reports namespace collisions without replacing the first export", async () => {
   const workspaceRoot = await createWorkspace({
-    application: {
-      name: "@monii/application",
+    wealth: {
+      name: "@monii/wealth",
       exports: {
         ".": "./src/index.ts",
         "./reports": "./src/reports.ts",
@@ -116,11 +116,11 @@ test("reports namespace collisions without replacing the first export", async ()
         ? { reports: "root export" }
         : { createReport: () => undefined },
   });
-  const application = monii.application as Record<string, unknown>;
+  const wealth = monii.wealth as Record<string, unknown>;
 
-  expect(application.reports).toBe("root export");
-  expect(monii.$console.loadedModules).toEqual(["@monii/application"]);
-  expect(monii.$console.loadErrors["@monii/application/reports"]?.message).toContain(
+  expect(wealth.reports).toBe("root export");
+  expect(monii.$console.loadedModules).toEqual(["@monii/wealth"]);
+  expect(monii.$console.loadErrors["@monii/wealth/reports"]?.message).toContain(
     "collides",
   );
 });
