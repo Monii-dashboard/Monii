@@ -20,6 +20,12 @@ config "financial_log_detail" {
   default = "standard"
 }
 
+# Set `pretty_logs = true` in gitignored specific.local to make local terminal
+# logs human-readable. Deployed environments retain structured JSON logs.
+config "pretty_logs" {
+  default = "false"
+}
+
 secret "powens_client_secret" {}
 
 secret "powens_user_access_token" {}
@@ -45,6 +51,7 @@ service "web" {
     DATABASE_URL         = postgres.main.url
     FINANCIAL_LOG_DETAIL = config.financial_log_detail
     TEST_DATABASE_URL    = postgres.main.url
+    MONII_PRETTY_LOGS = config.pretty_logs
   }
 
   dev {
@@ -71,5 +78,6 @@ cron "daily-sync" {
     ACCOUNT_IDENTITY_FINGERPRINT_KEY         = secret.account_identity_fingerprint_key
     ACCOUNT_IDENTITY_FINGERPRINT_KEY_VERSION = config.account_identity_fingerprint_key_version
     FINANCIAL_LOG_DETAIL                     = config.financial_log_detail
+    MONII_PRETTY_LOGS = config.pretty_logs
   }
 }

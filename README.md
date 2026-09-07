@@ -116,6 +116,23 @@ as separate required-check candidates for pull requests to and pushes on
 Infrastructure and development-environment changes belong in `specific.hcl`.
 Run `specific check` after changing that file.
 
+### Local log formatting
+
+Runtime logs are JSON by default for log collectors. To make logs easier to read
+while developing, set the following non-secret Specific configuration in the
+gitignored `specific.local` file, then run the app through `specific dev` or
+`specific exec`:
+
+```hcl
+config {
+  pretty_logs = true
+}
+```
+
+This injects `MONII_PRETTY_LOGS=true` and renders colored timestamps, level,
+surface, action ID, event/message, and remaining fields. The default remains
+structured JSON, including for deployed environments.
+
 ## Operator CLI
 
 The private CLI provides generated help without database or Powens credentials:

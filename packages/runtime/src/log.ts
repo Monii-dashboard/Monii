@@ -16,6 +16,51 @@ export type Log = {
   error: (...args: LogArguments) => void;
 };
 
+const ansi = {
+  reset: "\u001B[0m",
+  dim: "\u001B[2m",
+  red: "\u001B[31m",
+  yellow: "\u001B[33m",
+  cyan: "\u001B[36m",
+  green: "\u001B[32m",
+} as const;
+
+function color(value: string, code: keyof typeof ansi) {
+  return `${ansi[code]}${value}${ansi.reset}`;
+}
+
+function prettyLogsEnabled() {
+  return process.env.MONII_PRETTY_LOGS?.toLowerCase() === "true";
+}
+
+function levelLabel(level: LogLevel) {
+  switch (level) {
+    case "error":
+      return color("ERROR", "red");
+    case "warn":
+      return color("WARN ", "yellow");
+    case "info":
+      return color("INFO ", "green");
+  }
+}
+
+function formatPrettyLog(record: Record<string, unknown>) {
+  const { action_id, event, level, message, msg, surface, ...fields } = record;
+  const text = message ?? msg;
+  const details = Object.keys(fields).length === 0 ? "" : ` ${JSON.stringify(fields)}`;
+
+  return [
+    color(new Date().toISOString(), "dim"),
+    levelLabel(level as LogLevel),
+    color(`[${String(surface)}]`, "cyan"),
+    color(`[${String(action_id)}]`, "dim"),
+    event === undefined ? "" : color(String(event), "cyan"),
+    text === undefined ? "" : String(text),
+  ]
+    .filter(Boolean)
+    .join(" ") + details;
+}
+
 function sanitize(value: unknown, key = "", depth = 0): unknown {
   if (/iban|account_number|fingerprint_key|secret|token/i.test(key)) {
     return "[redacted]";
@@ -57,15 +102,15 @@ function write(level: LogLevel, ...args: LogArguments) {
   const context = getOperationContext();
 
   const safeFields = sanitize(fields) as LogFields;
-  console.log(
-    JSON.stringify({
-      level,
-      ...safeFields,
-      ...(message === undefined ? {} : { message }),
-      ...(event === undefined ? {} : { event }),
-      ...context,
-    }),
-  );
+  const record = {
+    level,
+    ...safeFields,
+    ...(message === undefined ? {} : { message }),
+    ...(event === undefined ? {} : { event }),
+    ...context,
+  };
+
+  console.log(prettyLogsEnabled() ? formatPrettyLog(record) : JSON.stringify(record));
 }
 
 export const log: Log = Object.assign(
