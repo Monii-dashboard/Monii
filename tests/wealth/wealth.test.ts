@@ -1,36 +1,60 @@
+import type { AccountValuationCandidate } from "@monii/accounts";
 import {
-  calculateWealthSnapshot,
-  classifyAccountIdentity,
-  createCurrentWealth,
-  synchronizeFinancialSource,
-  type AccountWealthState,
-  type FinancialSource,
+  classifyExternalAccountIdentity,
+  synchronizeSourceInstance,
+  type ExternalFinancialSource,
   type IdentityAccount,
   type SynchronizationRepository,
-} from "@monii/wealth";
+} from "@monii/ingestion";
+import {
+  calculateWealthSnapshot,
+  type AccountWealthCalculationState,
+} from "@monii/wealth-calculation";
+import { buildCurrentWealthView } from "@monii/wealth-query";
 import { describe, expect, test, vi } from "vitest";
 
 const observedAt = new Date("2026-08-30T12:00:00Z");
 
-function account(overrides: Partial<AccountWealthState> = {}): AccountWealthState {
+function candidate(
+  amount = "100.25",
+  overrides: Partial<AccountValuationCandidate> = {},
+): AccountValuationCandidate {
   return {
     accountId: "account-1",
-    balance: {
-      amount: "100.25",
-      currency: "EUR",
-      observationId: "observation-1",
-      retrievedAt: observedAt,
-      sourceValidAt: observedAt,
-    },
+    amount,
+    basis: "balance",
+    currency: "EUR",
+    effectiveAt: observedAt,
+    recordedAt: observedAt,
+    valuationCandidateId: "valuation-1",
+    valuationMethod: "reported",
+    ...overrides,
+  };
+}
+
+function account(
+  overrides: Partial<AccountWealthCalculationState> = {},
+): AccountWealthCalculationState {
+  return {
+    accountId: "account-1",
+    accountName: "Checking",
+    archivedAt: null,
+    balance: candidate(),
+    category: "cash",
     estimatedValue: null,
+    externalLifecycle: "active",
     identityConflict: false,
-    inclusion: "automatic",
-    kind: "cash",
-    latestObservationId: "observation-1",
-    lifecycle: "active",
+    inclusionPolicy: "automatic",
+    institutionId: "bank-1",
+    institutionName: "Bank",
+    latestDataRecordedAt: observedAt,
     likelyDuplicateGroupId: null,
+    managementMode: "external",
+    mergedIntoAccountId: null,
+    purpose: "personal",
     refreshUncertain: false,
-    usage: "private",
+    selectedValuationMethod: "reported",
+    typeSupport: "supported",
     ...overrides,
   };
 }
@@ -38,56 +62,43 @@ function account(overrides: Partial<AccountWealthState> = {}): AccountWealthStat
 function identity(overrides: Partial<IdentityAccount> = {}): IdentityAccount {
   return {
     accountId: "account-1",
+    category: "cash",
     currency: "EUR",
     evidence: {
       accountNumberFingerprint: "number-1",
       ibanFingerprint: "iban-1",
       keyVersion: "v1",
-      sourceNameFingerprint: "name-1",
+      reportedNameFingerprint: "name-1",
     },
+    externalAccountId: "external-1",
     institutionId: "bank-1",
-    kind: "cash",
-    referenceId: "reference-1",
     ...overrides,
   };
 }
 
-describe("account identity policy", () => {
-  test("confirms the composite identity but separates shared-IBAN currency pockets", () => {
+describe("external account identity policy", () => {
+  test("confirms stable identity but separates currency pockets", () => {
     expect(
-      classifyAccountIdentity(
+      classifyExternalAccountIdentity(
         identity(),
-        identity({ accountId: "account-2", referenceId: "reference-2" }),
+        identity({ accountId: "account-2", externalAccountId: "external-2" }),
       ),
     ).toBe("confirmed_duplicate");
     expect(
-      classifyAccountIdentity(
+      classifyExternalAccountIdentity(
         identity(),
         identity({
           accountId: "usd",
           currency: "USD",
-          referenceId: "reference-usd",
-        }),
-      ),
-    ).toBe("distinct");
-    expect(
-      classifyAccountIdentity(
-        identity(),
-        identity({
-          accountId: "other-number",
-          evidence: {
-            ...identity().evidence,
-            accountNumberFingerprint: "number-2",
-          },
-          referenceId: "reference-3",
+          externalAccountId: "external-usd",
         }),
       ),
     ).toBe("distinct");
   });
 
-  test("creates a likely candidate only when strong evidence is unavailable", () => {
+  test("uses mutable names only to suggest a likely duplicate", () => {
     expect(
-      classifyAccountIdentity(
+      classifyExternalAccountIdentity(
         identity({ evidence: { ...identity().evidence, ibanFingerprint: null } }),
         identity({
           accountId: "account-2",
@@ -96,134 +107,124 @@ describe("account identity policy", () => {
             accountNumberFingerprint: null,
             ibanFingerprint: null,
           },
-          referenceId: "reference-2",
+          externalAccountId: "external-2",
         }),
       ),
     ).toBe("likely_duplicate");
   });
 });
 
-describe("wealth policy", () => {
-  test("keeps an inclusive total and a candidate-adjusted estimate", () => {
+describe("wealth calculation policy", () => {
+  test("keeps an inclusive headline and duplicate-adjusted estimate", () => {
     const snapshot = calculateWealthSnapshot([
       account({ accountId: "a", likelyDuplicateGroupId: "group" }),
       account({
         accountId: "b",
-        balance: {
-          amount: "90",
-          currency: "EUR",
-          observationId: "observation-b",
-          retrievedAt: new Date("2026-08-31T12:00:00Z"),
-          sourceValidAt: new Date("2026-08-31T12:00:00Z"),
-        },
+        balance: candidate("90", {
+          accountId: "b",
+          effectiveAt: new Date("2026-08-31T12:00:00Z"),
+          valuationCandidateId: "valuation-b",
+        }),
         likelyDuplicateGroupId: "group",
       }),
     ]);
 
     expect(snapshot).toMatchObject({
-      candidateAdjustedTotalAmount: "90",
+      duplicateAdjustedEstimateAmount: "90",
+      headlineAmount: "190.25",
       isComplete: false,
-      knownTotalAmount: "190.25",
       likelyDuplicateGroupCount: 1,
     });
-    expect(snapshot.contributions.map((item) => item.duplicateRole)).toEqual([
-      "excluded_from_adjusted",
+    expect(snapshot.decisions.map((item) => item.duplicateRole)).toEqual([
+      "excluded_from_adjusted_estimate",
       "representative",
     ]);
   });
 
-  test("uses exact signed values and preserves non-EUR native data", () => {
+  test("distinguishes unknown, known unsupported, and missing currency", () => {
     const snapshot = calculateWealthSnapshot([
-      account(),
+      account({ accountId: "unknown", category: "unknown", typeSupport: "unrecognized" }),
+      account({ accountId: "loan", category: "unknown", typeSupport: "known_unsupported" }),
       account({
-        accountId: "negative",
-        balance: {
-          amount: "-0.15000001",
-          currency: "EUR",
-          observationId: "negative-observation",
-          retrievedAt: observedAt,
-          sourceValidAt: null,
-        },
-      }),
-      account({
-        accountId: "usd",
-        balance: {
-          amount: "42.5",
-          currency: "USD",
-          observationId: "usd-observation",
-          retrievedAt: observedAt,
-          sourceValidAt: observedAt,
-        },
+        accountId: "missing-currency",
+        balance: candidate("42", { accountId: "missing-currency", currency: null }),
       }),
     ]);
 
-    expect(snapshot.knownTotalAmount).toBe("100.09999999");
-    expect(snapshot.isComplete).toBe(false);
-    expect(snapshot.contributions[2]).toMatchObject({
-      decision: "unsupported_currency",
-      reportedAmount: "42.5",
-      reportedCurrency: "USD",
-    });
+    expect(snapshot.decisions.map((item) => item.decision)).toEqual([
+      "unknown_account_category",
+      "known_unsupported_account",
+      "missing_currency",
+    ]);
+    expect(snapshot.headlineAmount).toBe("0");
   });
 
-  test("marks account uncertainty and identity conflicts incomplete", () => {
-    expect(
-      calculateWealthSnapshot([account({ refreshUncertain: true })]).isComplete,
-    ).toBe(false);
-    expect(
-      calculateWealthSnapshot([account({ identityConflict: true })]).isComplete,
-    ).toBe(false);
+  test("uses the category-selected candidate with no silent fallback", () => {
+    const snapshot = calculateWealthSnapshot([
+      account({
+        balance: null,
+        estimatedValue: candidate("500", { basis: "estimated_value" }),
+      }),
+    ]);
+    expect(snapshot.decisions[0]?.decision).toBe("missing_selected_valuation");
+    expect(snapshot.headlineAmount).toBe("0");
   });
 });
 
-describe("current wealth health", () => {
-  test("keeps failure separate from stale value freshness", () => {
+describe("current wealth projection", () => {
+  test("uses frozen labels and distinguishes failed refresh from staleness", () => {
     const baseAccount = {
       accountId: "account-1",
+      accountName: null,
       adjustedAmount: "10",
-      amount: "10",
-      basis: "balance" as const,
-      decision: "contributing" as const,
+      category: "cash" as const,
+      contributedAmount: "10",
+      decision: "included" as const,
       duplicateRole: "none" as const,
-      hasNewerFailedSync: false,
+      evaluatedAmount: "10",
+      evaluatedCurrency: "EUR",
       identityConflict: false,
-      institutionId: "institution-1",
-      institutionName: "Bank",
-      kind: "cash" as const,
-      name: "Cash",
-      reportedAmount: "10",
-      reportedCurrency: "EUR",
-      sourceValidAt: observedAt,
-      valueRetrievedAt: observedAt,
+      institutionId: null,
+      institutionName: null,
+      refreshUncertain: false,
+      valuationEffectiveAt: observedAt,
+      valuationRecordedAt: observedAt,
     };
     const state = {
-      lastSuccessfulSyncAt: observedAt,
-      latestSyncStatus: "succeeded" as const,
+      lastSuccessfulSynchronizationAt: observedAt,
+      latestSynchronizationStatus: "succeeded" as const,
       snapshot: {
         accounts: [baseAccount],
-        candidateAdjustedTotalAmount: "10",
+        duplicateAdjustedEstimateAmount: "10",
+        headlineAmount: "10",
         isComplete: true,
-        knownTotalAmount: "10",
         likelyDuplicateGroupCount: 0,
         recordedAt: observedAt,
         snapshotId: "snapshot-1",
       },
     };
 
-    expect(createCurrentWealth(state, new Date("2026-09-01T12:00:00Z")).health).toBe("fresh");
-    expect(createCurrentWealth(state, new Date("2026-09-01T12:00:00.001Z")).health).toBe("stale");
+    const fresh = buildCurrentWealthView(state, new Date("2026-09-01T12:00:00Z"));
+    expect(fresh.health).toBe("fresh");
+    expect(fresh.institutions[0]).toMatchObject({
+      accounts: [{ name: "Unnamed account" }],
+      name: "Unknown institution",
+    });
     expect(
-      createCurrentWealth(
+      buildCurrentWealthView(state, new Date("2026-09-01T12:00:00.001Z")).health,
+    ).toBe("stale");
+    expect(
+      buildCurrentWealthView(
         {
           ...state,
           snapshot: {
             ...state.snapshot,
-            accounts: [{ ...baseAccount, hasNewerFailedSync: true }],
+            accounts: [{ ...baseAccount, refreshUncertain: true }],
           },
         },
         new Date("2026-08-30T13:00:00Z"),
       ).health,
-    ).toBe("sync_failed");
+    ).toBe("synchronization_failed");
   });
 });
 
@@ -246,7 +247,10 @@ function connection(externalId: string) {
   return {
     active: true,
     externalId,
-    institution: { externalId: `institution-${externalId}`, name: "Bank" },
+    institution: {
+      externalId: `institution-${externalId}`,
+      reportedName: "Bank",
+    },
     nextTryAt: null,
     sourceErrorCode: null,
     sourceState: null,
@@ -262,7 +266,7 @@ describe("synchronization orchestration", () => {
       status: "partial",
       successfulAccountCount: 2,
     });
-    const source: FinancialSource = {
+    const source: ExternalFinancialSource = {
       getExternalSubjectId: async () => "subject-1",
       listAccounts: async (externalId) => {
         if (externalId === "2") throw { code: "temporary", kind: "api" };
@@ -272,12 +276,12 @@ describe("synchronization orchestration", () => {
     };
 
     await expect(
-      synchronizeFinancialSource({
+      synchronizeSourceInstance({
         actionId: "action",
+        adapterKey: "test",
         repository: persistence,
         source,
         sourceKey: "source",
-        sourceKind: "test",
         sourceName: "Test",
       }),
     ).resolves.toMatchObject({
@@ -293,21 +297,20 @@ describe("synchronization orchestration", () => {
     vi.mocked(persistence.startRun).mockResolvedValue({
       status: "skipped_already_running",
     });
-    const source: FinancialSource = {
+    const source: ExternalFinancialSource = {
       getExternalSubjectId: vi.fn(async () => "unused"),
       listAccounts: vi.fn(),
       listConnections: vi.fn(),
     };
 
-    const result = await synchronizeFinancialSource({
+    const result = await synchronizeSourceInstance({
       actionId: "action",
+      adapterKey: "test",
       repository: persistence,
       source,
       sourceKey: "source",
-      sourceKind: "test",
       sourceName: "Test",
     });
-
     expect(result.status).toBe("skipped_already_running");
     expect(source.getExternalSubjectId).not.toHaveBeenCalled();
   });

@@ -1,12 +1,16 @@
 import {
-  getCurrentWealth,
-  synchronizeFinancialSource,
-  type FinancialSource,
-  type NormalizedAccount,
-} from "@monii/wealth";
+  synchronizeSourceInstance,
+  type ExternalFinancialSource,
+  type NormalizedExternalAccount,
+} from "@monii/ingestion";
+import { createPostgresSynchronizationRepository } from "@monii/postgres/ingestion";
+import {
+  createPostgresWealthCalculationRepository,
+  createPostgresWealthQueryRepository,
+} from "@monii/postgres/wealth";
+import { getCurrentWealth } from "@monii/wealth-query";
 import { sql } from "drizzle-orm";
 
-import { createFinancialRepository } from "@monii/server/wealth";
 import { expect, test } from "../integration-test";
 
 const observedAt = new Date("2026-08-31T10:00:00Z");
@@ -14,10 +18,11 @@ const observedAt = new Date("2026-08-31T10:00:00Z");
 function account(
   externalId: string,
   amount: string,
-  overrides: Partial<NormalizedAccount> = {},
-): NormalizedAccount {
+  overrides: Partial<NormalizedExternalAccount> = {},
+): NormalizedExternalAccount {
   return {
     balance: amount,
+    category: "cash",
     currency: "EUR",
     estimatedValue: null,
     externalId,
@@ -25,14 +30,15 @@ function account(
       accountNumberFingerprint: null,
       ibanFingerprint: "iban-shared",
       keyVersion: "v1",
-      sourceNameFingerprint: "name-checking",
+      reportedNameFingerprint: "name-checking",
     },
-    kind: "cash",
     lifecycle: "active",
-    name: "Checking",
-    sourceType: "checking",
+    purpose: "personal",
+    rawCurrency: "eur",
+    reportedName: "Checking",
+    reportedType: "checking",
     sourceValidAt: observedAt,
-    usage: "private",
+    typeSupport: "supported",
     ...overrides,
   };
 }
@@ -41,7 +47,7 @@ function connection(externalId: string, institutionId = "bank-uuid") {
   return {
     active: true,
     externalId,
-    institution: { externalId: institutionId, name: "Example Bank" },
+    institution: { externalId: institutionId, reportedName: "Example Bank" },
     nextTryAt: null,
     sourceErrorCode: null,
     sourceState: null,
@@ -50,8 +56,8 @@ function connection(externalId: string, institutionId = "bank-uuid") {
 }
 
 function source(
-  accountsByConnection: Readonly<Record<string, readonly NormalizedAccount[]>>,
-): FinancialSource {
+  accountsByConnection: Readonly<Record<string, readonly NormalizedExternalAccount[]>>,
+): ExternalFinancialSource {
   return {
     getExternalSubjectId: async () => "subject-1",
     listAccounts: async (connectionId) => ({
@@ -60,27 +66,29 @@ function source(
       isComplete: true,
       reportedTotal: accountsByConnection[connectionId]?.length ?? 0,
     }),
-    listConnections: async () => Object.keys(accountsByConnection).map((id) => connection(id)),
+    listConnections: async () =>
+      Object.keys(accountsByConnection).map((id) => connection(id)),
   };
 }
 
 async function sync(
-  repository: ReturnType<typeof createFinancialRepository>,
-  financialSource: FinancialSource,
+  repository: ReturnType<typeof createPostgresSynchronizationRepository>,
+  financialSource: ExternalFinancialSource,
   actionId: string,
 ) {
-  return synchronizeFinancialSource({
+  return synchronizeSourceInstance({
     actionId,
+    adapterKey: "test",
     repository,
     source: financialSource,
-    sourceKey: "powens-default",
-    sourceKind: "powens",
-    sourceName: "Powens",
+    sourceKey: "test-default",
+    sourceName: "Test source",
   });
 }
 
-test("repairs an existing duplicated account without rewriting history", async ({ db }) => {
-  const repository = createFinancialRepository(db);
+test("merges with a stable alias and never rewrites historical provenance", async ({ db }) => {
+  const repository = createPostgresSynchronizationRepository(db);
+  const queryRepository = createPostgresWealthQueryRepository(db);
   await sync(
     repository,
     source({
@@ -90,7 +98,7 @@ test("repairs an existing duplicated account without rewriting history", async (
             accountNumberFingerprint: null,
             ibanFingerprint: "old-iban-1",
             keyVersion: "v1",
-            sourceNameFingerprint: "name-checking",
+            reportedNameFingerprint: "name-checking",
           },
         }),
       ],
@@ -100,16 +108,16 @@ test("repairs an existing duplicated account without rewriting history", async (
             accountNumberFingerprint: null,
             ibanFingerprint: "old-iban-2",
             keyVersion: "v1",
-            sourceNameFingerprint: "name-checking",
+            reportedNameFingerprint: "name-checking",
           },
         }),
       ],
     }),
     "first",
   );
-
-  const before = await getCurrentWealth(repository, observedAt);
-  expect(before.knownTotalAmount).toBe("1013.24000000");
+  expect((await getCurrentWealth(queryRepository, observedAt)).headlineAmount).toBe(
+    "1013.24000000",
+  );
 
   await sync(
     repository,
@@ -124,206 +132,185 @@ test("repairs an existing duplicated account without rewriting history", async (
     "repair",
   );
 
-  const after = await getCurrentWealth(repository, new Date("2026-08-31T12:00:00Z"));
-  expect(after).toMatchObject({
+  expect(
+    await getCurrentWealth(queryRepository, new Date("2026-08-31T12:00:00Z")),
+  ).toMatchObject({
+    headlineAmount: "507.00000000",
     isComplete: true,
-    knownTotalAmount: "507.00000000",
     likelyDuplicateGroupCount: 0,
   });
   const state = await db.execute<{
-    active_accounts: number;
-    archived_accounts: number;
-    confirmed_matches: number;
-    references: number;
+    accounts: number;
+    aliases: number;
+    external_accounts: number;
     snapshots: number;
   }>(sql`
     select
-      (select count(*)::int from financial_accounts where archived_at is null) active_accounts,
-      (select count(*)::int from financial_accounts where merged_into_account_id is not null) archived_accounts,
-      (select count(*)::int from account_identity_matches where classification = 'confirmed_duplicate') confirmed_matches,
-      (select count(*)::int from account_source_references) references,
-      (select count(*)::int from wealth_snapshots) snapshots
+      (select count(*)::int from financial.accounts) accounts,
+      (select count(*)::int from financial.account_merges) aliases,
+      (select count(*)::int from ingestion.external_accounts) external_accounts,
+      (select count(*)::int from wealth.snapshots) snapshots
   `);
   expect(state[0]).toEqual({
-    active_accounts: 1,
-    archived_accounts: 1,
-    confirmed_matches: 1,
-    references: 2,
+    accounts: 2,
+    aliases: 1,
+    external_accounts: 2,
     snapshots: 2,
   });
-  const historical = await db.execute<{ known_total_amount: string }>(sql`
-    select known_total_amount
-    from wealth_snapshots
+  const historical = await db.execute<{ headline_amount: string }>(sql`
+    select headline_amount
+    from wealth.snapshots
     order by recorded_at asc
     limit 1
   `);
-  expect(historical[0]?.known_total_amount).toBe("1013.24000000");
+  expect(historical[0]?.headline_amount).toBe("1013.24000000");
 });
 
-test("keeps likely duplicates inclusive and exposes an adjusted estimate", async ({ db }) => {
-  const repository = createFinancialRepository(db);
+test("preserves raw unknown data and canonical labels without inventing zero", async ({ db }) => {
+  const repository = createPostgresSynchronizationRepository(db);
+  const queryRepository = createPostgresWealthQueryRepository(db);
   await sync(
     repository,
     source({
-      "connection-1": [
-        account("candidate-1", "100", {
-          identity: {
-            accountNumberFingerprint: null,
-            ibanFingerprint: null,
-            keyVersion: "v1",
-            sourceNameFingerprint: "same-original-name",
-          },
-        }),
-      ],
-      "connection-2": [
-        account("candidate-2", "90", {
-          identity: {
-            accountNumberFingerprint: null,
-            ibanFingerprint: null,
-            keyVersion: "v1",
-            sourceNameFingerprint: "same-original-name",
-          },
-          sourceValidAt: new Date("2026-08-31T11:00:00Z"),
+      connection: [
+        account("mystery", "42", {
+          category: "unknown",
+          currency: null,
+          rawCurrency: "??",
+          reportedName: "Original label",
+          reportedType: "future_product",
+          typeSupport: "unrecognized",
         }),
       ],
     }),
-    "candidate",
+    "unknown",
+  );
+  await sync(
+    repository,
+    source({
+      connection: [
+        account("mystery", "52", {
+          category: "unknown",
+          currency: null,
+          rawCurrency: "??",
+          reportedName: "Changed provider label",
+          reportedType: "future_product",
+          typeSupport: "unrecognized",
+        }),
+      ],
+    }),
+    "unknown-again",
   );
 
-  const wealth = await getCurrentWealth(repository, new Date("2026-08-31T12:00:00Z"));
-  expect(wealth).toMatchObject({
-    candidateAdjustedTotalAmount: "90.00000000",
-    isComplete: false,
-    knownTotalAmount: "190.00000000",
-    likelyDuplicateGroupCount: 1,
-    possibleTotalMaximum: "190",
-    possibleTotalMinimum: "90",
+  const wealth = await getCurrentWealth(queryRepository, observedAt);
+  expect(wealth).toMatchObject({ headlineAmount: "0.00000000", isComplete: false });
+  expect(wealth.institutions[0]?.accounts[0]).toMatchObject({
+    decision: "unknown_account_category",
+    evaluatedAmount: null,
+    name: "Original label",
+  });
+  const stored = await db.execute<{
+    canonical_name: string;
+    currency: string | null;
+    raw_currency: string;
+    reported_name: string;
+  }>(sql`
+    select
+      a.name canonical_name,
+      v.currency,
+      o.reported_currency raw_currency,
+      ea.reported_name
+    from ingestion.external_accounts ea
+    join financial.accounts a on a.id = ea.account_id
+    join ingestion.external_account_observations o on o.external_account_id = ea.id
+    join ingestion.reported_account_valuations rv on rv.external_account_observation_id = o.id
+    join financial.account_valuation_candidates v on v.id = rv.valuation_candidate_id
+    order by o.observed_at desc
+    limit 1
+  `);
+  expect(stored[0]).toEqual({
+    canonical_name: "Original label",
+    currency: null,
+    raw_currency: "??",
+    reported_name: "Changed provider label",
   });
 });
 
-test("isolates an account error and falls back to its last successful value", async ({ db }) => {
-  const repository = createFinancialRepository(db);
-  await sync(repository, source({ "connection-1": [account("cash", "42")] }), "success");
-  const failedAccountSource: FinancialSource = {
+test("keeps the last valuation when one account refresh fails", async ({ db }) => {
+  const repository = createPostgresSynchronizationRepository(db);
+  const queryRepository = createPostgresWealthQueryRepository(db);
+  await sync(repository, source({ connection: [account("cash", "42")] }), "success");
+  const failedSource: ExternalFinancialSource = {
     getExternalSubjectId: async () => "subject-1",
     listAccounts: async () => ({
       accounts: [],
-      failures: [
-        {
-          externalId: "cash",
-          failure: { code: "temporary_account_error", kind: "provider_account" },
-        },
-      ],
+      failures: [{
+        externalId: "cash",
+        failure: { code: "temporary_account_error", kind: "provider_account" },
+      }],
       isComplete: true,
       reportedTotal: 1,
     }),
-    listConnections: async () => [connection("connection-1")],
+    listConnections: async () => [connection("connection")],
   };
 
-  const result = await sync(repository, failedAccountSource, "partial");
-  const wealth = await getCurrentWealth(repository, new Date("2026-08-31T12:00:00Z"));
-
-  expect(result.status).toBe("partial");
-  expect(wealth).toMatchObject({
-    health: "sync_failed",
+  expect((await sync(repository, failedSource, "partial")).status).toBe("partial");
+  expect(await getCurrentWealth(queryRepository, observedAt)).toMatchObject({
+    health: "synchronization_failed",
+    headlineAmount: "42.00000000",
     isComplete: false,
-    knownTotalAmount: "42.00000000",
-    latestSyncStatus: "partial",
+    latestSynchronizationStatus: "partial",
   });
   const results = await db.execute<{ status: string }>(sql`
-    select status from account_sync_results order by finished_at
+    select status from ingestion.synchronization_account_results order by finished_at
   `);
   expect(results.map((row) => row.status)).toEqual(["succeeded", "provider_error"]);
 });
 
-test("does not merge same-IBAN pockets with different currencies", async ({ db }) => {
-  const repository = createFinancialRepository(db);
+test("creates a new immutable snapshot when account policy changes", async ({ db }) => {
+  const synchronizationRepository = createPostgresSynchronizationRepository(db);
+  const calculationRepository = createPostgresWealthCalculationRepository(db);
+  const queryRepository = createPostgresWealthQueryRepository(db);
   await sync(
-    repository,
-    source({
-      revolut: [
-        account("eur-pocket", "10", {
-          identity: {
-            accountNumberFingerprint: "eur-number",
-            ibanFingerprint: "revolut-iban",
-            keyVersion: "v1",
-            sourceNameFingerprint: "eur-pocket",
-          },
-        }),
-        account("usd-pocket", "20", {
-          currency: "USD",
-          identity: {
-            accountNumberFingerprint: "usd-number",
-            ibanFingerprint: "revolut-iban",
-            keyVersion: "v1",
-            sourceNameFingerprint: "usd-pocket",
-          },
-        }),
-      ],
-    }),
-    "revolut",
+    synchronizationRepository,
+    source({ connection: [account("cash", "42")] }),
+    "initial",
   );
-
-  const counts = await db.execute<{ active_accounts: number; matches: number }>(sql`
-    select
-      (select count(*)::int from financial_accounts where archived_at is null) active_accounts,
-      (select count(*)::int from account_identity_matches) matches
+  const accountRows = await db.execute<{ id: string }>(sql`
+    select id from financial.accounts limit 1
   `);
-  expect(counts[0]).toEqual({ active_accounts: 2, matches: 0 });
-  const wealth = await getCurrentWealth(repository, observedAt);
-  expect(wealth.knownTotalAmount).toBe("10.00000000");
-  expect(wealth.institutions[0]?.accounts).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({
-        decision: "unsupported_currency",
-        reportedAmount: "20.00000000",
-        reportedCurrency: "USD",
-      }),
-    ]),
-  );
-});
+  const accountId = accountRows[0]?.id;
+  expect(accountId).toBeDefined();
 
-test("infers not-seen only from a complete account listing", async ({ db }) => {
-  const repository = createFinancialRepository(db);
-  await sync(repository, source({ connection: [account("cash", "42")] }), "success");
-  const listingSource = (isComplete: boolean): FinancialSource => ({
-    getExternalSubjectId: async () => "subject-1",
-    listAccounts: async () => ({
-      accounts: [],
-      failures: [],
-      isComplete,
-      reportedTotal: isComplete ? 0 : 1,
+  await expect(
+    calculationRepository.changeAccountInclusionPolicy({
+      accountId: accountId!,
+      actionId: "operator-policy-change",
+      inclusionPolicy: "exclude",
     }),
-    listConnections: async () => [connection("connection")],
-  });
-
-  await sync(repository, listingSource(false), "truncated");
-  expect(await getCurrentWealth(repository, observedAt)).toMatchObject({
+  ).resolves.toBe(true);
+  expect(await getCurrentWealth(queryRepository, observedAt)).toMatchObject({
+    headlineAmount: "0.00000000",
     isComplete: true,
-    knownTotalAmount: "42.00000000",
   });
-  let notSeen = await db.execute<{ count: number }>(sql`
-    select count(*)::int count from account_sync_results where status = 'not_seen'
+  const decisions = await db.execute<{ decision: string }>(sql`
+    select d.decision
+    from wealth.snapshot_account_decisions d
+    join wealth.snapshots s on s.id = d.snapshot_id
+    order by s.recorded_at, s.id
   `);
-  expect(notSeen[0]?.count).toBe(0);
-
-  await sync(repository, listingSource(true), "complete");
-  expect(await getCurrentWealth(repository, observedAt)).toMatchObject({
-    isComplete: false,
-    knownTotalAmount: "42.00000000",
-  });
-  notSeen = await db.execute<{ count: number }>(sql`
-    select count(*)::int count from account_sync_results where status = 'not_seen'
-  `);
-  expect(notSeen[0]?.count).toBe(1);
+  expect(decisions.map((row) => row.decision)).toEqual([
+    "included",
+    "excluded_by_policy",
+  ]);
 });
 
-test("prevents overlapping runs for one source", async ({ db }) => {
-  const repository = createFinancialRepository(db);
+test("prevents overlapping runs for one source instance", async ({ db }) => {
+  const repository = createPostgresSynchronizationRepository(db);
   const input = {
     actionId: "first",
+    adapterKey: "test",
     sourceKey: "source",
-    sourceKind: "test",
     sourceName: "Test",
   };
   const first = await repository.startRun(input);

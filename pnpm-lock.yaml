@@ -29,15 +29,30 @@ importers:
       '@graphql-typed-document-node/core':
         specifier: 3.2.0
         version: 3.2.0(graphql@16.12.0)
+      '@monii/accounts':
+        specifier: workspace:*
+        version: link:packages/accounts
+      '@monii/graphql':
+        specifier: workspace:*
+        version: link:packages/graphql
+      '@monii/ingestion':
+        specifier: workspace:*
+        version: link:packages/ingestion
+      '@monii/postgres':
+        specifier: workspace:*
+        version: link:packages/postgres
+      '@monii/powens':
+        specifier: workspace:*
+        version: link:packages/powens
       '@monii/runtime':
         specifier: workspace:*
         version: link:packages/runtime
-      '@monii/server':
+      '@monii/wealth-calculation':
         specifier: workspace:*
-        version: link:packages/server
-      '@monii/wealth':
+        version: link:packages/wealth-calculation
+      '@monii/wealth-query':
         specifier: workspace:*
-        version: link:packages/wealth
+        version: link:packages/wealth-query
       '@tailwindcss/postcss':
         specifier: ^4
         version: 4.3.3
@@ -104,15 +119,18 @@ importers:
 
   apps/cli:
     dependencies:
+      '@monii/ingestion':
+        specifier: workspace:*
+        version: link:../../packages/ingestion
+      '@monii/postgres':
+        specifier: workspace:*
+        version: link:../../packages/postgres
+      '@monii/powens':
+        specifier: workspace:*
+        version: link:../../packages/powens
       '@monii/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
-      '@monii/server':
-        specifier: workspace:*
-        version: link:../../packages/server
-      '@monii/wealth':
-        specifier: workspace:*
-        version: link:../../packages/wealth
       '@oclif/core':
         specifier: 5.0.0
         version: 5.0.0
@@ -135,12 +153,6 @@ importers:
       '@monii/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
-      '@monii/server':
-        specifier: workspace:*
-        version: link:../../packages/server
-      '@monii/wealth':
-        specifier: workspace:*
-        version: link:../../packages/wealth
     devDependencies:
       '@types/node':
         specifier: ^20
@@ -163,12 +175,12 @@ importers:
       '@graphql-typed-document-node/core':
         specifier: 3.2.0
         version: 3.2.0(graphql@16.12.0)
+      '@monii/graphql':
+        specifier: workspace:*
+        version: link:../../packages/graphql
       '@monii/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
-      '@monii/server':
-        specifier: workspace:*
-        version: link:../../packages/server
       graphql:
         specifier: 16.12.0
         version: 16.12.0
@@ -204,29 +216,20 @@ importers:
         specifier: ^5
         version: 5.9.3
 
-  packages/runtime:
+  packages/accounts:
     devDependencies:
-      '@types/node':
-        specifier: ^20
-        version: 20.19.43
       typescript:
         specifier: ^5
         version: 5.9.3
 
-  packages/server:
+  packages/graphql:
     dependencies:
       '@monii/runtime':
         specifier: workspace:*
         version: link:../runtime
-      '@monii/wealth':
-        specifier: workspace:*
-        version: link:../wealth
       class-validator:
         specifier: ^0.14.4
         version: 0.14.4
-      drizzle-orm:
-        specifier: 0.45.2
-        version: 0.45.2(postgres@3.4.9)
       graphql:
         specifier: 16.12.0
         version: 16.12.0
@@ -236,9 +239,6 @@ importers:
       graphql-yoga:
         specifier: 5.21.2
         version: 5.21.2(graphql@16.12.0)
-      postgres:
-        specifier: 3.4.9
-        version: 3.4.9
       reflect-metadata:
         specifier: 0.2.2
         version: 0.2.2
@@ -253,7 +253,87 @@ importers:
         specifier: ^5
         version: 5.9.3
 
-  packages/wealth:
+  packages/ingestion:
+    dependencies:
+      '@monii/accounts':
+        specifier: workspace:*
+        version: link:../accounts
+    devDependencies:
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/postgres:
+    dependencies:
+      '@monii/accounts':
+        specifier: workspace:*
+        version: link:../accounts
+      '@monii/ingestion':
+        specifier: workspace:*
+        version: link:../ingestion
+      '@monii/wealth-calculation':
+        specifier: workspace:*
+        version: link:../wealth-calculation
+      '@monii/wealth-query':
+        specifier: workspace:*
+        version: link:../wealth-query
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(postgres@3.4.9)
+      postgres:
+        specifier: 3.4.9
+        version: 3.4.9
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/powens:
+    dependencies:
+      '@monii/accounts':
+        specifier: workspace:*
+        version: link:../accounts
+      '@monii/ingestion':
+        specifier: workspace:*
+        version: link:../ingestion
+      '@monii/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/runtime:
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/wealth-calculation:
+    dependencies:
+      '@monii/accounts':
+        specifier: workspace:*
+        version: link:../accounts
+    devDependencies:
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/wealth-query:
+    dependencies:
+      '@monii/accounts':
+        specifier: workspace:*
+        version: link:../accounts
     devDependencies:
       typescript:
         specifier: ^5

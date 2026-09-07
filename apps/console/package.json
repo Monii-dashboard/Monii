@@ -8,9 +8,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@monii/wealth": "workspace:*",
-    "@monii/runtime": "workspace:*",
-    "@monii/server": "workspace:*"
+    "@monii/runtime": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20",

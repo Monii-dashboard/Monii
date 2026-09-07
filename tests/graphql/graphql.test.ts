@@ -4,7 +4,7 @@ import { expect, test } from "vitest";
 import {
   createGraphqlServer,
   graphqlSchema,
-} from "@monii/server/graphql";
+} from "@monii/graphql";
 import type { Log } from "@monii/runtime/log";
 
 import { createApolloGraphqlClient } from "../../apps/web/src/graphql/client/apollo-client";

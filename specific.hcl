@@ -16,6 +16,10 @@ config "account_identity_fingerprint_key_version" {
   default = "v1"
 }
 
+config "financial_log_detail" {
+  default = "standard"
+}
+
 secret "powens_client_secret" {}
 
 secret "powens_user_access_token" {}
@@ -37,8 +41,10 @@ service "web" {
   }
 
   env = {
-    PORT         = port
-    DATABASE_URL = postgres.main.url
+    PORT                 = port
+    DATABASE_URL         = postgres.main.url
+    FINANCIAL_LOG_DETAIL = config.financial_log_detail
+    TEST_DATABASE_URL    = postgres.main.url
   }
 
   dev {
@@ -56,13 +62,14 @@ cron "daily-sync" {
   schedule = "@daily"
 
   env = {
-    DATABASE_URL             = postgres.main.url
-    POWENS_API_BASE_URL      = config.powens_api_base_url
-    POWENS_CLIENT_ID         = config.powens_client_id
-    POWENS_CLIENT_SECRET     = secret.powens_client_secret
-    POWENS_USER_ACCESS_TOKEN = secret.powens_user_access_token
-    POWENS_API_TIME_ZONE      = config.powens_api_time_zone
-    ACCOUNT_IDENTITY_FINGERPRINT_KEY = secret.account_identity_fingerprint_key
+    DATABASE_URL                             = postgres.main.url
+    POWENS_API_BASE_URL                      = config.powens_api_base_url
+    POWENS_CLIENT_ID                         = config.powens_client_id
+    POWENS_CLIENT_SECRET                     = secret.powens_client_secret
+    POWENS_USER_ACCESS_TOKEN                 = secret.powens_user_access_token
+    POWENS_API_TIME_ZONE                     = config.powens_api_time_zone
+    ACCOUNT_IDENTITY_FINGERPRINT_KEY         = secret.account_identity_fingerprint_key
     ACCOUNT_IDENTITY_FINGERPRINT_KEY_VERSION = config.account_identity_fingerprint_key_version
+    FINANCIAL_LOG_DETAIL                     = config.financial_log_detail
   }
 }

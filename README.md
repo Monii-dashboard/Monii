@@ -75,14 +75,15 @@ pnpm graphql:check
 pnpm test
 pnpm test:repository
 specific exec web -- pnpm db:migrate
+specific exec web -- pnpm db:push
 specific exec web -- pnpm console
 ```
 
 The local console runs a complete session inside a `console` operation context
 and automatically exposes every explicit `@monii/*` package export under the
-`monii` namespace. For example, database exports are available from
-`monii.server.database`, and runtime context helpers are available from
-`monii.runtime.context`. Wealth functions are available from `monii.wealth`.
+`monii` namespace. For example, PostgreSQL exports are available from
+`monii.postgres`, runtime context helpers from `monii.runtime.context`, and
+calculation functions from `monii["wealth-calculation"]`.
 The runtime demonstration lives in `apps/console/src/runtime-demo.ts`.
 
 Console input supports TypeScript syntax and top-level `await`, but it is
@@ -92,7 +93,7 @@ are already preloaded; a private source file can be loaded explicitly from the
 repository root instead:
 
 ```ts
-const schema = await import("./packages/server/src/database/schema.ts");
+const values = await import("./packages/accounts/src/account-valuation.ts");
 ```
 
 The console does not retain command history between sessions. It is trusted
@@ -105,7 +106,7 @@ schema or an operation. Generated schema and client artifacts are committed
 under `apps/web/src/generated/graphql` (frontend) and
 `tests/generated/graphql` (test contracts); `pnpm graphql:check` fails when
 they are stale. Backend operations are added as decorated TypeGraphQL resolver
-classes under `packages/server/src/graphql`. Keep decorated GraphQL DTOs at the
+classes under `packages/graphql/src`. Keep decorated GraphQL DTOs at the
 transport boundary instead of annotating financial domain objects.
 
 GitHub Actions runs lint, typechecking, tests, and the GraphQL staleness check
@@ -146,7 +147,7 @@ failure reporting, uses one CLI operation context.
 
 ## Powens adapter
 
-The normal adapter is exported from `@monii/server/powens`. It requires only a
+The normal adapter is exported from `@monii/powens`. It requires only a
 versioned API base URL and a permanent user token, and supports:
 
 - `getCurrentUser()`;
@@ -163,7 +164,7 @@ each connection independently, preserves last-valid values on failure, and does
 not persist raw Powens payloads.
 
 The console-only adapter is exported separately from
-`@monii/server/powens/console`. It uses project credentials to create a permanent
+`@monii/powens/console`. It uses project credentials to create a permanent
 user with `createUser()` or renew a user's permanent token with
 `renewUserAccessToken()`. It can also generate a one-time `singleAccess` code
 from the configured user's token and return an add-connection Powens webview link

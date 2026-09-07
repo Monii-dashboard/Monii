@@ -1,7 +1,7 @@
 import type { CodegenConfig } from "@graphql-codegen/cli";
 import { printSchema } from "graphql";
 
-import { graphqlSchema } from "@monii/server/graphql";
+import { graphqlSchema } from "@monii/graphql";
 
 import { testGraphqlSchema } from "./tests/graphql/schema";
 

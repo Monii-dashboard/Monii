@@ -6,12 +6,12 @@ import {
   PowensTransportError,
   readPowensConfig,
   type PowensConfig,
-} from "@monii/server/powens";
+} from "@monii/powens";
 import {
   createPowensConsoleClient,
   readPowensConsoleConfig,
   type PowensConsoleConfig,
-} from "@monii/server/powens/console";
+} from "@monii/powens/console";
 import { describe, expect, test, vi } from "vitest";
 
 const config: PowensConfig = {
@@ -319,7 +319,7 @@ describe("Powens read endpoints", () => {
         externalId: "27",
         institution: {
           externalId: "stable-connector-uuid",
-          name: "Example Bank",
+          reportedName: "Example Bank",
         },
         nextTryAt: null,
         sourceErrorCode: null,
@@ -331,20 +331,24 @@ describe("Powens read endpoints", () => {
       accounts: [
         {
           balance: "10.25",
+          category: "cash",
           currency: "EUR",
           externalId: "101",
-          kind: "cash",
           lifecycle: "active",
+          purpose: "personal",
+          rawCurrency: "eur",
           sourceValidAt: new Date("2026-09-01T21:27:00.000Z"),
-          usage: "private",
+          typeSupport: "supported",
         },
         {
           balance: "999",
+          category: "investment",
           estimatedValue: "123.45",
           externalId: "102",
-          kind: "investment",
           lifecycle: "disabled",
-          usage: "professional",
+          purpose: "business",
+          rawCurrency: "EUR",
+          typeSupport: "supported",
         },
       ],
       failures: [],

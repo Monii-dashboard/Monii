@@ -9,7 +9,7 @@ import {
   createGraphqlSchema,
   graphqlErrorCodes,
   type GraphqlContext,
-} from "@monii/server/graphql";
+} from "@monii/graphql";
 
 export const testGraphqlState = {
   slowResolverAbortCount: 0,

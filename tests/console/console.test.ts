@@ -57,23 +57,23 @@ test("runs TypeScript code and private imports inside one console operation", as
     await waitForNextPrompt("startup");
     await evaluate("const answer: number = 42");
     await evaluate("answer");
-    await evaluate("typeof monii.wealth.calculateWealthSnapshot");
+    await evaluate('typeof monii["wealth-calculation"].calculateWealthSnapshot');
     await evaluate("monii.runtime.context.getOperationContext()");
     await evaluate(".clear");
     await evaluate("typeof monii");
     await evaluate("monii.runtime.context.getOperationContext()");
     await evaluate(
-      'const privateModule = await import("./packages/server/src/database/schema.ts")',
+      'const privateModule = await import("./packages/accounts/src/account-valuation.ts")',
     );
-    await evaluate('"financialAccounts" in privateModule');
+    await evaluate('"decimalToScaledInteger" in privateModule');
     input.write(".exit\n");
 
     await consoleExited;
   });
 
   expect(writtenOutput).toContain("Monii TypeScript console (console-");
-  expect(writtenOutput).toContain("@monii/server/database");
-  expect(writtenOutput).toContain("@monii/wealth");
+  expect(writtenOutput).toContain("@monii/postgres/schema");
+  expect(writtenOutput).toContain("@monii/wealth-calculation");
   expect(writtenOutput).toContain("'function'");
   expect(writtenOutput).toMatch(/\b42\b/);
   expect(writtenOutput).toContain("surface: 'console'");

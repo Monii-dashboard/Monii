@@ -1,6 +1,6 @@
 import { log } from "@monii/runtime/log";
 import { runWithOperationContext } from "@monii/runtime/operation";
-import { graphqlServer } from "@monii/server/graphql";
+import { graphqlServer } from "@monii/graphql";
 
 export const runtime = "nodejs";
 

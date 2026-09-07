@@ -16,7 +16,7 @@
     "console": "pnpm --filter @monii/console console",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
+    "db:push": "drizzle-kit migrate",
     "graphql:generate": "graphql-codegen --config codegen.ts",
     "graphql:check": "graphql-codegen --config codegen.ts --check",
     "test:repository": "vitest run --project repository"
@@ -29,8 +29,14 @@
     "@graphql-codegen/typescript-operations": "^6.1.5",
     "@graphql-eslint/eslint-plugin": "^4.4.1",
     "@graphql-typed-document-node/core": "3.2.0",
+    "@monii/accounts": "workspace:*",
+    "@monii/graphql": "workspace:*",
+    "@monii/ingestion": "workspace:*",
+    "@monii/postgres": "workspace:*",
+    "@monii/powens": "workspace:*",
     "@monii/runtime": "workspace:*",
-    "@monii/server": "workspace:*",
+    "@monii/wealth-calculation": "workspace:*",
+    "@monii/wealth-query": "workspace:*",
     "@tailwindcss/postcss": "^4",
     "@testcontainers/postgresql": "^12.1.0",
     "@types/node": "^20",
@@ -51,8 +57,7 @@
     "tsx": "^4.23.12",
     "typescript": "^5",
     "type-graphql": "2.0.0-rc.4",
-    "vitest": "^4.1.0",
-    "@monii/wealth": "workspace:*"
+    "vitest": "^4.1.0"
   },
   "packageManager": "pnpm@11.23.0"
 }

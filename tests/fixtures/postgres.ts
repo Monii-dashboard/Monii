@@ -12,7 +12,7 @@ import {
   createDatabase,
   type Database,
   type DatabaseTransaction,
-} from "@monii/server/database";
+} from "@monii/postgres/client";
 
 type DatabaseConnection = {
   db: Database;
@@ -21,7 +21,7 @@ type DatabaseConnection = {
 
 export const test = baseTest.extend<{
   $worker: {
-    postgres: StartedPostgreSqlContainer;
+    postgres: StartedPostgreSqlContainer | null;
     database: DatabaseConnection;
   };
   $test: {
@@ -30,6 +30,10 @@ export const test = baseTest.extend<{
 }>({
   postgres: [
     async ({}, provideFixture) => {
+      if (process.env.TEST_DATABASE_URL) {
+        await provideFixture(null);
+        return;
+      }
       const container = await new PostgreSqlContainer("postgres:17-alpine").start();
 
       try {
@@ -42,7 +46,10 @@ export const test = baseTest.extend<{
   ],
   database: [
     async ({ postgres: container }, provideFixture) => {
-      const connection = createDatabase(container.getConnectionUri());
+      const databaseUrl =
+        process.env.TEST_DATABASE_URL ?? container?.getConnectionUri();
+      if (!databaseUrl) throw new Error("PostgreSQL test database is unavailable");
+      const connection = createDatabase(databaseUrl);
 
       await migrate(connection.db, {
         migrationsFolder: path.resolve(import.meta.dirname, "../../drizzle"),

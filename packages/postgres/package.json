@@ -1,0 +1,30 @@
+{
+  "name": "@monii/postgres",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./client": "./src/client.ts",
+    "./ingestion": "./src/repositories/ingestion.ts",
+    "./schema": "./src/schema/index.ts",
+    "./wealth": "./src/repositories/wealth.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@monii/accounts": "workspace:*",
+    "@monii/ingestion": "workspace:*",
+    "@monii/wealth-calculation": "workspace:*",
+    "@monii/wealth-query": "workspace:*",
+    "drizzle-orm": "0.45.2",
+    "postgres": "3.4.9"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  },
+  "monii": {
+    "platform": "node"
+  }
+}

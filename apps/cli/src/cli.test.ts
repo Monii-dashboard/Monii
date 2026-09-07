@@ -1,23 +1,25 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import type { SynchronizationResult } from "@monii/wealth";
+import type { SynchronizationResult } from "@monii/ingestion";
 import { getOperationContext } from "@monii/runtime/context";
-import { synchronizeFinancialSource } from "@monii/wealth";
-import { createDatabase } from "@monii/server/database";
-import { readPowensConfig } from "@monii/server/powens";
-import { createFinancialRepository } from "@monii/server/wealth";
+import { synchronizeSourceInstance } from "@monii/ingestion";
+import { createDatabase } from "@monii/postgres/client";
+import { createPostgresSynchronizationRepository } from "@monii/postgres/ingestion";
+import { readPowensConfig } from "@monii/powens";
 import { run } from "@oclif/core";
 
 import Sync from "./commands/sync";
 import { runCli } from "./cli";
 
-vi.mock("@monii/wealth", () => ({ synchronizeFinancialSource: vi.fn() }));
-vi.mock("@monii/server/database", () => ({ createDatabase: vi.fn() }));
-vi.mock("@monii/server/powens", () => ({
+vi.mock("@monii/ingestion", () => ({ synchronizeSourceInstance: vi.fn() }));
+vi.mock("@monii/postgres/client", () => ({ createDatabase: vi.fn() }));
+vi.mock("@monii/powens", () => ({
   readPowensConfig: vi.fn(() => ({})),
   createPowensClient: vi.fn(() => ({})),
   createPowensFinancialSource: vi.fn(() => ({})),
 }));
-vi.mock("@monii/server/wealth", () => ({ createFinancialRepository: vi.fn(() => ({})) }));
+vi.mock("@monii/postgres/ingestion", () => ({
+  createPostgresSynchronizationRepository: vi.fn(() => ({})),
+}));
 vi.mock("@oclif/core", async (importOriginal) => ({
   ...await importOriginal<typeof import("@oclif/core")>(),
   run: vi.fn(),
@@ -63,10 +65,13 @@ test.each([
   ["succeeded", 0], ["skipped_already_running", 0], ["partial", 1], ["failed", 1],
 ] as const)("maps %s to exit %i and preserves structured events", async (status, exit) => {
   const result = outcome(status);
-  vi.mocked(synchronizeFinancialSource).mockImplementationOnce(async ({ actionId, reporter }) => {
+  vi.mocked(synchronizeSourceInstance).mockImplementationOnce(async ({ actionId, reporter }) => {
     expect(actionId).toBe(getOperationContext().action_id);
     reporter?.report("sync.connection_failed", { connection_id: "connection-fixture" });
-    reporter?.report("sync.connection_completed", { count: 1 });
+    reporter?.report("sync.connection_completed", {
+      count: 1,
+      provider_external_id: "must-not-be-logged",
+    });
     return result;
   });
   expect(await runCli(["--", "sync"])).toBe(exit);
@@ -83,11 +88,12 @@ test.each([
     successful_connection_count: result.successfulConnectionCount,
   });
   expect(new Set(records.map((record) => record.action_id)).size).toBe(1);
+  expect(JSON.stringify(records)).not.toContain("must-not-be-logged");
   expect(records[0].action_id).toMatch(/^cli-/);
 });
 
 test.each([new Error("secret provider payload"), "secret provider payload"])("safely reports thrown values in the original context", async (error) => {
-  vi.mocked(synchronizeFinancialSource).mockRejectedValueOnce(error);
+  vi.mocked(synchronizeSourceInstance).mockRejectedValueOnce(error);
   expect(await runCli(["sync"])).toBe(1);
   expect(close).toHaveBeenCalledOnce();
   expect(records.at(-1)).toMatchObject({
@@ -102,16 +108,16 @@ test.each([new Error("secret provider payload"), "secret provider payload"])("sa
 test.each(["config", "repository"])("closes the database when %s initialization fails", async (boundary) => {
   const fail = () => { throw new Error("secret setup details"); };
   if (boundary === "config") vi.mocked(readPowensConfig).mockImplementationOnce(fail);
-  else vi.mocked(createFinancialRepository).mockImplementationOnce(fail);
+  else vi.mocked(createPostgresSynchronizationRepository).mockImplementationOnce(fail);
   expect(await runCli(["sync"])).toBe(1);
   expect(close).toHaveBeenCalledOnce();
-  expect(synchronizeFinancialSource).not.toHaveBeenCalled();
+  expect(synchronizeSourceInstance).not.toHaveBeenCalled();
   expect(records.at(-1)).toMatchObject({ event: "sync.crashed", action_id: records[0].action_id });
 });
 
 test.each([false, true])("awaits cleanup before completing (failure: %s)", async (failed) => {
-  if (failed) vi.mocked(synchronizeFinancialSource).mockRejectedValueOnce(new Error("sync failed"));
-  else vi.mocked(synchronizeFinancialSource).mockResolvedValueOnce(outcome("succeeded"));
+  if (failed) vi.mocked(synchronizeSourceInstance).mockRejectedValueOnce(new Error("sync failed"));
+  else vi.mocked(synchronizeSourceInstance).mockResolvedValueOnce(outcome("succeeded"));
   let release!: () => void;
   const cleanup = new Promise<void>((resolve) => { release = resolve; });
   close.mockReturnValueOnce(cleanup);
@@ -124,7 +130,7 @@ test.each([false, true])("awaits cleanup before completing (failure: %s)", async
 });
 
 test("reports cleanup failure in the same operation", async () => {
-  vi.mocked(synchronizeFinancialSource).mockResolvedValueOnce(outcome("succeeded"));
+  vi.mocked(synchronizeSourceInstance).mockResolvedValueOnce(outcome("succeeded"));
   close.mockRejectedValueOnce(new Error("secret database details"));
   expect(await runCli(["sync"])).toBe(1);
   expect(records.at(-1)).toMatchObject({ event: "sync.crashed", action_id: records[0].action_id });
@@ -144,7 +150,7 @@ test("reports a database initialization failure without attempting cleanup", asy
   });
   expect(await runCli(["sync"])).toBe(1);
   expect(close).not.toHaveBeenCalled();
-  expect(synchronizeFinancialSource).not.toHaveBeenCalled();
+  expect(synchronizeSourceInstance).not.toHaveBeenCalled();
   expect(records[0]).toMatchObject({ event: "sync.crashed", surface: "cli" });
   expect(JSON.stringify(records)).not.toContain("secret database details");
 });

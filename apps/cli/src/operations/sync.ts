@@ -1,13 +1,13 @@
-import { synchronizeFinancialSource } from "@monii/wealth";
+import { synchronizeSourceInstance } from "@monii/ingestion";
 import { getOperationContext } from "@monii/runtime/context";
 import { log } from "@monii/runtime/log";
-import { createDatabase } from "@monii/server/database";
+import { createDatabase } from "@monii/postgres/client";
+import { createPostgresSynchronizationRepository } from "@monii/postgres/ingestion";
 import {
   createPowensClient,
   createPowensFinancialSource,
   readPowensConfig,
-} from "@monii/server/powens";
-import { createFinancialRepository } from "@monii/server/wealth";
+} from "@monii/powens";
 
 export async function sync() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -25,20 +25,29 @@ export async function sync() {
     const powens = createPowensClient(powensConfig);
     const reporter = {
       report(event: string, fields: Readonly<Record<string, unknown>> = {}) {
+        const safeFields =
+          process.env.FINANCIAL_LOG_DETAIL === "local_diagnostic"
+            ? fields
+            : Object.fromEntries(
+                Object.entries(fields).filter(
+                  ([field]) =>
+                    !(field.includes("external") && field.endsWith("_id")),
+                ),
+              );
         const degraded =
-          event.endsWith("failed") || event === "sync.connection_failed";
+          event.endsWith("failed") || event.includes("conflict");
         const writer = degraded ? log.error : log.info;
-        writer("Financial synchronization event", event, { ...fields });
+        writer("Financial synchronization event", event, { ...safeFields });
       },
     };
 
-    const result = await synchronizeFinancialSource({
+    const result = await synchronizeSourceInstance({
       actionId: getOperationContext().action_id,
-      repository: createFinancialRepository(database.db, reporter),
+      adapterKey: "powens",
+      repository: createPostgresSynchronizationRepository(database.db, reporter),
       reporter,
       source: createPowensFinancialSource(powens, powensConfig),
       sourceKey: "powens-default",
-      sourceKind: "powens",
       sourceName: "Powens",
     });
 

@@ -103,8 +103,13 @@ export function workspaceImportRule(packages) {
           specifier.startsWith("node:") || nodeModules.has(specifier) ||
           adapters.some((adapter) => specifier === adapter || specifier.startsWith(`${adapter}/`))
         )) reason = "Keep portable packages independent of Node APIs, frameworks, and concrete adapters.";
-        if (owner?.name === "@monii/web" && !contains(path.join(owner.directory, "src/app/api"), filename) && target?.name === "@monii/server") {
-          reason = "Import server adapters only from a server-side composition root.";
+        if (
+          owner?.name === "@monii/web" &&
+          !contains(path.join(owner.directory, "src/app/api"), filename) &&
+          target?.monii?.platform === "node" &&
+          target.name !== "@monii/runtime"
+        ) {
+          reason = "Import Node adapters only from a server-side composition root.";
         }
         if (reason) context.report({ node, messageId: "boundary", data: { reason } });
       }
