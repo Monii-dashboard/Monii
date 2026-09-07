@@ -120,6 +120,37 @@ test("supports structured-only and severity-specific logging", () => {
   }
 });
 
+test("formats colored, human-readable logs when enabled locally", () => {
+  const consoleLog = vi
+    .spyOn(globalThis.console, "log")
+    .mockImplementation(() => {});
+  const previousSetting = process.env.MONII_PRETTY_LOGS;
+  process.env.MONII_PRETTY_LOGS = "true";
+
+  try {
+    runWithOperationContext({ surface: "cli" }, () => {
+      log.warning("Partial synchronization", "sync.partial", {
+        account_count: 1,
+      });
+    });
+
+    const output = String(consoleLog.mock.calls[0]?.[0]);
+    expect(output).toMatch(/^\u001B\[2m\d{4}-\d{2}-\d{2}T/);
+    expect(output).toContain("\u001B[33mWARN ");
+    expect(output).toContain("[cli]");
+    expect(output).toContain("sync.partial");
+    expect(output).toContain("Partial synchronization");
+    expect(output).toContain('{"account_count":1}');
+  } finally {
+    if (previousSetting === undefined) {
+      delete process.env.MONII_PRETTY_LOGS;
+    } else {
+      process.env.MONII_PRETTY_LOGS = previousSetting;
+    }
+    consoleLog.mockRestore();
+  }
+});
+
 test("redacts sensitive identity fields and serializes errors safely", () => {
   const consoleLog = vi
     .spyOn(globalThis.console, "log")
