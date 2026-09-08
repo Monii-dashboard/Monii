@@ -66,6 +66,7 @@ export type CurrentAccountWealth = StoredSnapshotAccount &
 
 export type CurrentInstitutionWealth = Readonly<{
   accounts: readonly CurrentAccountWealth[];
+  contributedAmount: DecimalAmount;
   institutionId: string | null;
   name: string;
 }>;
@@ -131,7 +132,8 @@ export function buildCurrentWealthView(
       name: account.accountName ?? "Unnamed account",
     };
   });
-  const health = accounts.some((account) => account.health === "synchronization_failed")
+  const health = state.latestSynchronizationStatus === "failed" ||
+    accounts.some((account) => account.health === "synchronization_failed")
     ? "synchronization_failed"
     : accounts.some((account) => account.health === "stale")
       ? "stale"
@@ -140,8 +142,17 @@ export function buildCurrentWealthView(
   for (const account of accounts) {
     const key = account.institutionId ?? "unassigned";
     const current = institutions.get(key);
+    const currentContribution = decimalToScaledInteger(
+      current?.contributedAmount ?? "0",
+    );
+    const accountContribution = account.contributedAmount
+      ? decimalToScaledInteger(account.contributedAmount)
+      : 0n;
     institutions.set(key, {
       accounts: [...(current?.accounts ?? []), account],
+      contributedAmount: decimalFromScaledInteger(
+        currentContribution + accountContribution,
+      ),
       institutionId: account.institutionId,
       name: account.institutionName ?? "Unknown institution",
     });

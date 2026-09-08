@@ -4,6 +4,7 @@ import type { GraphQLSchema } from "graphql";
 import { buildSchemaSync, type ClassType } from "type-graphql";
 
 import { HealthResolver } from "./resolvers/health";
+import { CurrentWealthResolver } from "./resolvers/current-wealth";
 
 type CreateGraphqlSchemaOptions = {
   resolvers?: readonly ClassType[];
@@ -12,8 +13,13 @@ type CreateGraphqlSchemaOptions = {
 export function createGraphqlSchema({
   resolvers = [],
 }: CreateGraphqlSchemaOptions = {}): GraphQLSchema {
-  const schemaResolvers: [typeof HealthResolver, ...ClassType[]] = [
+  const schemaResolvers: [
+    typeof HealthResolver,
+    typeof CurrentWealthResolver,
+    ...ClassType[],
+  ] = [
     HealthResolver,
+    CurrentWealthResolver,
     ...resolvers,
   ];
 

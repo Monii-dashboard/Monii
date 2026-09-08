@@ -5,21 +5,26 @@ import graphqlPlugin from "@graphql-eslint/eslint-plugin";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-const frontendDocuments = [
+const allGraphqlDocuments = [
   "apps/web/src/**/*.{ts,tsx}",
   "!apps/web/src/generated/**/*",
-];
-const testDocuments = [
   "tests/graphql/**/*.{ts,tsx}",
   "!tests/graphql/**/*.test.{ts,tsx}",
 ];
 
-function graphqlOperationConfig(schema, documents) {
+function graphqlOperationConfig() {
   return {
     languageOptions: {
       parser: graphqlPlugin.parser,
       parserOptions: {
-        graphQLConfig: { schema, documents },
+        // graphql-eslint caches the first programmatic configuration. The test
+        // schema is an intentional superset of the application schema; codegen
+        // continues to validate application operations against the narrower
+        // production schema.
+        graphQLConfig: {
+          schema: "tests/generated/graphql/test/schema.graphql",
+          documents: allGraphqlDocuments,
+        },
       },
     },
     plugins: {
@@ -70,18 +75,12 @@ const eslintConfig = defineConfig([
   {
     files: ["apps/web/src/**/*.{ts,tsx}/*.graphql"],
     ignores: ["apps/web/src/generated/**/*"],
-    ...graphqlOperationConfig(
-      "apps/web/src/generated/graphql/app/schema.graphql",
-      frontendDocuments,
-    ),
+    ...graphqlOperationConfig(),
   },
   {
     files: ["tests/graphql/**/*.{ts,tsx}/*.graphql"],
     ignores: ["tests/graphql/**/*.test.{ts,tsx}/*.graphql"],
-    ...graphqlOperationConfig(
-      "tests/generated/graphql/test/schema.graphql",
-      testDocuments,
-    ),
+    ...graphqlOperationConfig(),
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([

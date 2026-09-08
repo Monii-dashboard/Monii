@@ -8,8 +8,7 @@ for a particular architecture.
 
 The repository is an early full-stack implementation: Next.js, TypeScript,
 PostgreSQL with Drizzle, Vitest/Testcontainers, and Specific. The persisted
-financial foundation is implemented; the generated home page remains a
-placeholder and does not represent a product decision.
+financial foundation and current-wealth dashboard read slice are implemented.
 
 For a table-by-table description, relationship diagram, synchronization flow,
 and code map of that foundation, see
@@ -370,6 +369,11 @@ documents. A generated SDL schema and operation types are committed under an
 explicit `generated` directory and checked for staleness. Powens and future
 provider payloads must still be normalized before they reach GraphQL-facing
 application logic.
+
+The web route is the composition root for current-wealth reads: it supplies the
+PostgreSQL wealth-query repository to the GraphQL transport. The resolver uses
+the portable `wealth-query` projection, and the dashboard consumes only the
+generated GraphQL operation rather than database or provider types.
 
 This decision does not introduce multiple GraphQL services, federation,
 subscriptions, or provider-facing GraphQL APIs. Add those only for a concrete

@@ -302,6 +302,7 @@ describe("current wealth projection", () => {
     expect(fresh.health).toBe("fresh");
     expect(fresh.institutions[0]).toMatchObject({
       accounts: [{ name: "Unnamed account" }],
+      contributedAmount: "10",
       name: "Unknown institution",
     });
     expect(
@@ -319,6 +320,68 @@ describe("current wealth projection", () => {
         new Date("2026-08-30T13:00:00Z"),
       ).health,
     ).toBe("synchronization_failed");
+    expect(
+      buildCurrentWealthView(
+        { ...state, latestSynchronizationStatus: "failed" },
+        new Date("2026-08-30T13:00:00Z"),
+      ).health,
+    ).toBe("synchronization_failed");
+  });
+
+  test("sums each institution contribution without losing decimal precision", () => {
+    const view = buildCurrentWealthView(
+      {
+        lastSuccessfulSynchronizationAt: observedAt,
+        latestSynchronizationStatus: "succeeded",
+        snapshot: {
+          accounts: [
+            {
+              accountId: "one",
+              accountName: "Checking",
+              adjustedAmount: "0.1",
+              category: "cash",
+              contributedAmount: "0.1",
+              decision: "included",
+              duplicateRole: "none",
+              evaluatedAmount: "0.1",
+              evaluatedCurrency: "EUR",
+              identityConflict: false,
+              institutionId: "bank",
+              institutionName: "Bank",
+              refreshUncertain: false,
+              valuationEffectiveAt: observedAt,
+              valuationRecordedAt: observedAt,
+            },
+            {
+              accountId: "two",
+              accountName: "Savings",
+              adjustedAmount: "0.2",
+              category: "cash",
+              contributedAmount: "0.2",
+              decision: "included",
+              duplicateRole: "none",
+              evaluatedAmount: "0.2",
+              evaluatedCurrency: "EUR",
+              identityConflict: false,
+              institutionId: "bank",
+              institutionName: "Bank",
+              refreshUncertain: false,
+              valuationEffectiveAt: observedAt,
+              valuationRecordedAt: observedAt,
+            },
+          ],
+          duplicateAdjustedEstimateAmount: "0.3",
+          headlineAmount: "0.3",
+          isComplete: true,
+          likelyDuplicateGroupCount: 0,
+          recordedAt: observedAt,
+          snapshotId: "snapshot-1",
+        },
+      },
+      observedAt,
+    );
+
+    expect(view.institutions[0]?.contributedAmount).toBe("0.3");
   });
 });
 

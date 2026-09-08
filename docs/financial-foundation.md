@@ -212,10 +212,13 @@ apps/cli
 
 apps/web/api
   -> @monii/graphql
+  -> @monii/postgres (wealth-query repository composition)
 
 @monii/accounts <- @monii/ingestion
 @monii/accounts <- @monii/wealth-calculation
 @monii/accounts <- @monii/wealth-query
+
+@monii/graphql -> @monii/wealth-query
 
 @monii/postgres implements ingestion, calculation, and query ports
 @monii/powens implements the external financial source port

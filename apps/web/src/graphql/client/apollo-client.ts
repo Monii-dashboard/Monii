@@ -51,6 +51,7 @@ export function createApolloGraphqlClient({
 
   return new ApolloClient({
     cache: new InMemoryCache(),
+    devtools: { enabled: process.env.NODE_ENV === "development" },
     link: ApolloLink.from([errorLink, httpLink]),
     defaultOptions: {
       query: { errorPolicy: "all" },

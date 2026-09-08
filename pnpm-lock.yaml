@@ -178,6 +178,9 @@ importers:
       '@monii/graphql':
         specifier: workspace:*
         version: link:../../packages/graphql
+      '@monii/postgres':
+        specifier: workspace:*
+        version: link:../../packages/postgres
       '@monii/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
@@ -227,6 +230,9 @@ importers:
       '@monii/runtime':
         specifier: workspace:*
         version: link:../runtime
+      '@monii/wealth-query':
+        specifier: workspace:*
+        version: link:../wealth-query
       class-validator:
         specifier: ^0.14.4
         version: 0.14.4

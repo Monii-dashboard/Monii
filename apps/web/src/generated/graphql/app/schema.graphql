@@ -1,4 +1,46 @@
+type CurrentWealth {
+  currency: String!
+  duplicateAdjustedEstimateAmount: String!
+  headlineAmount: String!
+  health: String!
+  institutions: [WealthInstitution!]!
+  isComplete: Boolean!
+  lastSuccessfulSynchronizationAt: String
+  latestSynchronizationStatus: String
+  likelyDuplicateGroupCount: Int!
+  possibleTotalMaximum: String!
+  possibleTotalMinimum: String!
+  recordedAt: String
+}
+
 type Query {
   """Reports whether the GraphQL API can execute requests."""
   _health: Boolean!
+
+  """
+  Returns the latest persisted EUR wealth snapshot and its account-level decisions.
+  """
+  currentWealth: CurrentWealth!
+}
+
+type WealthAccount {
+  category: String!
+  contributedAmount: String
+  decision: String!
+  duplicateRole: String!
+  evaluatedAmount: String
+  evaluatedCurrency: String
+  health: String
+  id: String!
+  identityConflict: Boolean!
+  name: String!
+  refreshUncertain: Boolean!
+  valuationAt: String
+}
+
+type WealthInstitution {
+  accounts: [WealthAccount!]!
+  contributedAmount: String!
+  id: String
+  name: String!
 }
