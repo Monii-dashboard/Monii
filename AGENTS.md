@@ -97,6 +97,13 @@ ALWAYS run `specific check` after making changes to the Specific configuration.
 
 ALWAYS use `specific dev` to run the project locally.
 
+## Browser Verification
+
+For work that affects user-visible rendering or browser interaction, use the
+repository `web-browser-testing` skill when live browser verification is
+warranted. Keep tool-specific workflow details in that skill rather than
+duplicating them here.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

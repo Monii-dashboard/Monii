@@ -1,0 +1,3 @@
+[mcp_servers.playwright]
+command = "pnpm"
+args = ["--workspace-root", "exec", "playwright-mcp", "--browser", "chromium", "--isolated", "--headless"]

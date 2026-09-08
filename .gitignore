@@ -149,6 +149,9 @@ vite.config.ts.timestamp-*
 .specific
 specific.local
 
+# Playwright MCP generated artifacts
+.playwright-mcp/
+
 # misc
 .DS_Store
 *.pem
