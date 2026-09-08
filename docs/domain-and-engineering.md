@@ -87,6 +87,22 @@ asynchronous execution for backend logging. Runtime generates each action ID as
 the surface followed by a hyphen and a UUID. Capabilities receive business inputs
 and dependencies explicitly; operation context must not become a service container.
 
+Operational logs are structured records, not domain events. Every record has a
+stable machine-queryable event name, a human-readable message, severity,
+timestamp, surface, action ID, and contextual fields. Domain events represent
+business facts for explicit handlers; logs explain execution and are not an
+event bus, outbox, or durable financial record.
+
+Financial operations log lifecycle summaries, state changes, degraded inputs,
+failures, duplicate resolution, incomplete wealth decisions, and snapshot
+outcomes. Routine observations and successful valuation writes remain visible
+through persisted facts rather than repetitive log lines. Transactional records
+are emitted only after commit. Production records may contain internal identifiers, amounts,
+currencies, timestamps, counts, and reason codes, but not financial names,
+provider identifiers, identity fingerprints, account numbers, raw payloads,
+secrets, or raw exception messages. Existing observations, match assessments,
+merges, and snapshot decisions remain the durable audit trail.
+
 ## Conceptual model
 
 External financial data should be understood through distinct concepts:

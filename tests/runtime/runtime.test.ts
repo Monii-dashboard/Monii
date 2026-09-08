@@ -51,7 +51,7 @@ test("fails when context is accessed outside an operation", () => {
   expect(() => getOperationContext()).toThrow(
     "Operation context is not available outside an operation",
   );
-  expect(() => log({ event: "outside.operation" })).toThrow(
+  expect(() => log.info("Outside operation", "outside.operation")).toThrow(
     "Operation context is not available outside an operation",
   );
 });
@@ -69,6 +69,7 @@ test("logs structured records with protected operation fields", () => {
           action_id: "cannot-override",
           account_count: 3,
           surface: "cli",
+          timestamp: "cannot-override",
         }),
     );
 
@@ -82,28 +83,36 @@ test("logs structured records with protected operation fields", () => {
     });
     expect(record.message).toBe("Wealth calculated");
     expect(record.action_id).toMatch(/^web-/);
+    expect(record.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(record.timestamp).not.toBe("cannot-override");
   } finally {
     consoleLog.mockRestore();
   }
 });
 
-test("supports structured-only and severity-specific logging", () => {
+test("supports explicit severity logging", () => {
   const consoleLog = vi
     .spyOn(globalThis.console, "log")
     .mockImplementation(() => {});
 
   try {
     runWithOperationContext({ surface: "cli" }, () => {
-      log({ body: { account_count: 2 } });
-      log.warning("Partial synchronization", "sync.partial", {
+      log.info("Synchronization started", "sync.started", {
+        body: { account_count: 2 },
+      });
+      log.warn("Partial synchronization", "sync.partial", {
         body: { account_count: 1 },
       });
-      log.error({ event: "sync.failed", body: { retryable: true } });
+      log.error("Synchronization failed", "sync.failed", {
+        body: { retryable: true },
+      });
     });
 
     expect(consoleLog).toHaveBeenCalledTimes(3);
     expect(JSON.parse(String(consoleLog.mock.calls[0]?.[0]))).toMatchObject({
       level: "info",
+      event: "sync.started",
+      message: "Synchronization started",
       body: { account_count: 2 },
     });
     expect(JSON.parse(String(consoleLog.mock.calls[1]?.[0]))).toMatchObject({
@@ -114,6 +123,7 @@ test("supports structured-only and severity-specific logging", () => {
     expect(JSON.parse(String(consoleLog.mock.calls[2]?.[0]))).toMatchObject({
       level: "error",
       event: "sync.failed",
+      message: "Synchronization failed",
     });
   } finally {
     consoleLog.mockRestore();
@@ -129,7 +139,7 @@ test("formats colored, human-readable logs when enabled locally", () => {
 
   try {
     runWithOperationContext({ surface: "cli" }, () => {
-      log.warning("Partial synchronization", "sync.partial", {
+      log.warn("Partial synchronization", "sync.partial", {
         account_count: 1,
       });
     });

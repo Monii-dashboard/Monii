@@ -44,11 +44,11 @@ function createTestClient(timeoutMs = 30_000) {
       }),
     );
   };
-  const logger = Object.assign(captureLog, {
+  const logger = {
     info: captureLog,
-    warning: captureLog,
+    warn: captureLog,
     error: captureLog,
-  }) as Log;
+  } as Log;
   const server = createGraphqlServer({
     schema: testGraphqlSchema,
     logger,
@@ -160,9 +160,9 @@ test("preserves public codes and masks unexpected errors", async () => {
     );
     expect(serverErrors).toHaveLength(2);
     expect(serverErrors[0]).toContain("graphql.unexpected_error");
-    expect(serverErrors[0]).toContain("private test failure");
+    expect(serverErrors[0]).not.toContain("private test failure");
     expect(serverErrors[1]).toContain("graphql.unexpected_error");
-    expect(serverErrors[1]).toContain("private coded failure");
+    expect(serverErrors[1]).not.toContain("private coded failure");
   } finally {
     await client.clearStore();
     client.stop();

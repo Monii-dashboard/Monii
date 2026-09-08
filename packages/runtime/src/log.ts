@@ -4,15 +4,11 @@ export type LogFields = Record<string, unknown>;
 
 export type LogLevel = "info" | "warn" | "error";
 
-type LogArguments =
-  | [fields: LogFields]
-  | [message: string, fields?: LogFields]
-  | [message: string, event: string, fields?: LogFields];
+type LogArguments = [message: string, event: string, fields?: LogFields];
 
 export type Log = {
-  (...args: LogArguments): void;
   info: (...args: LogArguments) => void;
-  warning: (...args: LogArguments) => void;
+  warn: (...args: LogArguments) => void;
   error: (...args: LogArguments) => void;
 };
 
@@ -45,17 +41,16 @@ function levelLabel(level: LogLevel) {
 }
 
 function formatPrettyLog(record: Record<string, unknown>) {
-  const { action_id, event, level, message, msg, surface, ...fields } = record;
-  const text = message ?? msg;
+  const { action_id, event, level, message, surface, timestamp, ...fields } = record;
   const details = Object.keys(fields).length === 0 ? "" : ` ${JSON.stringify(fields)}`;
 
   return [
-    color(new Date().toISOString(), "dim"),
+    color(String(timestamp), "dim"),
     levelLabel(level as LogLevel),
     color(`[${String(surface)}]`, "cyan"),
     color(`[${String(action_id)}]`, "dim"),
     event === undefined ? "" : color(String(event), "cyan"),
-    text === undefined ? "" : String(text),
+    String(message),
   ]
     .filter(Boolean)
     .join(" ") + details;
@@ -83,21 +78,7 @@ function sanitize(value: unknown, key = "", depth = 0): unknown {
 }
 
 function write(level: LogLevel, ...args: LogArguments) {
-  let message: string | undefined;
-  let event: string | undefined;
-  let fields: LogFields;
-
-  if (typeof args[0] === "string") {
-    message = args[0];
-    if (typeof args[1] === "string") {
-      event = args[1];
-      fields = args[2] ?? {};
-    } else {
-      fields = args[1] ?? {};
-    }
-  } else {
-    fields = args[0];
-  }
+  const [message, event, fields = {}] = args;
 
   const context = getOperationContext();
 
@@ -105,19 +86,17 @@ function write(level: LogLevel, ...args: LogArguments) {
   const record = {
     level,
     ...safeFields,
-    ...(message === undefined ? {} : { message }),
-    ...(event === undefined ? {} : { event }),
+    event,
+    message,
+    timestamp: new Date().toISOString(),
     ...context,
   };
 
   console.log(prettyLogsEnabled() ? formatPrettyLog(record) : JSON.stringify(record));
 }
 
-export const log: Log = Object.assign(
-  (...args: LogArguments) => write("info", ...args),
-  {
-    info: (...args: LogArguments) => write("info", ...args),
-    warning: (...args: LogArguments) => write("warn", ...args),
-    error: (...args: LogArguments) => write("error", ...args),
-  },
-);
+export const log: Log = {
+  info: (...args: LogArguments) => write("info", ...args),
+  warn: (...args: LogArguments) => write("warn", ...args),
+  error: (...args: LogArguments) => write("error", ...args),
+};

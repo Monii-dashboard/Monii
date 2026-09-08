@@ -19,7 +19,7 @@ export async function runCli(argv: string[]): Promise<number> {
         return error.oclif.exit ?? 1;
       }
 
-      log.error("Synchronization command crashed", "sync.crashed", {
+      log.error("Financial synchronization command crashed", "ingestion.command.crashed", {
         error_kind: error instanceof Error ? error.name : "unexpected",
         error_code: "unhandled",
       });

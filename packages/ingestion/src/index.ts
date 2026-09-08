@@ -1,7 +1,9 @@
-export { classifyExternalAccountIdentity } from "./account-identity";
+export { assessExternalAccountIdentity } from "./account-identity";
 export type {
   AccountIdentityEvidence,
+  ExternalAccountIdentityAssessment,
   IdentityAccount,
+  IdentityAssessmentReason,
   IdentityClassification,
 } from "./account-identity";
 export type { SynchronizationFinalized } from "./events";
@@ -21,6 +23,7 @@ export {
 } from "./synchronize-source-instance";
 export type {
   ConnectionPersistenceResult,
+  FinancialOperationalReport,
   SynchronizationReporter,
   SynchronizationRepository,
   SynchronizationResult,

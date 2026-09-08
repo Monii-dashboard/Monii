@@ -47,7 +47,14 @@ export type SynchronizationRepository = Readonly<{
 }>;
 
 export type SynchronizationReporter = Readonly<{
-  report(event: string, fields?: Readonly<Record<string, unknown>>): void;
+  report(record: FinancialOperationalReport): void;
+}>;
+
+export type FinancialOperationalReport = Readonly<{
+  event: string;
+  fields?: Readonly<Record<string, unknown>>;
+  level: "info" | "warn" | "error";
+  message: string;
 }>;
 
 export type SynchronizationResult = Readonly<{
@@ -99,8 +106,12 @@ export async function synchronizeSourceInstance(input: Readonly<{
   sourceName: string;
 }>): Promise<SynchronizationResult> {
   let runId: string | null = null;
-  const report = (event: string, fields?: Readonly<Record<string, unknown>>) =>
-    input.reporter?.report(event, fields);
+  const report = (
+    level: FinancialOperationalReport["level"],
+    message: string,
+    event: string,
+    fields?: Readonly<Record<string, unknown>>,
+  ) => input.reporter?.report({ event, fields, level, message });
 
   try {
     const started = await input.repository.startRun({
@@ -110,7 +121,12 @@ export async function synchronizeSourceInstance(input: Readonly<{
       sourceName: input.sourceName,
     });
     if (started.status === "skipped_already_running") {
-      report("ingestion.synchronization.skipped", { reason: started.status });
+      report(
+        "warn",
+        "Financial synchronization skipped because another run is active",
+        "ingestion.run.skipped",
+        { reason: started.status },
+      );
       return {
         failedConnectionCount: 0,
         partialConnectionCount: 0,
@@ -121,26 +137,20 @@ export async function synchronizeSourceInstance(input: Readonly<{
     }
 
     runId = started.runId;
-    report("ingestion.synchronization.started", { run_id: runId });
+    report("info", "Financial synchronization run started", "ingestion.run.started", {
+      run_id: runId,
+    });
     await input.repository.identifyRunSource(
       runId,
       await input.source.getExternalSubjectId(),
     );
     const connections = await input.source.listConnections();
-    report("ingestion.synchronization.connections_discovered", {
-      connection_count: connections.length,
-      run_id: runId,
-    });
     let failedConnectionCount = 0;
     let partialConnectionCount = 0;
     let successfulConnectionCount = 0;
 
     for (const connection of connections) {
       const startedAt = Date.now();
-      report("ingestion.connection.started", {
-        connection_external_id: connection.externalId,
-        run_id: runId,
-      });
       try {
         if (
           !connection.active ||
@@ -156,7 +166,7 @@ export async function synchronizeSourceInstance(input: Readonly<{
           };
           await input.repository.recordConnectionFailure(runId, connection, failure);
           failedConnectionCount += 1;
-          report("ingestion.connection.failed", {
+          report("error", "Financial connection could not be synchronized", "ingestion.connection.failed", {
             connection_external_id: connection.externalId,
             duration_ms: Date.now() - startedAt,
             error_code: failure.code,
@@ -173,19 +183,26 @@ export async function synchronizeSourceInstance(input: Readonly<{
         );
         if (persisted.status === "partial") partialConnectionCount += 1;
         else successfulConnectionCount += 1;
-        report("ingestion.connection.completed", {
+        report(
+          persisted.status === "partial" ? "warn" : "info",
+          persisted.status === "partial"
+            ? "Financial connection synchronization completed with missing data"
+            : "Financial connection synchronization completed",
+          "ingestion.connection.completed",
+          {
           connection_external_id: connection.externalId,
           duration_ms: Date.now() - startedAt,
           failed_account_count: persisted.failedAccountCount,
           run_id: runId,
           status: persisted.status,
           successful_account_count: persisted.successfulAccountCount,
-        });
+          },
+        );
       } catch (error) {
         const failure = synchronizationFailureFrom(error);
         await input.repository.recordConnectionFailure(runId, connection, failure);
         failedConnectionCount += 1;
-        report("ingestion.connection.failed", {
+        report("error", "Financial connection synchronization failed", "ingestion.connection.failed", {
           connection_external_id: connection.externalId,
           duration_ms: Date.now() - startedAt,
           error_code: failure.code,
@@ -204,13 +221,20 @@ export async function synchronizeSourceInstance(input: Readonly<{
           ? "failed"
           : "partial";
     await input.repository.finalizeRun(runId, status);
-    report("ingestion.synchronization.finalized", {
+    report(
+      status === "failed" ? "error" : status === "partial" ? "warn" : "info",
+      status === "succeeded"
+        ? "Financial synchronization run completed"
+        : "Financial synchronization run completed with degraded data",
+      "ingestion.run.completed",
+      {
       failed_connection_count: failedConnectionCount,
       partial_connection_count: partialConnectionCount,
       run_id: runId,
       status,
       successful_connection_count: successfulConnectionCount,
-    });
+      },
+    );
     return {
       failedConnectionCount,
       partialConnectionCount,
@@ -227,7 +251,7 @@ export async function synchronizeSourceInstance(input: Readonly<{
         await input.repository.markRunFailed(runId, failure);
       }
     }
-    report("ingestion.synchronization.failed", {
+    report("error", "Financial synchronization run failed", "ingestion.run.failed", {
       error_code: failure.code,
       error_kind: failure.kind,
       run_id: runId,

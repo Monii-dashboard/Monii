@@ -9,7 +9,7 @@ import {
   type ExternalAccountLifecycle,
 } from "@monii/accounts";
 import {
-  classifyExternalAccountIdentity,
+  assessExternalAccountIdentity,
   type AccountIdentityEvidence,
   type ExternalAccountTypeSupport,
   type IdentityAccount,
@@ -17,12 +17,14 @@ import {
   type NormalizedExternalAccountListing,
   type NormalizedExternalConnection,
   type SynchronizationFailure,
+  type FinancialOperationalReport,
   type SynchronizationRepository,
 } from "@monii/ingestion";
 import {
   calculateWealthSnapshot,
   type AccountInclusionPolicy,
   type AccountWealthCalculationState,
+  type CalculatedWealthSnapshot,
   type SnapshotAccountDecision,
   type WealthCalculationRepository,
   type WealthSnapshotReason,
@@ -68,13 +70,17 @@ export type FinancialRepository = SynchronizationRepository &
   WealthQueryRepository;
 
 export type FinancialRepositoryReporter = Readonly<{
-  report(event: string, fields?: Readonly<Record<string, unknown>>): void;
+  report(record: FinancialOperationalReport): void;
 }>;
 
-type RepositoryEvent = Readonly<{
-  event: string;
-  fields: Readonly<Record<string, unknown>>;
-}>;
+type RepositoryEvent = FinancialOperationalReport;
+
+function emitRepositoryEvents(
+  reporter: FinancialRepositoryReporter | undefined,
+  events: readonly RepositoryEvent[],
+) {
+  for (const event of events) reporter?.report(event);
+}
 
 function withTransaction<T>(
   db: Db,
@@ -278,7 +284,11 @@ async function saveSuccessfulAccount(
     sourceInstanceId: string;
   }>,
   account: NormalizedExternalAccount,
+  events: RepositoryEvent[],
 ) {
+  let persistenceOutcome: "created" | "updated" = "updated";
+  let classificationChanged = false;
+  let lifecycleChanged = false;
   let [externalAccount] = await db
     .select({
       accountId: externalAccounts.accountId,
@@ -295,6 +305,7 @@ async function saveSuccessfulAccount(
     .limit(1);
 
   if (!externalAccount) {
+    persistenceOutcome = "created";
     const [createdAccount] = await db
       .insert(accounts)
       .values({
@@ -326,6 +337,7 @@ async function saveSuccessfulAccount(
         lifecycle: externalAccounts.lifecycle,
       });
   } else {
+    lifecycleChanged = externalAccount.lifecycle !== account.lifecycle;
     await db
       .update(externalAccounts)
       .set({
@@ -360,6 +372,7 @@ async function saveSuccessfulAccount(
       category !== canonicalAccount.category ||
       purpose !== canonicalAccount.purpose
     ) {
+      classificationChanged = true;
       await db
         .update(accounts)
         .set({ category, purpose, updatedAt: new Date() })
@@ -410,6 +423,33 @@ async function saveSuccessfulAccount(
     synchronizationRunId: context.runId,
   });
   await saveIdentityClaims(db, context.runId, externalAccount.id, account.identity);
+  if (persistenceOutcome === "created" || classificationChanged || lifecycleChanged) {
+    events.push({
+    event:
+      persistenceOutcome === "created"
+        ? "ingestion.account.created"
+        : "ingestion.account.changed",
+    fields: {
+      account_id: externalAccount.accountId,
+      balance_amount: account.balance,
+      category: account.category,
+      classification_changed: classificationChanged,
+      currency: account.currency,
+      estimated_value_amount: account.estimatedValue,
+      lifecycle: account.lifecycle,
+      lifecycle_changed: lifecycleChanged,
+      outcome: persistenceOutcome,
+      provider_account_id: account.externalId,
+      purpose: account.purpose,
+      run_id: context.runId,
+      type_support: account.typeSupport,
+    },
+    level: account.typeSupport === "unrecognized" ? "warn" : "info",
+    message: persistenceOutcome === "created"
+      ? "External financial account created"
+      : "External financial account classification or lifecycle changed",
+    });
+  }
   return externalAccount.id;
 }
 
@@ -526,6 +566,23 @@ async function reconcileAccountIdentities(
     });
   }
 
+  const previousActiveLikelyMatches = await db
+    .select({
+      leftExternalAccountId: accountMatchAssessments.leftExternalAccountId,
+      rightExternalAccountId: accountMatchAssessments.rightExternalAccountId,
+    })
+    .from(accountMatchAssessments)
+    .where(
+      and(
+        eq(accountMatchAssessments.classification, "likely_duplicate"),
+        eq(accountMatchAssessments.isActive, true),
+      ),
+    );
+  const activeLikelyPairKeys = new Set<string>();
+  const identityByExternalAccount = new Map(
+    identityAccounts.map((account) => [account.externalAccountId, account]),
+  );
+
   await db
     .update(accountMatchAssessments)
     .set({ isActive: false, updatedAt: new Date() })
@@ -539,7 +596,8 @@ async function reconcileAccountIdentities(
     ) {
       const left = identityAccounts[leftIndex]!;
       const right = identityAccounts[rightIndex]!;
-      const classification = classifyExternalAccountIdentity(left, right);
+      const assessment = assessExternalAccountIdentity(left, right);
+      const classification = assessment.classification;
       const [leftExternalAccountId, rightExternalAccountId] =
         left.externalAccountId < right.externalAccountId
           ? [left.externalAccountId, right.externalAccountId]
@@ -554,6 +612,33 @@ async function reconcileAccountIdentities(
           ),
         )
         .limit(1);
+      const pairKey = `${leftExternalAccountId}:${rightExternalAccountId}`;
+      if (classification === "likely_duplicate") {
+        activeLikelyPairKeys.add(pairKey);
+      }
+      if (
+        classification !== "distinct" &&
+        existing?.classification !== classification
+      ) {
+        events.push({
+          event: "ingestion.identity_match.changed",
+          fields: {
+            classification,
+            left_account_id: left.accountId,
+            left_external_account_id: leftExternalAccountId,
+            previous_classification: existing?.classification ?? null,
+            reason_codes: assessment.reasonCodes,
+            right_account_id: right.accountId,
+            right_external_account_id: rightExternalAccountId,
+            run_id: runId,
+          },
+          level: classification === "likely_duplicate" ? "warn" : "info",
+          message:
+            classification === "confirmed_duplicate"
+              ? "External account pair confirmed as the same financial account"
+              : "External account pair now requires duplicate review",
+        });
+      }
       if (classification === "distinct") {
         if (existing?.classification === "confirmed_duplicate") {
           await db
@@ -563,10 +648,15 @@ async function reconcileAccountIdentities(
           events.push({
             event: "ingestion.identity.conflict_detected",
             fields: {
+              left_account_id: left.accountId,
               left_external_account_id: leftExternalAccountId,
+              reason_codes: assessment.reasonCodes,
+              right_account_id: right.accountId,
               right_external_account_id: rightExternalAccountId,
               run_id: runId,
             },
+            level: "warn",
+            message: "Current identity evidence conflicts with a confirmed account match",
           });
         }
         continue;
@@ -601,18 +691,26 @@ async function reconcileAccountIdentities(
             updatedAt: new Date(),
           },
         });
-      if (!existing) {
-        events.push({
-          event: "ingestion.identity.match_detected",
-          fields: {
-            classification: durableClassification,
-            left_external_account_id: leftExternalAccountId,
-            right_external_account_id: rightExternalAccountId,
-            run_id: runId,
-          },
-        });
-      }
     }
+  }
+
+  for (const previous of previousActiveLikelyMatches) {
+    const pairKey = `${previous.leftExternalAccountId}:${previous.rightExternalAccountId}`;
+    if (activeLikelyPairKeys.has(pairKey)) continue;
+    events.push({
+      event: "ingestion.likely_duplicate.cleared",
+      fields: {
+        left_account_id: identityByExternalAccount.get(previous.leftExternalAccountId)
+          ?.accountId ?? null,
+        left_external_account_id: previous.leftExternalAccountId,
+        right_account_id: identityByExternalAccount.get(previous.rightExternalAccountId)
+          ?.accountId ?? null,
+        right_external_account_id: previous.rightExternalAccountId,
+        run_id: runId,
+      },
+      level: "warn",
+      message: "Previously likely duplicate account pair is no longer an active match",
+    });
   }
 
   const confirmed = await db
@@ -699,12 +797,18 @@ async function reconcileAccountIdentities(
       )
       .onConflictDoNothing();
     events.push({
-      event: "accounts.merged",
+      event: "accounts.merge.completed",
       fields: {
         canonical_account_id: canonical.id,
+        canonical_selection_rule: "oldest_created_at_then_account_id",
+        inclusion_policy: inclusionPolicy,
         merged_account_count: mergedIds.length,
+        merged_account_ids: mergedIds,
+        purpose,
         run_id: runId,
       },
+      level: "info",
+      message: "Confirmed duplicate accounts merged into a canonical account",
     });
   }
   return events;
@@ -722,6 +826,109 @@ function laterCandidate(
       right.recordedAt.getTime() > left.recordedAt.getTime())
     ? right
     : left;
+}
+
+const incompleteWealthDecisions = new Set([
+  "missing_currency",
+  "missing_selected_valuation",
+  "unknown_account_category",
+  "unsupported_currency",
+]);
+
+function wealthSnapshotReports(
+  calculated: CalculatedWealthSnapshot,
+  input: Readonly<{
+    reason: WealthSnapshotReason;
+    synchronizationRunId?: string;
+  }>,
+  snapshotId: string,
+): readonly RepositoryEvent[] {
+  const events: RepositoryEvent[] = calculated.decisions.flatMap((decision) => {
+    const uncertain = incompleteWealthDecisions.has(decision.decision) ||
+      decision.identityConflict || decision.refreshUncertain;
+    if (!uncertain) return [];
+    return [{
+      event: "wealth.account.evaluated",
+      fields: {
+        account_category: decision.accountCategory,
+        account_id: decision.accountId,
+        account_management_mode: decision.accountManagementMode,
+        account_purpose: decision.accountPurpose,
+        contributed_amount: decision.contributedAmount,
+        decision: decision.decision,
+        duplicate_adjusted_amount: decision.duplicateAdjustedAmount,
+        duplicate_group_id: decision.duplicateGroupId,
+        duplicate_role: decision.duplicateRole,
+        evaluated_amount: decision.evaluatedAmount,
+        evaluated_currency: decision.evaluatedCurrency,
+        identity_conflict: decision.identityConflict,
+        inclusion_policy: decision.inclusionPolicy,
+        refresh_uncertain: decision.refreshUncertain,
+        selected_valuation_basis: decision.selectedValuationBasis,
+        selected_valuation_method: decision.selectedValuationMethod,
+        snapshot_id: snapshotId,
+        valuation_candidate_id: decision.evaluatedValuationCandidateId,
+      },
+      level: "warn" as const,
+      message: "Financial account requires attention after wealth evaluation",
+    }];
+  });
+
+  const decisionsByDuplicateGroup = new Map<string, SnapshotAccountDecision[]>();
+  for (const decision of calculated.decisions) {
+    if (!decision.duplicateGroupId || decision.duplicateRole === "none") continue;
+    decisionsByDuplicateGroup.set(decision.duplicateGroupId, [
+      ...(decisionsByDuplicateGroup.get(decision.duplicateGroupId) ?? []),
+      decision,
+    ]);
+  }
+  for (const [groupId, decisions] of decisionsByDuplicateGroup) {
+    const representative = decisions.find(
+      (decision) => decision.duplicateRole === "representative",
+    );
+    events.push({
+      event: "wealth.duplicate_group.adjusted",
+      fields: {
+        duplicate_group_id: groupId,
+        excluded_account_ids: decisions
+          .filter(
+            (decision) =>
+              decision.duplicateRole === "excluded_from_adjusted_estimate",
+          )
+          .map((decision) => decision.accountId),
+        representative_account_id: representative?.accountId ?? null,
+        representative_amount: representative?.duplicateAdjustedAmount ?? null,
+        representative_currency: representative?.evaluatedCurrency ?? null,
+        selection_rule:
+          "latest_effective_at_then_recorded_at_then_lexicographic_account_id",
+        snapshot_id: snapshotId,
+      },
+      level: "warn",
+      message: "Likely duplicate group adjusted to one representative account",
+    });
+  }
+
+  events.push({
+    event: "wealth.snapshot.created",
+    fields: {
+      contributing_account_count: calculated.contributingAccountCount,
+      duplicate_adjusted_estimate_amount:
+        calculated.duplicateAdjustedEstimateAmount,
+      headline_amount: calculated.headlineAmount,
+      is_complete: calculated.isComplete,
+      likely_duplicate_group_count: calculated.likelyDuplicateGroupCount,
+      missing_account_count: calculated.missingAccountCount,
+      reason: input.reason,
+      reporting_currency: "EUR",
+      snapshot_id: snapshotId,
+      synchronization_run_id: input.synchronizationRunId ?? null,
+    },
+    level: calculated.isComplete ? "info" : "warn",
+    message: calculated.isComplete
+      ? "Wealth snapshot created"
+      : "Incomplete wealth snapshot created",
+  });
+  return events;
 }
 
 async function loadAccountCalculationStates(
@@ -941,12 +1148,8 @@ async function saveWealthSnapshot(
     );
   }
   return {
-    contributing_account_count: calculated.contributingAccountCount,
-    is_complete: calculated.isComplete,
-    likely_duplicate_group_count: calculated.likelyDuplicateGroupCount,
-    missing_account_count: calculated.missingAccountCount,
-    snapshot_id: snapshot.id,
-    synchronization_run_id: input.synchronizationRunId ?? null,
+    events: wealthSnapshotReports(calculated, input, snapshot.id),
+    snapshotId: snapshot.id,
   };
 }
 
@@ -1031,7 +1234,7 @@ export function createPostgresFinancialPersistence(
 ): FinancialRepository {
   return {
     async changeAccountInclusionPolicy(input) {
-      return withTransaction(db, async (transaction) => {
+      const result = await withTransaction(db, async (transaction) => {
         const updated = await transaction
           .update(accountPolicies)
           .set({ inclusionPolicy: input.inclusionPolicy, updatedAt: new Date() })
@@ -1042,15 +1245,42 @@ export function createPostgresFinancialPersistence(
             ),
           )
           .returning({ accountId: accountPolicies.accountId });
-        if (!updated.length) return false;
+        if (!updated.length) {
+          return {
+            changed: false,
+            events: [{
+              event: "wealth.account_policy.rejected",
+              fields: {
+                account_id: input.accountId,
+                requested_inclusion_policy: input.inclusionPolicy,
+                reason: "account_missing_or_archived",
+              },
+              level: "warn" as const,
+              message: "Account inclusion policy change was rejected",
+            }],
+          };
+        }
         const snapshot = await saveWealthSnapshot(transaction, {
           actionId: input.actionId,
           causationId: randomUUID(),
           reason: "account_policy_changed",
         });
-        reporter?.report("wealth.snapshot.created", snapshot);
-        return true;
+        return {
+          changed: true,
+          events: [{
+            event: "wealth.account_policy.changed",
+            fields: {
+              account_id: input.accountId,
+              inclusion_policy: input.inclusionPolicy,
+              snapshot_id: snapshot.snapshotId,
+            },
+            level: "info" as const,
+            message: "Account inclusion policy changed",
+          }, ...snapshot.events],
+        };
       });
+      emitRepositoryEvents(reporter, result.events);
+      return result.changed;
     },
     async finalizeRun(runId, status, failure) {
       const finalized = await withTransaction(db, async (transaction) => {
@@ -1072,10 +1302,9 @@ export function createPostgresFinancialPersistence(
           reason: "synchronization",
           synchronizationRunId: runId,
         });
-        return { events, snapshot };
+        return { events: [...events, ...snapshot.events] };
       });
-      for (const event of finalized.events) reporter?.report(event.event, event.fields);
-      reporter?.report("wealth.snapshot.created", finalized.snapshot);
+      emitRepositoryEvents(reporter, finalized.events);
     },
     async identifyRunSource(runId, externalSubjectId) {
       const sourceInstanceId = await sourceInstanceIdForRun(db, runId);
@@ -1097,7 +1326,7 @@ export function createPostgresFinancialPersistence(
     },
     loadCurrentWealthState: () => loadCurrentWealthState(db),
     async markRunFailed(runId, failure) {
-      await db
+      const updated = await db
         .update(synchronizationRuns)
         .set({
           errorCode: failure.code,
@@ -1105,10 +1334,13 @@ export function createPostgresFinancialPersistence(
           finishedAt: sql`clock_timestamp()`,
           status: "failed",
         })
-        .where(and(eq(synchronizationRuns.id, runId), eq(synchronizationRuns.status, "running")));
+        .where(and(eq(synchronizationRuns.id, runId), eq(synchronizationRuns.status, "running")))
+        .returning({ runId: synchronizationRuns.id });
+      void updated;
     },
     async recordConnectionFailure(runId, connection, failure) {
-      await withTransaction(db, async (transaction) => {
+      const events = await withTransaction(db, async (transaction) => {
+        const transactionEvents: RepositoryEvent[] = [];
         const context = await ensureConnection(transaction, runId, connection);
         await transaction.insert(synchronizationConnectionResults).values({
           connectionId: context.connectionId,
@@ -1124,36 +1356,75 @@ export function createPostgresFinancialPersistence(
           successfulAccountCount: 0,
           synchronizationRunId: runId,
         });
+        return transactionEvents;
       });
+      emitRepositoryEvents(reporter, events);
     },
     async recordConnectionResult(
       runId,
       connection,
       listing: NormalizedExternalAccountListing,
     ) {
-      return withTransaction(db, async (transaction) => {
+      const persisted = await withTransaction(db, async (transaction) => {
+        const events: RepositoryEvent[] = [];
         const context = await ensureConnection(transaction, runId, connection);
         const returnedIds = new Set<string>();
         for (const account of listing.accounts) {
           returnedIds.add(account.externalId);
-          await saveSuccessfulAccount(transaction, { ...context, runId }, account);
+          await saveSuccessfulAccount(
+            transaction,
+            { ...context, runId },
+            account,
+            events,
+          );
         }
         let failedAccountCount = 0;
         for (const failure of listing.failures) {
           if (failure.externalId) returnedIds.add(failure.externalId);
           if (failure.externalId) {
-            await saveKnownAccountFailure(transaction, {
+            const knownAccount = await saveKnownAccountFailure(transaction, {
               externalId: failure.externalId,
               failure: failure.failure,
               runId,
               sourceInstanceId: context.sourceInstanceId,
+            });
+            events.push({
+              event: "ingestion.account.persistence_failed",
+              fields: {
+                error_code: failure.failure.code,
+                error_kind: failure.failure.kind,
+                known_account: knownAccount,
+                provider_account_id: failure.externalId,
+                run_id: runId,
+              },
+              level: "warn",
+              message: knownAccount
+                ? "External account failure persisted while preserving prior data"
+                : "External account failure could not be associated with a known account",
+            });
+          } else {
+            events.push({
+              event: "ingestion.account.persistence_failed",
+              fields: {
+                error_code: failure.failure.code,
+                error_kind: failure.failure.kind,
+                known_account: false,
+                reason: "missing_external_account_id",
+                run_id: runId,
+              },
+              level: "warn",
+              message: "External account failure could not be associated with an account",
             });
           }
           failedAccountCount += 1;
         }
         if (listing.isComplete) {
           const known = await transaction
-            .select({ externalId: externalAccounts.externalId, id: externalAccounts.id })
+            .select({
+              accountId: externalAccounts.accountId,
+              externalId: externalAccounts.externalId,
+              id: externalAccounts.id,
+            })
             .from(externalAccounts)
             .where(eq(externalAccounts.connectionId, context.connectionId));
           for (const externalAccount of known) {
@@ -1166,12 +1437,34 @@ export function createPostgresFinancialPersistence(
               status: "not_seen",
               synchronizationRunId: runId,
             });
+            events.push({
+              event: "ingestion.account.not_seen",
+              fields: {
+                account_id: externalAccount.accountId,
+                account_external_reference_id: externalAccount.id,
+                provider_account_id: externalAccount.externalId,
+                run_id: runId,
+              },
+              level: "warn",
+              message: "Known external account was not present in a complete provider listing",
+            });
             failedAccountCount += 1;
           }
         } else {
           failedAccountCount += 1;
+          events.push({
+            event: "ingestion.account_listing.incomplete",
+            fields: {
+              received_account_count: listing.accounts.length,
+              reported_total: listing.reportedTotal,
+              run_id: runId,
+            },
+            level: "warn",
+            message: "Provider account listing was incomplete; absence was not inferred",
+          });
         }
-        const status = failedAccountCount > 0 ? "partial" : "succeeded";
+        const status =
+          failedAccountCount > 0 ? "partial" as const : "succeeded" as const;
         await transaction.insert(synchronizationConnectionResults).values({
           connectionId: context.connectionId,
           failedAccountCount,
@@ -1185,15 +1478,20 @@ export function createPostgresFinancialPersistence(
           synchronizationRunId: runId,
         });
         return {
-          failedAccountCount,
-          status,
-          successfulAccountCount: listing.accounts.length,
+          events,
+          result: {
+            failedAccountCount,
+            status,
+            successfulAccountCount: listing.accounts.length,
+          },
         };
       });
+      emitRepositoryEvents(reporter, persisted.events);
+      return persisted.result;
     },
     async startRun(input) {
       try {
-        return await withTransaction(db, async (transaction) => {
+        const started = await withTransaction(db, async (transaction) => {
           let [source] = await transaction
             .select()
             .from(sourceInstances)
@@ -1220,7 +1518,7 @@ export function createPostgresFinancialPersistence(
               .returning();
           }
           if (!source) throw new Error("Failed to create source instance");
-          await transaction
+          const abandonedRuns = await transaction
             .update(synchronizationRuns)
             .set({
               errorCode: "abandoned",
@@ -1237,7 +1535,8 @@ export function createPostgresFinancialPersistence(
                   new Date(Date.now() - 2 * 60 * 60 * 1_000),
                 ),
               ),
-            );
+            )
+            .returning({ runId: synchronizationRuns.id });
           const [run] = await transaction
             .insert(synchronizationRuns)
             .values({
@@ -1247,8 +1546,26 @@ export function createPostgresFinancialPersistence(
             })
             .returning({ id: synchronizationRuns.id });
           if (!run) throw new Error("Failed to create synchronization run");
-          return { runId: run.id, status: "started" as const };
+          const events: RepositoryEvent[] = [];
+          for (const abandonedRun of abandonedRuns) {
+            events.push({
+              event: "ingestion.run.abandoned",
+              fields: {
+                abandoned_run_id: abandonedRun.runId,
+                replacement_run_id: run.id,
+                timeout_hours: 2,
+              },
+              level: "warn",
+              message: "Abandoned financial synchronization run marked as failed",
+            });
+          }
+          return {
+            events,
+            result: { runId: run.id, status: "started" as const },
+          };
         });
+        emitRepositoryEvents(reporter, started.events);
+        return started.result;
       } catch (error) {
         if (isUniqueViolation(error)) {
           return { status: "skipped_already_running" as const };

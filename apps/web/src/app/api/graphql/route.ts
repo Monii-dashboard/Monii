@@ -8,7 +8,7 @@ function handleGraphqlRequest(request: Request) {
   return runWithOperationContext(
     { surface: "web" },
     () => {
-      log({ event: "graphql.request.started" });
+      log.info("GraphQL request started", "graphql.request.started");
       return graphqlServer(request);
     },
   );

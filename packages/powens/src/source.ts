@@ -8,10 +8,11 @@ import type {
 import type {
   ExternalAccountTypeSupport,
   ExternalFinancialSource,
+  FinancialOperationalReport,
   NormalizedExternalAccount,
   NormalizedExternalConnection,
+  SynchronizationReporter,
 } from "@monii/ingestion";
-import { log } from "@monii/runtime/log";
 
 import type { PowensClient } from "./client";
 import type { PowensConfig } from "./config";
@@ -168,20 +169,25 @@ function fingerprint(key: string, type: string, value: string | null) {
 function normalizeAccount(
   account: PowensAccount,
   config: Pick<PowensConfig, "fingerprintKey" | "fingerprintKeyVersion" | "sourceTimeZone">,
+  reporter?: SynchronizationReporter,
 ): NormalizedExternalAccount {
   const retrievedAt = new Date();
   const timestamp = providerDate(account.last_update, config.sourceTimeZone, retrievedAt);
   if (timestamp.rejected) {
-    log.warning("Provider timestamp rejected", "sync.timestamp_rejected", {
-      provider: "powens",
-      ...(process.env.FINANCIAL_LOG_DETAIL === "local_diagnostic"
-        ? { provider_account_id: String(account.id) }
-        : {}),
-      reason: timestamp.rejected,
+    reporter?.report({
+      event: "ingestion.provider_timestamp.rejected",
+      fields: {
+        provider: "powens",
+        provider_account_id: String(account.id),
+        reason: timestamp.rejected,
+        timestamp_field: "account.last_update",
+      },
+      level: "warn",
+      message: "Powens account timestamp was rejected",
     });
   }
   const originalName = account.original_name ?? account.name;
-  return {
+  const normalized = {
     balance: decimalAmount(account.balance),
     currency: currency(account),
     estimatedValue: decimalAmount(account.valuation),
@@ -213,6 +219,23 @@ function normalizeAccount(
     sourceValidAt: timestamp.date,
     typeSupport: typeSupport(account),
   };
+  if (normalized.typeSupport === "unrecognized") {
+    reporter?.report({
+      event: "ingestion.account.normalization_degraded",
+      fields: {
+        balance_amount: normalized.balance,
+        category: normalized.category,
+        currency: normalized.currency,
+        estimated_value_amount: normalized.estimatedValue,
+        provider: "powens",
+        provider_account_id: normalized.externalId,
+        reason: "unrecognized_account_type",
+      },
+      level: "warn",
+      message: "Powens account normalized with an unrecognized type",
+    });
+  }
+  return normalized;
 }
 
 export function createPowensFinancialSource(
@@ -221,6 +244,7 @@ export function createPowensFinancialSource(
     PowensConfig,
     "fingerprintKey" | "fingerprintKeyVersion" | "sourceTimeZone"
   >,
+  reporter?: SynchronizationReporter,
 ): ExternalFinancialSource {
   return {
     async getExternalSubjectId() {
@@ -238,7 +262,7 @@ export function createPowensFinancialSource(
       return {
         accounts: response.accounts
           .filter((account) => account.error === null || account.error === undefined)
-          .map((account) => normalizeAccount(account, config)),
+          .map((account) => normalizeAccount(account, config, reporter)),
         failures: [
           ...response.accounts.flatMap((account) =>
             account.error
@@ -261,6 +285,35 @@ export function createPowensFinancialSource(
       const response = await client.listConnections();
       return response.connections.map((connection) => {
         const retrievedAt = new Date();
+        const nextTryAt = providerDate(
+          connection.next_try,
+          config.sourceTimeZone,
+          retrievedAt,
+        );
+        const sourceUpdatedAt = providerDate(
+          connection.last_update,
+          config.sourceTimeZone,
+          retrievedAt,
+        );
+        const rejectedTimestamps = [
+          ["connection.next_try", nextTryAt.rejected],
+          ["connection.last_update", sourceUpdatedAt.rejected],
+        ] as const;
+        for (const [timestampField, reason] of rejectedTimestamps) {
+          if (!reason) continue;
+          const report: FinancialOperationalReport = {
+            event: "ingestion.provider_timestamp.rejected",
+            fields: {
+              provider: "powens",
+              provider_connection_id: String(connection.id),
+              reason,
+              timestamp_field: timestampField,
+            },
+            level: "warn",
+            message: "Powens connection timestamp was rejected",
+          };
+          reporter?.report(report);
+        }
         return {
           active: connection.active ?? true,
           externalId: String(connection.id),
@@ -268,18 +321,10 @@ export function createPowensFinancialSource(
             externalId: connection.connector.uuid,
             reportedName: connection.connector.name || null,
           },
-          nextTryAt: providerDate(
-            connection.next_try,
-            config.sourceTimeZone,
-            retrievedAt,
-          ).date,
+          nextTryAt: nextTryAt.date,
           sourceErrorCode: connection.error ?? null,
           sourceState: connection.state ?? null,
-          sourceUpdatedAt: providerDate(
-            connection.last_update,
-            config.sourceTimeZone,
-            retrievedAt,
-          ).date,
+          sourceUpdatedAt: sourceUpdatedAt.date,
         };
       });
     },

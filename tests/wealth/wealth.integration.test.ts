@@ -1,6 +1,7 @@
 import {
   synchronizeSourceInstance,
   type ExternalFinancialSource,
+  type FinancialOperationalReport,
   type NormalizedExternalAccount,
 } from "@monii/ingestion";
 import { createPostgresSynchronizationRepository } from "@monii/postgres/ingestion";
@@ -87,7 +88,10 @@ async function sync(
 }
 
 test("merges with a stable alias and never rewrites historical provenance", async ({ db }) => {
-  const repository = createPostgresSynchronizationRepository(db);
+  const reports: FinancialOperationalReport[] = [];
+  const repository = createPostgresSynchronizationRepository(db, {
+    report: (record) => reports.push(record),
+  });
   const queryRepository = createPostgresWealthQueryRepository(db);
   await sync(
     repository,
@@ -96,7 +100,7 @@ test("merges with a stable alias and never rewrites historical provenance", asyn
         account("provider-account-1", "506.62", {
           identity: {
             accountNumberFingerprint: null,
-            ibanFingerprint: "old-iban-1",
+            ibanFingerprint: null,
             keyVersion: "v1",
             reportedNameFingerprint: "name-checking",
           },
@@ -106,7 +110,7 @@ test("merges with a stable alias and never rewrites historical provenance", asyn
         account("provider-account-24", "506.62", {
           identity: {
             accountNumberFingerprint: null,
-            ibanFingerprint: "old-iban-2",
+            ibanFingerprint: null,
             keyVersion: "v1",
             reportedNameFingerprint: "name-checking",
           },
@@ -164,6 +168,35 @@ test("merges with a stable alias and never rewrites historical provenance", asyn
     limit 1
   `);
   expect(historical[0]?.headline_amount).toBe("1013.24000000");
+  expect(reports).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        event: "ingestion.identity_match.changed",
+        fields: expect.objectContaining({
+          classification: "likely_duplicate",
+          reason_codes: ["matching_reported_name"],
+        }),
+        level: "warn",
+      }),
+      expect.objectContaining({
+        event: "wealth.duplicate_group.adjusted",
+        fields: expect.objectContaining({
+          representative_amount: "506.62000000",
+        }),
+        level: "warn",
+      }),
+      expect.objectContaining({
+        event: "accounts.merge.completed",
+        fields: expect.objectContaining({ merged_account_count: 1 }),
+        level: "info",
+      }),
+      expect.objectContaining({
+        event: "wealth.snapshot.created",
+        fields: expect.objectContaining({ headline_amount: "507" }),
+      }),
+    ]),
+  );
+  expect(reports.every((record) => record.event && record.message)).toBe(true);
 });
 
 test("preserves raw unknown data and canonical labels without inventing zero", async ({ db }) => {

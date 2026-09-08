@@ -1,8 +1,9 @@
 import type { AccountValuationCandidate } from "@monii/accounts";
 import {
-  classifyExternalAccountIdentity,
+  assessExternalAccountIdentity,
   synchronizeSourceInstance,
   type ExternalFinancialSource,
+  type FinancialOperationalReport,
   type IdentityAccount,
   type SynchronizationRepository,
 } from "@monii/ingestion";
@@ -79,26 +80,26 @@ function identity(overrides: Partial<IdentityAccount> = {}): IdentityAccount {
 describe("external account identity policy", () => {
   test("confirms stable identity but separates currency pockets", () => {
     expect(
-      classifyExternalAccountIdentity(
+      assessExternalAccountIdentity(
         identity(),
         identity({ accountId: "account-2", externalAccountId: "external-2" }),
-      ),
+      ).classification,
     ).toBe("confirmed_duplicate");
     expect(
-      classifyExternalAccountIdentity(
+      assessExternalAccountIdentity(
         identity(),
         identity({
           accountId: "usd",
           currency: "USD",
           externalAccountId: "external-usd",
         }),
-      ),
+      ).classification,
     ).toBe("distinct");
   });
 
   test("uses mutable names only to suggest a likely duplicate", () => {
     expect(
-      classifyExternalAccountIdentity(
+      assessExternalAccountIdentity(
         identity({ evidence: { ...identity().evidence, ibanFingerprint: null } }),
         identity({
           accountId: "account-2",
@@ -109,8 +110,65 @@ describe("external account identity policy", () => {
           },
           externalAccountId: "external-2",
         }),
-      ),
+      ).classification,
     ).toBe("likely_duplicate");
+  });
+
+  test("explains every identity assessment with stable reason codes", () => {
+    expect(
+      assessExternalAccountIdentity(
+        identity({ category: "unknown", currency: null, institutionId: null }),
+        identity({
+          accountId: "account-2",
+          evidence: { ...identity().evidence, keyVersion: "v2" },
+          externalAccountId: "external-2",
+        }),
+      ),
+    ).toEqual({
+      classification: "distinct",
+      reasonCodes: [
+        "missing_institution",
+        "missing_currency",
+        "unknown_account_category",
+        "fingerprint_key_version_mismatch",
+      ],
+    });
+    expect(
+      assessExternalAccountIdentity(
+        identity(),
+        identity({
+          accountId: "account-2",
+          evidence: {
+            ...identity().evidence,
+            accountNumberFingerprint: "different-number",
+            ibanFingerprint: "different-iban",
+          },
+          externalAccountId: "external-2",
+        }),
+      ).reasonCodes,
+    ).toEqual(["conflicting_iban", "conflicting_account_number"]);
+    expect(
+      assessExternalAccountIdentity(
+        identity({
+          evidence: {
+            ...identity().evidence,
+            accountNumberFingerprint: null,
+            ibanFingerprint: null,
+            reportedNameFingerprint: null,
+          },
+        }),
+        identity({
+          accountId: "account-2",
+          evidence: {
+            ...identity().evidence,
+            accountNumberFingerprint: null,
+            ibanFingerprint: null,
+            reportedNameFingerprint: null,
+          },
+          externalAccountId: "external-2",
+        }),
+      ).reasonCodes,
+    ).toEqual(["insufficient_matching_evidence"]);
   });
 });
 
@@ -168,6 +226,42 @@ describe("wealth calculation policy", () => {
     ]);
     expect(snapshot.decisions[0]?.decision).toBe("missing_selected_valuation");
     expect(snapshot.headlineAmount).toBe("0");
+  });
+
+  test("returns an explicit decision for every account eligibility branch", () => {
+    const decisions = calculateWealthSnapshot([
+      account({ accountId: "merged", mergedIntoAccountId: "canonical" }),
+      account({ accountId: "archived", archivedAt: observedAt }),
+      account({ accountId: "disabled", externalLifecycle: "disabled" }),
+      account({ accountId: "policy", inclusionPolicy: "exclude" }),
+      account({ accountId: "business", purpose: "business" }),
+      account({ accountId: "unsupported", typeSupport: "known_unsupported" }),
+      account({ accountId: "unknown", category: "unknown" }),
+      account({ accountId: "missing", balance: null }),
+      account({
+        accountId: "currency-missing",
+        balance: candidate("10", { currency: null }),
+      }),
+      account({
+        accountId: "currency-unsupported",
+        balance: candidate("10", { currency: "USD" }),
+      }),
+      account({ accountId: "included" }),
+    ]).decisions.map((decision) => decision.decision);
+
+    expect(decisions).toEqual([
+      "excluded_merged",
+      "excluded_archived",
+      "excluded_external_lifecycle",
+      "excluded_by_policy",
+      "excluded_business",
+      "known_unsupported_account",
+      "unknown_account_category",
+      "missing_selected_valuation",
+      "missing_currency",
+      "unsupported_currency",
+      "included",
+    ]);
   });
 });
 
@@ -290,6 +384,39 @@ describe("synchronization orchestration", () => {
       status: "partial",
     });
     expect(persistence.finalizeRun).toHaveBeenCalledOnce();
+  });
+
+  test("reports orchestration decisions with a level, event, and message", async () => {
+    const reports: FinancialOperationalReport[] = [];
+    await synchronizeSourceInstance({
+      actionId: "action",
+      adapterKey: "test",
+      reporter: { report: (record) => reports.push(record) },
+      repository: repository(),
+      source: {
+        getExternalSubjectId: async () => "subject-1",
+        listAccounts: async () => ({
+          accounts: [],
+          failures: [],
+          isComplete: true,
+          reportedTotal: 0,
+        }),
+        listConnections: async () => [connection("1")],
+      },
+      sourceKey: "source",
+      sourceName: "Test",
+    });
+
+    expect(reports.map((record) => record.event)).toEqual([
+      "ingestion.run.started",
+      "ingestion.connection.completed",
+      "ingestion.run.completed",
+    ]);
+    expect(
+      reports.every(
+        (record) => record.message.length > 0 && record.level.length > 0,
+      ),
+    ).toBe(true);
   });
 
   test("skips an overlapping run without calling the provider", async () => {

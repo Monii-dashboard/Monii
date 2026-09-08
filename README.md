@@ -133,6 +133,24 @@ This injects `MONII_PRETTY_LOGS=true` and renders colored timestamps, level,
 surface, action ID, event/message, and remaining fields. The default remains
 structured JSON, including for deployed environments.
 
+Every operational record contains both a stable `event` for filtering and a
+human-readable `message`. Financial records use `info` for normal decisions,
+`warn` for ambiguity or incomplete data, and `error` for failed operations.
+They include internal correlation IDs and may include amounts, but standard
+production logs omit provider identifiers, account and institution names,
+identity material, raw payloads, and raw exception messages. Set
+`FINANCIAL_LOG_DETAIL=local_diagnostic` only in a trusted local environment when
+provider identifiers are needed.
+
+Deployed records can be inspected through Specific. For example:
+
+```bash
+specific query "SELECT Timestamp, SeverityText, Body FROM observability.logs WHERE JSONExtractString(Body, 'event') = 'wealth.duplicate_group.adjusted' AND Timestamp >= now() - INTERVAL 24 HOUR ORDER BY Timestamp DESC LIMIT 100"
+```
+
+Operational logs are retained by the observability platform; persisted
+financial observations and snapshot decisions are the long-term audit trail.
+
 ## Operator CLI
 
 The private CLI provides generated help without database or Powens credentials:
@@ -175,7 +193,7 @@ versioned API base URL and a permanent user token, and supports:
   accounts included, returning current balances and optional Wealth valuations,
   freshness metadata, currencies, and aggregate balances.
 
-The daily CLI synchronization maps these responses into Monii-owned
+The CLI synchronization maps these responses into Monii-owned
 institutions, accounts, observations, and immutable wealth snapshots. It reads
 each connection independently, preserves last-valid values on failure, and does
 not persist raw Powens payloads.

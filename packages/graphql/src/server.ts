@@ -83,9 +83,10 @@ export function createGraphqlServer({
         }
 
         logger.error(
-          graphqlError.originalError.message,
+          "Unexpected GraphQL execution failure",
           "graphql.unexpected_error",
           {
+          error_kind: graphqlError.originalError.name,
           path: graphqlError.path,
           },
         );

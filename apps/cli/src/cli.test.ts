@@ -67,26 +67,27 @@ test.each([
   const result = outcome(status);
   vi.mocked(synchronizeSourceInstance).mockImplementationOnce(async ({ actionId, reporter }) => {
     expect(actionId).toBe(getOperationContext().action_id);
-    reporter?.report("sync.connection_failed", { connection_id: "connection-fixture" });
-    reporter?.report("sync.connection_completed", {
-      count: 1,
-      provider_external_id: "must-not-be-logged",
+    reporter?.report({
+      event: "ingestion.connection.failed",
+      fields: { connection_id: "connection-fixture" },
+      level: "error",
+      message: "Connection failed",
+    });
+    reporter?.report({
+      event: "ingestion.connection.completed",
+      fields: {
+        count: 1,
+        provider_external_id: "must-not-be-logged",
+      },
+      level: "info",
+      message: "Connection completed",
     });
     return result;
   });
   expect(await runCli(["--", "sync"])).toBe(exit);
   expect(close).toHaveBeenCalledOnce();
-  expect(records[0]).toMatchObject({ event: "sync.started", surface: "cli" });
-  expect(records[1]).toMatchObject({ event: "sync.connection_failed", level: "error", connection_id: "connection-fixture" });
-  expect(records[2]).toMatchObject({ event: "sync.connection_completed", level: "info", count: 1 });
-  expect(records[3]).toMatchObject({
-    event: exit ? "sync.degraded" : "sync.completed",
-    level: exit ? "error" : "info", status,
-    run_id: result.runId,
-    failed_connection_count: result.failedConnectionCount,
-    partial_connection_count: result.partialConnectionCount,
-    successful_connection_count: result.successfulConnectionCount,
-  });
+  expect(records[0]).toMatchObject({ event: "ingestion.connection.failed", level: "error", connection_id: "connection-fixture", message: "Connection failed" });
+  expect(records[1]).toMatchObject({ event: "ingestion.connection.completed", level: "info", count: 1, message: "Connection completed" });
   expect(new Set(records.map((record) => record.action_id)).size).toBe(1);
   expect(JSON.stringify(records)).not.toContain("must-not-be-logged");
   expect(records[0].action_id).toMatch(/^cli-/);
@@ -97,7 +98,7 @@ test.each([new Error("secret provider payload"), "secret provider payload"])("sa
   expect(await runCli(["sync"])).toBe(1);
   expect(close).toHaveBeenCalledOnce();
   expect(records.at(-1)).toMatchObject({
-    event: "sync.crashed", error_code: "unhandled",
+    event: "ingestion.command.crashed", error_code: "unhandled",
     error_kind: error instanceof Error ? "Error" : "unexpected",
     action_id: records[0].action_id,
   });
@@ -112,7 +113,7 @@ test.each(["config", "repository"])("closes the database when %s initialization 
   expect(await runCli(["sync"])).toBe(1);
   expect(close).toHaveBeenCalledOnce();
   expect(synchronizeSourceInstance).not.toHaveBeenCalled();
-  expect(records.at(-1)).toMatchObject({ event: "sync.crashed", action_id: records[0].action_id });
+  expect(records.at(-1)).toMatchObject({ event: "ingestion.command.crashed", action_id: records[0].action_id });
 });
 
 test.each([false, true])("awaits cleanup before completing (failure: %s)", async (failed) => {
@@ -133,7 +134,7 @@ test("reports cleanup failure in the same operation", async () => {
   vi.mocked(synchronizeSourceInstance).mockResolvedValueOnce(outcome("succeeded"));
   close.mockRejectedValueOnce(new Error("secret database details"));
   expect(await runCli(["sync"])).toBe(1);
-  expect(records.at(-1)).toMatchObject({ event: "sync.crashed", action_id: records[0].action_id });
+  expect(records.at(-1)).toMatchObject({ event: "ingestion.command.crashed", action_id: records[0].action_id });
 });
 
 test("missing database configuration fails before initialization", async () => {
@@ -141,7 +142,7 @@ test("missing database configuration fails before initialization", async () => {
   expect(await runCli(["sync"])).toBe(1);
   expect(createDatabase).not.toHaveBeenCalled();
   expect(close).not.toHaveBeenCalled();
-  expect(records[0]).toMatchObject({ event: "sync.crashed", surface: "cli" });
+  expect(records[0]).toMatchObject({ event: "ingestion.command.crashed", surface: "cli" });
 });
 
 test("reports a database initialization failure without attempting cleanup", async () => {
@@ -151,7 +152,7 @@ test("reports a database initialization failure without attempting cleanup", asy
   expect(await runCli(["sync"])).toBe(1);
   expect(close).not.toHaveBeenCalled();
   expect(synchronizeSourceInstance).not.toHaveBeenCalled();
-  expect(records[0]).toMatchObject({ event: "sync.crashed", surface: "cli" });
+  expect(records[0]).toMatchObject({ event: "ingestion.command.crashed", surface: "cli" });
   expect(JSON.stringify(records)).not.toContain("secret database details");
 });
 
