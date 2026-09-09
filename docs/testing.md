@@ -216,7 +216,7 @@ and [Playwright Test introduction](https://playwright.dev/docs/test-intro).
 | ID | Priority | Status | Issue | Depends on |
 | --- | --- | --- | --- | --- |
 | TST-001 | P0 | Fixed | Make PostgreSQL integration tests Testcontainers-only and isolated per test. | — |
-| TST-002 | P0 | Open | Reduce the public taxonomy to unit, integration, E2E, and repository suites. | — |
+| TST-002 | P0 | Fixed | Reduce the public taxonomy to unit, integration, E2E, and repository suites. | — |
 | TST-003 | P1 | Open | Move tests to their owning package or app and reserve root tests for real boundaries. | TST-002 |
 | TST-004 | P1 | Open | Rename and reshape tests so every name states exactly what is proved. | TST-002, TST-003 |
 | TST-005 | P1 | Open | Replace static-markup interaction claims with real browser component tests. | TST-002 |
@@ -272,15 +272,24 @@ meaning unpredictable.
 
 **Acceptance criteria:**
 
-- [ ] Public scripts are limited to `test:unit`, `test:integration`, `test:e2e`,
+- [x] Public scripts are limited to `test:unit`, `test:integration`, `test:e2e`,
       and `test:repository`, plus aggregate/watch/coverage variants.
-- [ ] Every existing test is classified by boundary, not by its historical
+- [x] Every existing test is classified by boundary, not by its historical
       folder.
-- [ ] CLI subprocess, complete console, and GraphQL client/server tests move to
+- [x] CLI subprocess, complete console, and GraphQL client/server tests move to
       integration.
-- [ ] Internal Node/browser Vitest projects remain implementation details of
+- [x] Internal Node/browser Vitest projects remain implementation details of
       `test:unit`.
-- [ ] A contributor can infer a test's prerequisites from its suite.
+- [x] A contributor can infer a test's prerequisites from its suite.
+
+**Fixed (2026-09-10):** native CLI subprocess tests, the complete interactive
+console test, GraphQL client/server transport tests, and the application GraphQL
+route test now use the `.integration.test.ts` suffix and run only in the
+integration project. The isolated Apollo client configuration test remains a
+unit test. Verification accounts for all existing tests: 93 unit, 40
+integration, and 38 repository tests. The `test:e2e` command will be added with
+the real Playwright harness in TST-006 rather than as an empty or misleading
+placeholder.
 
 ### TST-003 — Ownership-based file structure
 

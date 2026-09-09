@@ -63,21 +63,6 @@ function createTestClient(timeoutMs = 30_000) {
   return { client, serverErrors };
 }
 
-test("enables Apollo DevTools only in development", async () => {
-  const client = createApolloGraphqlClient({
-    uri: "http://graphql.test/api/graphql",
-  });
-
-  try {
-    expect(client.devtoolsConfig.enabled).toBe(
-      process.env.NODE_ENV === "development",
-    );
-  } finally {
-    await client.clearStore();
-    client.stop();
-  }
-});
-
 test("excludes test-only fields from the production schema", async () => {
   const server = createGraphqlServer({ schema: graphqlSchema });
   const response = await server.fetch("http://graphql.test/api/graphql", {
