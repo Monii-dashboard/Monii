@@ -379,6 +379,27 @@ This decision does not introduce multiple GraphQL services, federation,
 subscriptions, or provider-facing GraphQL APIs. Add those only for a concrete
 need.
 
+## Frontend theme boundary
+
+The web app uses Tailwind's CSS-first configuration with a layered token system.
+`apps/web/src/styles/theme.css` is the canonical source for the foundation
+palette, semantic theme roles, and the Tailwind theme variables that expose
+those roles as utilities. Components consume semantic utilities such as canvas,
+surface, content, accent, and danger rather than raw palette names or color
+values.
+
+Reusable typography, radius, shadow, and motion decisions also belong in the
+theme. Tailwind's standard spacing scale remains the default layout vocabulary;
+add a named token only when a value represents a recurring Monii design
+decision. Component variants own repeated class recipes. Page-specific geometry
+and data-driven values, such as chart positions and contribution widths, remain
+local and may use inline styles.
+
+Themes override semantic custom properties under a `data-theme` selector while
+leaving component classes unchanged. The current product defines only its dark
+theme. Add another theme only with a deliberate palette and user-visible theme
+selection behavior.
+
 ## Intentionally deferred decisions
 
 The following should be decided from real provider data and implementation

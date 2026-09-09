@@ -24,10 +24,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
+      data-theme="dark"
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-ink text-cloud selection:bg-lime selection:text-ink">
+      <body className="min-h-full bg-canvas text-content selection:bg-accent selection:text-content-on-accent">
         <GraphqlProvider>{children}</GraphqlProvider>
       </body>
     </html>

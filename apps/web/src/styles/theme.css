@@ -1,0 +1,301 @@
+:root {
+  /* Foundation palette: raw materials, not component-facing roles. */
+  --palette-ink-950: #07110f;
+  --palette-ink-900: #091410;
+  --palette-ink-850: #0b1916;
+  --palette-ink-800: #0c1b17;
+  --palette-cloud-100: #f2f5ed;
+  --palette-mist-400: #9aa9a2;
+  --palette-lime-300: #c7ff68;
+  --palette-lime-200: #d5ff8c;
+  --palette-violet-300: #a78bfa;
+  --palette-violet-200: #cbbcff;
+  --palette-aqua-300: #67e8dc;
+  --palette-coral-300: #ff8066;
+  --palette-coral-200: #ff9d8a;
+  --palette-coral-100: #ffc0b3;
+  --palette-yellow-300: #f5d76e;
+  --palette-white: #fff;
+  --palette-black: #000;
+}
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Semantic color roles: components consume these through Tailwind. */
+  --theme-color-canvas: var(--palette-ink-950);
+  --theme-color-surface: color-mix(
+    in srgb,
+    var(--palette-ink-800) 72%,
+    transparent
+  );
+  --theme-color-surface-strong: color-mix(
+    in srgb,
+    var(--palette-ink-800) 80%,
+    transparent
+  );
+  --theme-color-surface-hero: color-mix(
+    in srgb,
+    var(--palette-ink-850) 70%,
+    transparent
+  );
+  --theme-color-surface-solid: var(--palette-ink-900);
+  --theme-color-surface-glass: color-mix(
+    in srgb,
+    var(--palette-white) 1.8%,
+    transparent
+  );
+  --theme-color-surface-faint: color-mix(
+    in srgb,
+    var(--palette-white) 2.5%,
+    transparent
+  );
+  --theme-color-surface-overlay: color-mix(
+    in srgb,
+    var(--palette-white) 5%,
+    transparent
+  );
+
+  --theme-color-content: var(--palette-cloud-100);
+  --theme-color-content-muted: var(--palette-mist-400);
+  --theme-color-content-on-accent: var(--palette-ink-950);
+
+  --theme-color-border-subtle: color-mix(
+    in srgb,
+    var(--palette-white) 8%,
+    transparent
+  );
+  --theme-color-border-default: color-mix(
+    in srgb,
+    var(--palette-white) 10%,
+    transparent
+  );
+  --theme-color-border-orbit: color-mix(
+    in srgb,
+    var(--palette-white) 12%,
+    transparent
+  );
+  --theme-color-border-strong: color-mix(
+    in srgb,
+    var(--palette-white) 15%,
+    transparent
+  );
+  --theme-color-border-atmosphere: color-mix(
+    in srgb,
+    var(--palette-white) 3.5%,
+    transparent
+  );
+  --theme-color-decoration: color-mix(
+    in srgb,
+    var(--palette-white) 25%,
+    transparent
+  );
+  --theme-color-track: var(--theme-color-border-subtle);
+
+  --theme-color-accent: var(--palette-lime-300);
+  --theme-color-accent-hover: var(--palette-lime-200);
+  --theme-color-accent-subtle: color-mix(
+    in srgb,
+    var(--theme-color-accent) 8%,
+    transparent
+  );
+  --theme-color-accent-soft: color-mix(
+    in srgb,
+    var(--theme-color-accent) 10%,
+    transparent
+  );
+  --theme-color-accent-muted: color-mix(
+    in srgb,
+    var(--theme-color-accent) 20%,
+    transparent
+  );
+  --theme-color-accent-outline: color-mix(
+    in srgb,
+    var(--theme-color-accent) 25%,
+    transparent
+  );
+  --theme-color-accent-emphasis: color-mix(
+    in srgb,
+    var(--theme-color-accent) 40%,
+    transparent
+  );
+
+  --theme-color-danger: var(--palette-coral-300);
+  --theme-color-danger-content: var(--palette-coral-200);
+  --theme-color-danger-content-strong: var(--palette-coral-100);
+  --theme-color-danger-subtle: color-mix(
+    in srgb,
+    var(--theme-color-danger) 6%,
+    transparent
+  );
+  --theme-color-danger-soft: color-mix(
+    in srgb,
+    var(--theme-color-danger) 10%,
+    transparent
+  );
+  --theme-color-danger-outline: color-mix(
+    in srgb,
+    var(--theme-color-danger) 20%,
+    transparent
+  );
+  --theme-color-danger-outline-subtle: color-mix(
+    in srgb,
+    var(--theme-color-danger) 15%,
+    transparent
+  );
+
+  --theme-color-info: var(--palette-violet-300);
+  --theme-color-info-content: var(--palette-violet-200);
+  --theme-color-info-subtle: color-mix(
+    in srgb,
+    var(--theme-color-info) 7%,
+    transparent
+  );
+  --theme-color-info-outline: color-mix(
+    in srgb,
+    var(--theme-color-info) 20%,
+    transparent
+  );
+  --theme-color-highlight: var(--palette-aqua-300);
+  --theme-color-warning: var(--palette-yellow-300);
+
+  /* Data colors are separate from status and brand semantics. */
+  --theme-color-chart-1: var(--palette-lime-300);
+  --theme-color-chart-2: var(--palette-violet-300);
+  --theme-color-chart-3: var(--palette-aqua-300);
+  --theme-color-chart-4: var(--palette-coral-300);
+  --theme-color-chart-5: var(--palette-yellow-300);
+
+  /* Reusable atmospheric treatments; layout geometry stays local. */
+  --theme-effect-dashboard-grid:
+    linear-gradient(var(--theme-color-surface-faint) 1px, transparent 1px),
+    linear-gradient(90deg, var(--theme-color-surface-faint) 1px, transparent 1px);
+  --theme-effect-aurora-primary: radial-gradient(
+    ellipse,
+    color-mix(in srgb, var(--theme-color-chart-2) 17%, transparent),
+    color-mix(in srgb, var(--theme-color-chart-3) 7%, transparent) 42%,
+    transparent 70%
+  );
+  --theme-effect-aurora-secondary: radial-gradient(
+    ellipse,
+    color-mix(in srgb, var(--theme-color-chart-1) 12%, transparent),
+    color-mix(in srgb, var(--theme-color-chart-4) 4%, transparent) 48%,
+    transparent 72%
+  );
+  --theme-effect-hero-glow: radial-gradient(
+    circle at 50% 45%,
+    color-mix(in srgb, var(--theme-color-accent) 8%, transparent),
+    transparent 54%
+  );
+}
+
+@theme inline {
+  --color-canvas: var(--theme-color-canvas);
+  --color-surface: var(--theme-color-surface);
+  --color-surface-strong: var(--theme-color-surface-strong);
+  --color-surface-hero: var(--theme-color-surface-hero);
+  --color-surface-solid: var(--theme-color-surface-solid);
+  --color-surface-glass: var(--theme-color-surface-glass);
+  --color-surface-faint: var(--theme-color-surface-faint);
+  --color-surface-overlay: var(--theme-color-surface-overlay);
+
+  --color-content: var(--theme-color-content);
+  --color-content-muted: var(--theme-color-content-muted);
+  --color-content-on-accent: var(--theme-color-content-on-accent);
+
+  --color-border-subtle: var(--theme-color-border-subtle);
+  --color-border-default: var(--theme-color-border-default);
+  --color-border-orbit: var(--theme-color-border-orbit);
+  --color-border-strong: var(--theme-color-border-strong);
+  --color-border-atmosphere: var(--theme-color-border-atmosphere);
+  --color-decoration: var(--theme-color-decoration);
+  --color-track: var(--theme-color-track);
+
+  --color-accent: var(--theme-color-accent);
+  --color-accent-hover: var(--theme-color-accent-hover);
+  --color-accent-subtle: var(--theme-color-accent-subtle);
+  --color-accent-soft: var(--theme-color-accent-soft);
+  --color-accent-muted: var(--theme-color-accent-muted);
+  --color-accent-outline: var(--theme-color-accent-outline);
+  --color-accent-emphasis: var(--theme-color-accent-emphasis);
+
+  --color-danger: var(--theme-color-danger);
+  --color-danger-content: var(--theme-color-danger-content);
+  --color-danger-content-strong: var(--theme-color-danger-content-strong);
+  --color-danger-subtle: var(--theme-color-danger-subtle);
+  --color-danger-soft: var(--theme-color-danger-soft);
+  --color-danger-outline: var(--theme-color-danger-outline);
+  --color-danger-outline-subtle: var(--theme-color-danger-outline-subtle);
+
+  --color-info: var(--theme-color-info);
+  --color-info-content: var(--theme-color-info-content);
+  --color-info-subtle: var(--theme-color-info-subtle);
+  --color-info-outline: var(--theme-color-info-outline);
+  --color-highlight: var(--theme-color-highlight);
+  --color-warning: var(--theme-color-warning);
+
+  --color-chart-1: var(--theme-color-chart-1);
+  --color-chart-2: var(--theme-color-chart-2);
+  --color-chart-3: var(--theme-color-chart-3);
+  --color-chart-4: var(--theme-color-chart-4);
+  --color-chart-5: var(--theme-color-chart-5);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  --text-label: 0.625rem;
+  --text-label--line-height: 1rem;
+  --text-label-compact: 0.5625rem;
+  --text-label-compact--line-height: 0.875rem;
+  --text-label-micro: 0.5rem;
+  --text-label-micro--line-height: 0.75rem;
+  --text-caption: 0.6875rem;
+  --text-caption--line-height: 1rem;
+  --text-body-compact: 0.9375rem;
+  --text-body-compact--line-height: 1.25rem;
+  --text-wealth: clamp(3.25rem, 9vw, 6.8rem);
+  --text-wealth--line-height: 1;
+
+  --tracking-brand: -0.04em;
+  --tracking-heading: -0.055em;
+  --tracking-display: -0.065em;
+  --tracking-wealth: -0.085em;
+  --tracking-orbit: -0.08em;
+  --tracking-label: 0.28em;
+  --tracking-label-relaxed: 0.25em;
+  --tracking-label-tight: 0.16em;
+  --tracking-label-wide: 0.3em;
+  --tracking-footer: 0.22em;
+
+  --leading-display: 1.03;
+
+  --radius-card: 1.75rem;
+  --radius-dialog: 2rem;
+  --radius-hero: 2.125rem;
+
+  --shadow-brand: 0 0 35px
+    color-mix(in srgb, var(--theme-color-accent) 18%, transparent);
+  --shadow-panel: 0 28px 70px
+    color-mix(in srgb, var(--palette-black) 20%, transparent);
+  --shadow-hero: 0 35px 120px
+    color-mix(in srgb, var(--palette-black) 34%, transparent);
+  --shadow-dialog: 0 25px 50px -12px
+    color-mix(in srgb, var(--palette-black) 25%, transparent);
+  --shadow-orbit-primary: 0 0 24px var(--theme-color-chart-2);
+  --shadow-orbit-secondary: 0 0 22px var(--theme-color-chart-3);
+  --shadow-orbit-ring: 0 0 90px
+    color-mix(in srgb, var(--theme-color-chart-1) 12%, transparent);
+  --shadow-orbit-inner: inset 0 0 55px
+    color-mix(in srgb, var(--palette-black) 70%, transparent);
+  --shadow-orbit-point: 0 0 18px currentcolor;
+  --shadow-atmosphere: 0 0 120px
+    color-mix(in srgb, var(--theme-color-chart-3) 6%, transparent);
+
+  --animate-aurora: aurora-drift 16s ease-in-out infinite;
+  --animate-orbit: orbit-turn 32s linear infinite;
+  --animate-orbit-reverse: orbit-turn-reverse 24s linear infinite;
+  --animate-orbit-loader: orbit-turn 2.6s linear infinite;
+  --animate-breathe: breathe 1.8s ease-in-out infinite;
+  --animate-reveal: soft-rise 650ms both;
+}
