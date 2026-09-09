@@ -50,7 +50,6 @@ service "web" {
     PORT                 = port
     DATABASE_URL         = postgres.main.url
     FINANCIAL_LOG_DETAIL = config.financial_log_detail
-    TEST_DATABASE_URL    = postgres.main.url
     MONII_PRETTY_LOGS = config.pretty_logs
   }
 

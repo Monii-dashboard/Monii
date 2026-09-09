@@ -15,6 +15,9 @@ snapshots; the dashboard still exposes only its initial transport scaffold.
 - [Domain and engineering principles](docs/domain-and-engineering.md) explains
   the concepts, accepted storage semantics, and boundaries that guide the
   implementation.
+- [Testing strategy and remediation tracker](docs/testing.md) defines test
+  ownership, suite boundaries, database isolation, and the active cleanup
+  backlog.
 
 These documents are the durable source of product context. Keep them aligned
 when product decisions change.

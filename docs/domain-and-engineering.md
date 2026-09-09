@@ -14,6 +14,10 @@ For a table-by-table description, relationship diagram, synchronization flow,
 and code map of that foundation, see
 [Financial persistence foundation](financial-foundation.md).
 
+Testing ownership, suite boundaries, infrastructure policy, and the active
+remediation backlog are defined in the
+[testing strategy and remediation tracker](testing.md).
+
 ## Source workspace boundaries
 
 Monii is organized as a small, source-first pnpm workspace:

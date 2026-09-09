@@ -276,7 +276,6 @@ specific check
 specific clean
 specific exec web -- pnpm db:push
 specific exec daily-sync -- pnpm cli -- sync
-specific exec web -- pnpm test:integration
 specific psql main -- -c "select schemaname, tablename from pg_tables where schemaname in ('financial', 'ingestion', 'wealth') order by 1, 2"
 specific dev
 ```
@@ -285,6 +284,10 @@ specific dev
 when a clean rebuild is intended. `db:push` is the schema-population command for
 development and applies the committed named-schema baseline;
 deployments continue to run `pnpm db:migrate`.
+
+Integration tests own an isolated PostgreSQL Testcontainer for each test. Run
+them directly with `pnpm test:integration`; they never use the Specific
+development database.
 
 Repository checks remain:
 
