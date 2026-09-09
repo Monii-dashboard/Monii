@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 
-import { Divider } from "./divider";
+import { Divider } from ".";
 
 describe("Divider", () => {
   test("renders as a decorative flex-axis separator", () => {

@@ -63,6 +63,26 @@ service "web" {
   }
 }
 
+service "storybook" {
+  root = "apps/web"
+
+  endpoint {
+    public = true
+
+    health_check {
+      path = "/"
+    }
+  }
+
+  env = {
+    PORT = port
+  }
+
+  dev {
+    command = "pnpm exec storybook dev --port $PORT --no-open"
+  }
+}
+
 cron "daily-sync" {
   build    = build.application
   command  = "pnpm --filter @monii/cli cli -- sync"

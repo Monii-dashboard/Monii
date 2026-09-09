@@ -9,7 +9,7 @@ export type IconName =
   | "investment"
   | "monii";
 
-type IconProps = {
+export type IconProps = {
   className?: string;
   label?: string;
   name: IconName;

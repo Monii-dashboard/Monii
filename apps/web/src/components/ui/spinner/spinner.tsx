@@ -1,6 +1,6 @@
 export type SpinnerSize = "small" | "medium" | "large";
 
-type SpinnerProps = {
+export type SpinnerProps = {
   label?: string;
   size?: SpinnerSize;
 };

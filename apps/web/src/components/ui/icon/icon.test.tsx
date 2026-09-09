@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 
-import { Icon, type IconName } from "./icon";
+import { Icon, type IconName } from ".";
 
 const iconNames: IconName[] = [
   "cash",

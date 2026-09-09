@@ -2,11 +2,11 @@
 
 import { useId, type ReactNode } from "react";
 
-import { Icon, type IconName } from "./icon";
+import { Icon, type IconName } from "../icon";
 
-type BannerType = "default" | "critical" | "caution";
+export type BannerType = "default" | "critical" | "caution";
 
-type BannerProps = {
+export type BannerProps = {
   actions: ReactNode;
   description: ReactNode;
   onDismiss?: () => void;

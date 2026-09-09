@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 
-import { Spinner } from "./spinner";
+import { Spinner } from ".";
 
 describe("Spinner", () => {
   test.each([

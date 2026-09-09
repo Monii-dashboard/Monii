@@ -1,5 +1,5 @@
 /**
- * A decorative separator that follows its parent flex container's main axis.
+ * A decorative separator that follows its flex container's main axis.
  * In a column it is horizontal; in a row it is vertical.
  */
 export function Divider() {

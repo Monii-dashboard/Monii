@@ -146,6 +146,7 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+storybook-static/
 .specific
 specific.local
 

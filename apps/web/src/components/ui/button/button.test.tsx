@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 
-import { Button } from "./button";
+import { Button } from ".";
 
 describe("Button", () => {
   test("renders a medium native button by default", () => {

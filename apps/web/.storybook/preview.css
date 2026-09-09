@@ -1,0 +1,23 @@
+@font-face {
+  font-family: "Monii Geist";
+  font-style: normal;
+  font-weight: 100 900;
+  src: url("../src/app/fonts/geist-latin.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Monii Geist Mono";
+  font-style: normal;
+  font-weight: 100 900;
+  src: url("../src/app/fonts/geist-mono-latin.woff2") format("woff2");
+}
+
+:root {
+  --font-geist-sans: "Monii Geist";
+  --font-geist-mono: "Monii Geist Mono";
+}
+
+body {
+  background: var(--theme-color-canvas);
+  color: var(--theme-color-content);
+}

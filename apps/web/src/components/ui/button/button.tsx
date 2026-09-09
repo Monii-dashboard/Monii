@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { Spinner } from "./spinner";
+import { Spinner } from "../spinner";
 
 type ButtonSize = "small" | "medium" | "large";
 type ButtonType = "primary" | "secondary" | "destructive";

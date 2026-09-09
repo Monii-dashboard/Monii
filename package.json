@@ -6,6 +6,8 @@
     "dev": "pnpm --filter @monii/web dev",
     "build": "pnpm graphql:check && pnpm --filter @monii/web build",
     "start": "pnpm --filter @monii/web start",
+    "storybook": "pnpm --filter @monii/web storybook",
+    "build-storybook": "pnpm --filter @monii/web build-storybook",
     "lint": "eslint .",
     "typecheck": "pnpm -r typecheck && tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
