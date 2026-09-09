@@ -43,8 +43,10 @@ Monii is organized as a small, source-first pnpm workspace:
 - `packages/powens` owns Powens transport, configuration, DTOs, and normalization.
 - `packages/postgres` owns Drizzle schemas and PostgreSQL port implementations.
 - `packages/graphql` owns the GraphQL transport and resolver composition.
-- root `tests` owns cross-package tests and fixtures; `tests/repository` contains
-  repository-quality checks separately from application tests.
+- Unit tests live beside their owning package or app source. App-owned
+  integration tests live under that app's `test` directory. Root `tests` owns
+  only genuine cross-package integration scenarios, shared test support, and
+  repository-quality checks.
 
 The private operator CLI uses oclif file-based discovery under
 `apps/cli/src/commands` and generated help. Commands own parsing, metadata, and

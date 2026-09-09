@@ -8,7 +8,7 @@ import { afterEach, expect, test } from "vitest";
 import {
   findWorkspaceRoot,
   loadWorkspaceModules,
-} from "../../apps/console/src/modules";
+} from "./modules";
 
 const temporaryDirectories: string[] = [];
 

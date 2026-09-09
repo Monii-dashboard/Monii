@@ -31,17 +31,18 @@ when product decisions change.
 - Vitest and Testcontainers
 - Specific for development and infrastructure
 
-Powens is the first financial data source. Its server package is a thin adapter
+Powens is the first financial data source. Its adapter package is a thin boundary
 over the provider API; synchronization and persistence are intentionally
 separate concerns.
 
 ## Workspace structure
 
 Monii is a source-first pnpm workspace. Packages are named after
-capabilities: app bootstraps compose Node adapters, and server adapters implement
-the portable wealth package’s contracts. Workspace manifests declare a `portable`
-or `node` platform; lint enforces compatible, acyclic workspace dependencies and
-public imports. App-specific features stay inside their owning app.
+capabilities: app bootstraps compose Node adapters, and those adapters implement
+the portable domain packages' contracts. Workspace manifests declare a
+`portable` or `node` platform; lint enforces compatible, acyclic workspace
+dependencies and public imports. App-specific features stay inside their owning
+app.
 
 ```text
 apps/
@@ -49,10 +50,15 @@ apps/
   cli/          One-shot operator and cron commands
   console/      Local TypeScript console for developer exploration
 packages/
-  wealth/       Portable wealth calculation, account identity, sync and contracts
+  accounts/     Portable account, institution, identity, and valuation language
+  ingestion/    Portable synchronization and external-account identity policy
+  wealth-calculation/ Portable wealth inclusion and calculation policy
+  wealth-query/ Portable current-wealth read projection
+  graphql/      GraphQL schema, server, and resolver composition
+  postgres/     PostgreSQL schemas and domain-port implementations
+  powens/       Powens transport and normalization
   runtime/      Node operation context and logging
-  server/       PostgreSQL, GraphQL, and provider/Node adapters
-tests/          Cross-package integration tests and fixtures
+tests/          Cross-package integration, shared support, and repository checks
 ```
 
 Shared packages are private and export TypeScript source through explicit
@@ -107,10 +113,10 @@ GraphQL operations may be declared in frontend TypeScript with the generated
 `graphql()` function. Run `pnpm graphql:generate` after changing the backend
 schema or an operation. Generated schema and client artifacts are committed
 under `apps/web/src/generated/graphql` (frontend) and
-`tests/generated/graphql` (test contracts); `pnpm graphql:check` fails when
-they are stale. Backend operations are added as decorated TypeGraphQL resolver
-classes under `packages/graphql/src`. Keep decorated GraphQL DTOs at the
-transport boundary instead of annotating financial domain objects.
+`tests/integration/graphql/generated` (test contracts); `pnpm graphql:check`
+fails when they are stale. Backend operations are added as decorated TypeGraphQL
+resolver classes under `packages/graphql/src`. Keep decorated GraphQL DTOs at
+the transport boundary instead of annotating financial domain objects.
 
 GitHub Actions runs lint, typechecking, tests, and the GraphQL staleness check
 as separate required-check candidates for pull requests to and pushes on

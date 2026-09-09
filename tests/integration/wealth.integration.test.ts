@@ -12,7 +12,7 @@ import {
 import { getCurrentWealth } from "@monii/wealth-query";
 import { sql } from "drizzle-orm";
 
-import { expect, test } from "../integration-test";
+import { expect, test } from "../support/postgres";
 
 const observedAt = new Date("2026-08-31T10:00:00Z");
 

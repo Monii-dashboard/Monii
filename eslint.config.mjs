@@ -8,8 +8,9 @@ import nextTs from "eslint-config-next/typescript";
 const allGraphqlDocuments = [
   "apps/web/src/**/*.{ts,tsx}",
   "!apps/web/src/generated/**/*",
-  "tests/graphql/**/*.{ts,tsx}",
-  "!tests/graphql/**/*.test.{ts,tsx}",
+  "tests/integration/graphql/**/*.{ts,tsx}",
+  "!tests/integration/graphql/**/*.test.{ts,tsx}",
+  "!tests/integration/graphql/generated/**/*",
 ];
 
 function graphqlOperationConfig() {
@@ -22,7 +23,7 @@ function graphqlOperationConfig() {
         // continues to validate application operations against the narrower
         // production schema.
         graphQLConfig: {
-          schema: "tests/generated/graphql/test/schema.graphql",
+          schema: "tests/integration/graphql/generated/schema.graphql",
           documents: allGraphqlDocuments,
         },
       },
@@ -68,8 +69,11 @@ const eslintConfig = defineConfig([
     processor: graphqlPlugin.processor,
   },
   {
-    files: ["tests/graphql/**/*.{ts,tsx}"],
-    ignores: ["tests/graphql/**/*.test.{ts,tsx}"],
+    files: ["tests/integration/graphql/**/*.{ts,tsx}"],
+    ignores: [
+      "tests/integration/graphql/**/*.test.{ts,tsx}",
+      "tests/integration/graphql/generated/**/*",
+    ],
     processor: graphqlPlugin.processor,
   },
   {
@@ -78,8 +82,11 @@ const eslintConfig = defineConfig([
     ...graphqlOperationConfig(),
   },
   {
-    files: ["tests/graphql/**/*.{ts,tsx}/*.graphql"],
-    ignores: ["tests/graphql/**/*.test.{ts,tsx}/*.graphql"],
+    files: ["tests/integration/graphql/**/*.{ts,tsx}/*.graphql"],
+    ignores: [
+      "tests/integration/graphql/**/*.test.{ts,tsx}/*.graphql",
+      "tests/integration/graphql/generated/**/*",
+    ],
     ...graphqlOperationConfig(),
   },
   // Override default ignores of eslint-config-next.
@@ -91,7 +98,7 @@ const eslintConfig = defineConfig([
     "**/build/**",
     "**/next-env.d.ts",
     "apps/web/src/generated/**",
-    "tests/generated/**",
+    "tests/integration/graphql/generated/**",
     "specific_examples/**",
   ]),
 ]);

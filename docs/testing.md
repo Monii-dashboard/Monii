@@ -217,7 +217,7 @@ and [Playwright Test introduction](https://playwright.dev/docs/test-intro).
 | --- | --- | --- | --- | --- |
 | TST-001 | P0 | Fixed | Make PostgreSQL integration tests Testcontainers-only and isolated per test. | — |
 | TST-002 | P0 | Fixed | Reduce the public taxonomy to unit, integration, E2E, and repository suites. | — |
-| TST-003 | P1 | Open | Move tests to their owning package or app and reserve root tests for real boundaries. | TST-002 |
+| TST-003 | P1 | Fixed | Move tests to their owning package or app and reserve root tests for real boundaries. | TST-002 |
 | TST-004 | P1 | Open | Rename and reshape tests so every name states exactly what is proved. | TST-002, TST-003 |
 | TST-005 | P1 | Open | Replace static-markup interaction claims with real browser component tests. | TST-002 |
 | TST-006 | P1 | Open | Establish a deterministic Playwright Test E2E harness and first critical journey. | TST-002 |
@@ -302,15 +302,27 @@ and encourages generic shared fixtures.
 
 **Acceptance criteria:**
 
-- [ ] Package-owned unit tests are colocated beside the source they protect.
-- [ ] Package-owned integration tests live under that package or app's `test/`
+- [x] Package-owned unit tests are colocated beside the source they protect.
+- [x] Package-owned integration tests live under that package or app's `test/`
       directory.
-- [ ] Root `tests/integration` contains only scenarios spanning multiple owners.
-- [ ] Root `tests/support` contains only infrastructure with multiple real
+- [x] Root `tests/integration` contains only scenarios spanning multiple owners.
+- [x] Root `tests/support` contains only infrastructure with multiple real
       consumers.
-- [ ] No empty test category is retained as a promise of future coverage.
-- [ ] Vitest and TypeScript globs discover the target structure without broad
+- [x] No empty test category is retained as a promise of future coverage.
+- [x] Vitest and TypeScript globs discover the target structure without broad
       accidental matches.
+
+**Fixed (2026-09-10):** package unit tests now live in their owning `src`
+directories; CLI, console, and web route integration tests live under their
+apps; and the former combined wealth unit file was split across ingestion,
+wealth-calculation, and wealth-query. Root `tests` now contains only
+cross-package wealth and GraphQL integration scenarios, their generated/support
+artifacts, PostgreSQL test infrastructure, and repository checks. The empty E2E
+placeholder and one-line integration re-export were removed. App TypeScript
+includes, GraphQL Codegen, GraphQL config, ESLint paths, README, and engineering
+documentation were updated with the move. Verified with 93 unit tests, 40
+integration tests, 38 repository tests, `pnpm typecheck`, `pnpm lint`, and
+`pnpm graphql:check`.
 
 ### TST-004 — Exact descriptions and assertions
 

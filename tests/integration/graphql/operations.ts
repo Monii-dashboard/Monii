@@ -1,4 +1,4 @@
-import { graphql } from "../generated/graphql/test/client";
+import { graphql } from "./generated/client";
 
 export const graphqlTestQueryDocument = graphql(/* GraphQL */ `
   query GraphqlTestEcho($value: String!) {

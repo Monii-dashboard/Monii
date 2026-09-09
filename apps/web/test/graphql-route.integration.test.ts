@@ -1,7 +1,7 @@
 import { expect, test, vi } from "vitest";
 
-import { POST } from "../../apps/web/src/app/api/graphql/route";
-import { executeJsonRoute } from "../http/route";
+import { POST } from "../src/app/api/graphql/route";
+import { executeJsonRoute } from "./support/route";
 
 test("serves the health query through the application route", async () => {
   const consoleLog = vi

@@ -6,7 +6,7 @@ import { expect, test } from "vitest";
 import { runWithOperationContext } from "@monii/runtime/operation";
 
 const require = createRequire(import.meta.url);
-require("../../apps/console/src/preflight.cjs");
+require("../src/preflight.cjs");
 
 function waitFor(
   predicate: () => boolean,
@@ -28,7 +28,7 @@ function waitFor(
 }
 
 test("runs TypeScript code and private imports inside one console operation", async () => {
-  const { startMoniiConsole } = await import("../../apps/console/src/console");
+  const { startMoniiConsole } = await import("../src/console");
   const input = new PassThrough();
   const output = new PassThrough();
   let writtenOutput = "";

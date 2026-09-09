@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, test } from "vitest";
 
-const root = fileURLToPath(new URL("../../", import.meta.url));
+const root = fileURLToPath(new URL("../../../", import.meta.url));
 const cliRoot = join(root, "apps/cli");
 
 function invoke(args: string[], options: { cwd?: string; nodeEnv?: string; pnpm?: boolean } = {}) {

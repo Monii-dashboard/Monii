@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { createApolloGraphqlClient } from "../../apps/web/src/graphql/client/apollo-client";
+import { createApolloGraphqlClient } from "./apollo-client";
 
 test("enables Apollo DevTools only in development", async () => {
   const client = createApolloGraphqlClient({
