@@ -1,3 +1,4 @@
+import { Icon } from "@/components/ui/icon";
 import type { Account } from "@/features/wealth/lib/dashboard-model";
 import {
   accountValue,
@@ -8,7 +9,6 @@ import {
   formatDecision,
 } from "@/features/wealth/lib/format";
 
-import { CashIcon, InvestmentIcon } from "./icons";
 import styles from "./signal.module.css";
 
 export function AccountRow({
@@ -18,20 +18,21 @@ export function AccountRow({
   account: Account;
   total: number;
 }) {
-  const Icon = account.category === "investment" ? InvestmentIcon : CashIcon;
+  const iconName = account.category === "investment" ? "investment" : "cash";
   const included = account.decision === "included";
   const share = shareOf(account.contributedAmount, total);
   const needsAttention =
     account.health === "stale" ||
     account.health === "synchronization_failed" ||
-    account.identityConflict;
+    account.identityConflict ||
+    account.duplicateRole !== "none";
 
   return (
     <article className="grid min-h-30 grid-cols-[2.75rem_minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-3 gap-y-2 border-r border-b border-border-default p-6 transition-colors duration-200 hover:bg-surface-faint max-[680px]:grid-rows-[auto_auto_auto] max-[680px]:border-r-0">
       <span
         className={`${styles.glyph} row-span-full grid size-9 place-items-center rounded-[0.625rem] border text-[var(--signal)] max-[680px]:col-start-1 max-[680px]:row-start-1 max-[680px]:row-end-3`}
       >
-        <Icon className="size-4" />
+        <Icon className="size-4" name={iconName} />
       </span>
       <div className="flex min-w-0 flex-col gap-1 max-[680px]:col-start-2 max-[680px]:col-end-4 max-[680px]:row-start-1">
         <strong className="overflow-hidden text-body text-ellipsis whitespace-nowrap">
@@ -39,7 +40,8 @@ export function AccountRow({
         </strong>
         <small className="font-mono text-label-small font-medium tracking-label text-content-muted uppercase">
           {formatAccountKind(account.category)} · {formatDecision(account.decision)}
-          {needsAttention ? " · check data" : ""}
+          {account.duplicateRole !== "none" ? " · possible overlap" : ""}
+          {needsAttention && account.duplicateRole === "none" ? " · check data" : ""}
         </small>
       </div>
       <span className="text-right font-mono text-label-small font-medium tracking-label text-content-muted uppercase max-[680px]:col-start-3 max-[680px]:row-start-2">

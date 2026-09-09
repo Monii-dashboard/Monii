@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 
+import { Divider } from "@/components/ui/divider";
 import type { Institution } from "@/features/wealth/lib/dashboard-model";
 import {
   shareOf,
@@ -24,12 +25,12 @@ export function InstitutionGroup({
 
   return (
     <section
-      className="scroll-mt-4 border-b border-border-default max-[680px]:scroll-mt-20"
+      className="flex scroll-mt-4 flex-col max-[680px]:scroll-mt-20"
       id={`institution-${index}`}
       style={{ "--signal": signalColor(index) } as CSSProperties}
     >
       <header
-        className={`${styles.wash} grid min-h-24 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-4 border-b border-border-default px-6 py-4 max-[680px]:grid-cols-[2.25rem_minmax(0,1fr)]`}
+        className={`${styles.wash} grid min-h-24 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-4 px-6 py-4 max-[680px]:grid-cols-[2.25rem_minmax(0,1fr)]`}
       >
         <SignalBadge index={index} />
         <div className="min-w-0">
@@ -44,11 +45,13 @@ export function InstitutionGroup({
           {formatMoney(institution.contributedAmount)}
         </strong>
       </header>
+      <Divider />
       <div className="grid grid-cols-2 max-[680px]:grid-cols-1">
         {institution.accounts.map((account) => (
           <AccountRow account={account} key={account.id} total={total} />
         ))}
       </div>
+      <Divider />
     </section>
   );
 }

@@ -1,4 +1,5 @@
-import { MoniiMark } from "@/components/app-shell/monii-mark";
+import { Divider } from "@/components/ui/divider";
+import { Icon } from "@/components/ui/icon";
 import {
   contributionTotal,
   visibleAccountCount,
@@ -12,26 +13,33 @@ export function AccountRegister({ wealth }: { wealth: Wealth }) {
 
   if (wealth.institutions.length === 0) {
     return (
-      <section className="my-20 flex min-h-112 items-center justify-center gap-8 border-y border-border-default max-[680px]:flex-col max-[680px]:text-center">
-        <MoniiMark className="size-20 text-chart-1" />
-        <div>
-          <span className="font-mono text-label font-medium tracking-label-wide text-content-muted uppercase">
-            Account signals
-          </span>
-          <h2 className="my-3 text-[2.5rem] tracking-[-0.06em]">
-            No accounts are visible yet.
-          </h2>
-          <p className="text-body text-content-muted">
-            They will appear after the first successful synchronization.
-          </p>
+      <section className="my-20 flex scroll-mt-20 flex-col" id="account-signals">
+        <Divider />
+        <div className="flex min-h-112 items-center justify-center gap-8 max-[680px]:flex-col max-[680px]:text-center">
+          <Icon className="size-20 text-chart-1" name="monii" />
+          <div>
+            <span className="font-mono text-label font-medium tracking-label-wide text-content-muted uppercase">
+              Account signals
+            </span>
+            <h2 className="my-3 text-[2.5rem] tracking-[-0.06em]">
+              No accounts are visible yet.
+            </h2>
+            <p className="text-body text-content-muted">
+              They will appear after the first successful synchronization.
+            </p>
+          </div>
         </div>
+        <Divider />
       </section>
     );
   }
 
   return (
-    <section className="mt-20 mb-16 max-[680px]:mt-14">
-      <header className="flex items-end justify-between gap-6 border-b border-border-default pb-6 max-[680px]:flex-col max-[680px]:items-start max-[680px]:gap-3">
+    <section
+      className="mt-20 mb-16 flex scroll-mt-4 flex-col max-[680px]:mt-14 max-[680px]:scroll-mt-20"
+      id="account-signals"
+    >
+      <header className="flex items-end justify-between gap-6 pb-6 max-[680px]:flex-col max-[680px]:items-start max-[680px]:gap-3">
         <div>
           <span className="font-mono text-label font-medium tracking-label-wide text-content-muted uppercase">
             Latest usable valuations
@@ -44,6 +52,7 @@ export function AccountRegister({ wealth }: { wealth: Wealth }) {
           {visibleAccountCount(wealth)} accounts · EUR reporting
         </small>
       </header>
+      <Divider />
       {wealth.institutions.map((institution, index) => (
         <InstitutionGroup
           index={index}

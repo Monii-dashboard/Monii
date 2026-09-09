@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
-import { MoniiMark } from "./monii-mark";
+import { Icon } from "@/components/ui/icon";
+
 import styles from "./app-shell.module.css";
 
 type AppShellProps = {
@@ -22,7 +23,7 @@ export function BrandMark() {
       aria-label="Monii"
       className="grid size-10 place-items-center rounded-control bg-accent text-content-on-accent shadow-brand"
     >
-      <MoniiMark className="size-6" />
+      <Icon className="size-6" name="monii" />
     </span>
   );
 }
