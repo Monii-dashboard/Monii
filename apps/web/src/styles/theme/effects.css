@@ -1,0 +1,65 @@
+:root,
+[data-theme="nebula-bloom"] {
+  --theme-effect-canvas-lighting:
+    radial-gradient(
+      circle at 104% 14rem,
+      color-mix(in srgb, var(--theme-color-glow-violet) 30%, transparent),
+      transparent 34rem
+    ),
+    radial-gradient(
+      circle at -8rem 52rem,
+      color-mix(in srgb, var(--theme-color-glow-magenta) 23%, transparent),
+      transparent 31rem
+    ),
+    radial-gradient(
+      circle at 86% 45rem,
+      color-mix(in srgb, var(--theme-color-glow-cyan) 13%, transparent),
+      transparent 29rem
+    ),
+    radial-gradient(
+      circle at 42% 54rem,
+      color-mix(in srgb, var(--theme-color-glow-amber) 6%, transparent),
+      transparent 22rem
+    );
+  --theme-effect-grid:
+    radial-gradient(
+      circle,
+      color-mix(in srgb, var(--theme-color-content) 7%, transparent) 0 0.7px,
+      transparent 0.9px
+    ),
+    linear-gradient(
+      var(--theme-color-border-atmosphere) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      var(--theme-color-border-atmosphere) 1px,
+      transparent 1px
+    );
+  --theme-effect-panel: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--palette-space-800) 72%, transparent),
+    color-mix(in srgb, var(--palette-space-900) 52%, transparent)
+  );
+  --theme-effect-wealth-lens: conic-gradient(
+    from 208deg,
+    var(--palette-violet-500),
+    var(--palette-violet-300) 20%,
+    var(--palette-cyan-500) 42%,
+    var(--palette-cyan-400) 51%,
+    color-mix(in srgb, var(--palette-space-800) 78%, var(--palette-violet-500)) 64%,
+    var(--palette-magenta-400) 85%,
+    var(--palette-violet-500)
+  );
+  --theme-effect-lens-core: radial-gradient(
+    circle at 40% 30%,
+    var(--theme-color-surface-strong),
+    var(--theme-color-canvas-deep) 72%
+  );
+  --theme-effect-data-gradient: linear-gradient(
+    90deg,
+    var(--theme-color-chart-1),
+    var(--theme-color-chart-2)
+  );
+  --theme-effect-grain: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.25'/%3E%3C/svg%3E");
+}

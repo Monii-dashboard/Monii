@@ -382,23 +382,52 @@ need.
 ## Frontend theme boundary
 
 The web app uses Tailwind's CSS-first configuration with a layered token system.
-`apps/web/src/styles/theme.css` is the canonical source for the foundation
-palette, semantic theme roles, and the Tailwind theme variables that expose
-those roles as utilities. Components consume semantic utilities such as canvas,
-surface, content, accent, and danger rather than raw palette names or color
-values.
+`apps/web/src/styles/theme/` is the canonical source. Its `index.css` composes
+foundation palette, semantic roles, system tokens, reusable visual effects, and
+the Tailwind adapter in a deliberate order. The adapter exposes semantic roles
+as Tailwind utilities. Foundation palette values are private to the theme;
+components consume only `--theme-*` properties or semantic utilities such as
+canvas, surface, content, accent, and danger.
+
+Use Tailwind utilities in `className` for ordinary component layout, spacing,
+type, color, border, responsive, and interaction styling. Use scoped CSS Modules
+only where CSS itself is the clearest representation, such as pseudo-elements,
+layered backgrounds, intricate visual geometry, or keyframe animation. Inline
+styles are reserved for values that only exist at runtime, such as chart widths
+or a data series' `--signal`; they should feed a semantic custom property rather
+than contain a static style recipe. Global CSS owns imports, resets, tokens, and
+truly application-wide behavior, not component selectors.
 
 Reusable typography, radius, shadow, and motion decisions also belong in the
 theme. Tailwind's standard spacing scale remains the default layout vocabulary;
 add a named token only when a value represents a recurring Monii design
 decision. Component variants own repeated class recipes. Page-specific geometry
-and data-driven values, such as chart positions and contribution widths, remain
-local and may use inline styles.
+remains local in utilities or a scoped module. Data-driven values, such as chart
+positions and contribution widths, remain local and may use inline styles.
+
+Frontend components are split at responsibilities and ownership boundaries,
+not at arbitrary line counts. Route/query boundaries remain thin, feature
+components stay under their feature, pure presentation calculations live in the
+feature library, and reusable application chrome lives outside features. Promote
+a component or class recipe only after it has a concrete second consumer; do
+not add wrapper components that merely forward props.
+
+Product UI typography uses a compact but readable role scale: labels do not go
+below 12px/16px, compact financial values use 13px/18px, primary component text
+uses 14px/20px, and component titles start at 16px/24px. Display values may use
+tighter leading while ordinary text must remain resilient to browser
+text-spacing overrides. Product spacing uses a 4px step with an 8px primary
+rhythm; use 12–24px for most component gaps and internal padding, and 32px or
+more for page-level grouping.
 
 Themes override semantic custom properties under a `data-theme` selector while
 leaving component classes unchanged. The current product defines only its dark
-theme. Add another theme only with a deliberate palette and user-visible theme
-selection behavior.
+Nebula Bloom theme: a black-violet workspace with controlled violet, magenta,
+cyan, and amber light fields, a fine technical grid and grain, glass panels,
+and high-contrast financial signals. Branded treatments such as canvas
+lighting, data gradients, and the wealth lens are reusable effect tokens rather
+than page-local color recipes. Add another theme only with a deliberate palette
+and user-visible theme selection behavior.
 
 ## Intentionally deferred decisions
 

@@ -1,0 +1,46 @@
+.shell {
+  background-image: var(--theme-effect-canvas-lighting);
+}
+
+.loadingLens {
+  position: relative;
+  width: 9rem;
+  height: 9rem;
+  margin-top: 2.5rem;
+  background: var(--theme-effect-data-gradient);
+  border-radius: 50%;
+  animation: loading-spin 2s linear infinite;
+}
+
+.loadingLens::after {
+  position: absolute;
+  inset: 1.2rem;
+  background: var(--theme-color-canvas);
+  border-radius: 50%;
+  content: "";
+}
+
+.loadingLens i {
+  position: absolute;
+  inset: -1.2rem;
+  border: 1px solid var(--theme-color-border-orbit);
+  border-radius: 50%;
+}
+
+.loadingLens i:last-child {
+  inset: -2.2rem;
+  opacity: 0.45;
+}
+
+@keyframes loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loadingLens {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+}

@@ -1,0 +1,53 @@
+:root,
+[data-theme="nebula-bloom"] {
+  /* Product typography. */
+  --theme-font-size-label-small: 0.75rem;
+  --theme-font-size-label: 0.75rem;
+  --theme-font-size-body-small: 0.8125rem;
+  --theme-font-size-body: 0.875rem;
+  --theme-font-size-title: 1rem;
+  --theme-font-size-heading: 1.25rem;
+  --theme-line-height-label-small: 1rem;
+  --theme-line-height-label: 1rem;
+  --theme-line-height-body-small: 1.125rem;
+  --theme-line-height-body: 1.25rem;
+  --theme-line-height-title: 1.5rem;
+  --theme-line-height-heading: 1.75rem;
+  --theme-letter-spacing-label: 0.045em;
+  --theme-letter-spacing-label-wide: 0.07em;
+  --theme-letter-spacing-display: -0.065em;
+
+  /* A 4px step with an 8px primary rhythm. */
+  --theme-space-1: 0.25rem;
+  --theme-space-2: 0.5rem;
+  --theme-space-3: 0.75rem;
+  --theme-space-4: 1rem;
+  --theme-space-5: 1.5rem;
+  --theme-space-6: 2rem;
+  --theme-space-7: 3rem;
+  --theme-space-8: 4rem;
+  --theme-space-9: 5rem;
+
+  /* Shape, depth, blur, and motion. */
+  --theme-radius-control: 0.75rem;
+  --theme-radius-panel: 1.7rem;
+  --theme-radius-pill: 999px;
+  --theme-blur-chrome: 22px;
+  --theme-blur-panel: 20px;
+  --theme-shadow-brand: 0 0 28px
+    color-mix(in srgb, var(--theme-color-accent) 18%, transparent);
+  --theme-shadow-panel:
+    0 32px 110px color-mix(in srgb, var(--palette-black) 42%, transparent),
+    0 28px 90px color-mix(in srgb, var(--theme-color-glow-magenta) 8%, transparent),
+    32px 22px 100px color-mix(in srgb, var(--theme-color-glow-cyan) 6%, transparent),
+    inset 0 1px color-mix(in srgb, var(--theme-color-content) 5%, transparent);
+  --theme-shadow-lens:
+    0 0 110px color-mix(in srgb, var(--theme-color-glow-violet) 40%, transparent),
+    0 0 48px color-mix(in srgb, var(--theme-color-glow-cyan) 20%, transparent),
+    inset 0 0 60px color-mix(in srgb, var(--theme-color-content) 22%, transparent);
+  --theme-duration-fast: 180ms;
+  --theme-duration-normal: 300ms;
+  --theme-duration-slow: 850ms;
+  --theme-ease-standard: ease;
+  --theme-ease-emphasis: cubic-bezier(0.2, 0.8, 0.2, 1);
+}

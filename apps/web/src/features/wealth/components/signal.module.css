@@ -1,0 +1,25 @@
+.wash {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--signal) 7%, transparent),
+    transparent 55%
+  );
+}
+
+.badge {
+  box-shadow: 0 0 14px color-mix(in srgb, var(--signal) 20%, transparent);
+}
+
+.glyph {
+  background: color-mix(in srgb, var(--signal) 8%, transparent);
+  border-color: color-mix(in srgb, var(--signal) 26%, transparent);
+}
+
+.progress {
+  background: linear-gradient(
+    90deg,
+    var(--signal),
+    var(--theme-color-chart-2)
+  );
+  box-shadow: 0 0 8px color-mix(in srgb, var(--signal) 40%, transparent);
+}

@@ -1,0 +1,94 @@
+.surface,
+.lens {
+  backdrop-filter: blur(var(--theme-blur-panel));
+}
+
+.surface {
+  background: var(--theme-effect-panel);
+}
+
+.lens::before {
+  position: absolute;
+  width: 28rem;
+  height: 28rem;
+  background: var(--theme-effect-wealth-lens);
+  border-radius: 50%;
+  box-shadow: var(--theme-shadow-lens);
+  content: "";
+  filter: saturate(115%);
+  animation: lens-breathe 7s var(--theme-ease-standard) infinite;
+}
+
+.lens::after {
+  position: absolute;
+  width: 21.5rem;
+  height: 21.5rem;
+  background: var(--theme-effect-lens-core);
+  border: 1px solid
+    color-mix(in srgb, var(--theme-color-content) 16%, transparent);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 70px var(--theme-color-canvas-deep),
+    0 0 0 1.3rem
+      color-mix(in srgb, var(--theme-color-canvas) 68%, transparent);
+  content: "";
+}
+
+.ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border: 1px solid var(--theme-color-border-orbit);
+  border-radius: 50%;
+}
+
+.ringPrimary {
+  width: 34rem;
+  height: 34rem;
+  transform: translate(-50%, -50%);
+}
+
+.ringWide {
+  top: 49%;
+  width: 38rem;
+  height: 16rem;
+  transform: translate(-50%, -50%) rotate(-17deg);
+}
+
+.ringCross {
+  top: 49%;
+  width: 35rem;
+  height: 12rem;
+  transform: translate(-50%, -50%) rotate(34deg);
+}
+
+@keyframes lens-breathe {
+  50% {
+    transform: scale(1.035) rotate(2deg);
+    filter: saturate(135%);
+  }
+}
+
+@media (max-width: 680px) {
+  .lens::before {
+    width: 22rem;
+    height: 22rem;
+  }
+
+  .lens::after {
+    width: 16rem;
+    height: 16rem;
+  }
+
+  .ringPrimary {
+    width: 27rem;
+    height: 27rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lens::before {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+}

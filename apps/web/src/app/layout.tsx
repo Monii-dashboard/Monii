@@ -16,15 +16,15 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Monii — Your wealth, in one orbit",
+  title: "Monii — Wealth dashboard",
   description:
-    "A clear, current view of your wealth across every connected account.",
+    "A current account-level view of wealth across connected institutions.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      data-theme="dark"
+      data-theme="nebula-bloom"
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >

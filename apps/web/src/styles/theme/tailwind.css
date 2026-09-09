@@ -1,0 +1,82 @@
+/* Tailwind-facing aliases expose semantic roles, never foundation colors. */
+@theme inline {
+  --color-canvas: var(--theme-color-canvas);
+  --color-canvas-deep: var(--theme-color-canvas-deep);
+  --color-surface: var(--theme-color-surface);
+  --color-surface-strong: var(--theme-color-surface-strong);
+  --color-surface-solid: var(--theme-color-surface-solid);
+  --color-surface-glass: var(--theme-color-surface-glass);
+  --color-surface-hero: var(--theme-color-surface-hero);
+  --color-surface-overlay: var(--theme-color-surface-overlay);
+  --color-surface-faint: var(--theme-color-surface-faint);
+  --color-content: var(--theme-color-content);
+  --color-content-muted: var(--theme-color-content-muted);
+  --color-content-subtle: var(--theme-color-content-subtle);
+  --color-content-on-accent: var(--theme-color-content-on-accent);
+  --color-border-subtle: var(--theme-color-border-subtle);
+  --color-border-default: var(--theme-color-border-default);
+  --color-border-strong: var(--theme-color-border-strong);
+  --color-border-orbit: var(--theme-color-border-orbit);
+  --color-border-atmosphere: var(--theme-color-border-atmosphere);
+  --color-decoration: var(--theme-color-decoration);
+  --color-track: var(--theme-color-track);
+  --color-accent: var(--theme-color-accent);
+  --color-accent-hover: var(--theme-color-accent-hover);
+  --color-accent-subtle: var(--theme-color-accent-subtle);
+  --color-accent-soft: var(--theme-color-accent-soft);
+  --color-accent-muted: var(--theme-color-accent-muted);
+  --color-accent-outline: var(--theme-color-accent-outline);
+  --color-accent-emphasis: var(--theme-color-accent-emphasis);
+  --color-danger: var(--theme-color-danger);
+  --color-danger-content: var(--theme-color-danger-content);
+  --color-danger-content-strong: var(--theme-color-danger-content-strong);
+  --color-danger-subtle: var(--theme-color-danger-subtle);
+  --color-danger-soft: var(--theme-color-danger-soft);
+  --color-danger-outline: var(--theme-color-danger-outline);
+  --color-danger-outline-subtle: var(--theme-color-danger-outline-subtle);
+  --color-info: var(--theme-color-info);
+  --color-info-content: var(--theme-color-info-content);
+  --color-info-subtle: var(--theme-color-info-subtle);
+  --color-info-outline: var(--theme-color-info-outline);
+  --color-highlight: var(--theme-color-highlight);
+  --color-warning: var(--theme-color-warning);
+  --color-chart-1: var(--theme-color-chart-1);
+  --color-chart-2: var(--theme-color-chart-2);
+  --color-chart-3: var(--theme-color-chart-3);
+  --color-chart-4: var(--theme-color-chart-4);
+  --color-chart-5: var(--theme-color-chart-5);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --text-label-small: var(--theme-font-size-label-small);
+  --text-label-small--line-height: var(--theme-line-height-label-small);
+  --text-label: var(--theme-font-size-label);
+  --text-label--line-height: var(--theme-line-height-label);
+  --text-body-small: var(--theme-font-size-body-small);
+  --text-body-small--line-height: var(--theme-line-height-body-small);
+  --text-body: var(--theme-font-size-body);
+  --text-body--line-height: var(--theme-line-height-body);
+  --text-title: var(--theme-font-size-title);
+  --text-title--line-height: var(--theme-line-height-title);
+  --text-heading: var(--theme-font-size-heading);
+  --text-heading--line-height: var(--theme-line-height-heading);
+  --tracking-label: var(--theme-letter-spacing-label);
+  --tracking-label-wide: var(--theme-letter-spacing-label-wide);
+  --tracking-display: var(--theme-letter-spacing-display);
+  --radius-control: var(--theme-radius-control);
+  --radius-panel: var(--theme-radius-panel);
+  --radius-pill: var(--theme-radius-pill);
+  --shadow-brand: var(--theme-shadow-brand);
+  --shadow-panel: var(--theme-shadow-panel);
+  --animate-data-progress: data-progress-grow var(--theme-duration-slow)
+    var(--theme-duration-normal) var(--theme-ease-emphasis) both;
+
+  @keyframes data-progress-grow {
+    from {
+      transform: scaleX(0);
+    }
+
+    to {
+      transform: scaleX(1);
+    }
+  }
+}

@@ -46,6 +46,31 @@ costly or hard to reverse.
   validation, serialization, ownership, lifecycle, or domain differences.
 - Prefer explicit local code, small public APIs, and composition.
 
+## Frontend Styling and Components
+
+- Use semantic design tokens from `apps/web/src/styles/theme/`; never consume
+  private `--palette-*` values from components. Keep the ordered theme imports
+  in `theme/index.css` and expose reusable roles through its Tailwind adapter.
+- Use Tailwind utilities in `className` for normal layout, spacing, typography,
+  color, borders, breakpoints, and interaction states. Keep repeated variant
+  recipes as typed component-level constants or maps.
+- Use a colocated CSS Module only when CSS is materially clearer: complex
+  pseudo-elements, layered visual effects, unusual geometry, or keyframes. Do
+  not move ordinary component styling into a large page stylesheet.
+- Use inline styles only for genuinely runtime values, such as measured
+  positions, contribution widths, or data-series CSS variables. Do not use
+  inline style objects for static visual rules.
+- Keep global CSS limited to imports, resets, tokens, and truly global behavior.
+  Do not add feature or component selectors to `globals.css`.
+- Split React code by responsibility and ownership, not arbitrary file size.
+  Keep route and client data boundaries thin, colocate domain-specific UI under
+  its feature, and place reusable application chrome outside feature folders.
+  Extract shared abstractions only when there is a real second consumer or a
+  stable independent responsibility.
+- For a new component, start with semantic Tailwind utilities, feed dynamic
+  values through semantic CSS variables, and add the smallest possible CSS
+  Module only for visual mechanics utilities cannot express clearly.
+
 ## Financial Domain Guardrails
 
 - Powens and future integrations are data sources, not the domain model.

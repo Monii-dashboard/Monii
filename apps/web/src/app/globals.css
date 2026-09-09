@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "../styles/theme.css";
+@import "../styles/theme/index.css";
 
 * {
   box-sizing: border-box;
@@ -15,27 +15,10 @@ body {
   font-family: var(--font-geist-sans), sans-serif;
 }
 
-@keyframes aurora-drift {
-  0%, 100% { transform: translate3d(-3%, -2%, 0) rotate(-4deg) scale(1); }
-  50% { transform: translate3d(5%, 4%, 0) rotate(5deg) scale(1.14); }
-}
-
-@keyframes orbit-turn {
-  to { transform: rotate(360deg); }
-}
-
-@keyframes orbit-turn-reverse {
-  to { transform: rotate(-360deg); }
-}
-
-@keyframes soft-rise {
-  from { opacity: 0; transform: translateY(18px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes breathe {
-  0%, 100% { opacity: 0.45; transform: scale(0.92); }
-  50% { opacity: 0.8; transform: scale(1.08); }
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

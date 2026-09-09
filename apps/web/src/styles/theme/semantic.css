@@ -1,0 +1,163 @@
+:root,
+[data-theme="nebula-bloom"] {
+  color-scheme: dark;
+
+  /* Surfaces and content. */
+  --theme-color-canvas: var(--palette-space-950);
+  --theme-color-canvas-deep: var(--palette-space-1000);
+  --theme-color-surface: color-mix(
+    in srgb,
+    var(--palette-space-850) 82%,
+    var(--palette-space-950)
+  );
+  --theme-color-surface-strong: color-mix(
+    in srgb,
+    var(--palette-space-800) 82%,
+    var(--palette-space-950)
+  );
+  --theme-color-surface-solid: var(--palette-space-850);
+  --theme-color-surface-glass: color-mix(
+    in srgb,
+    var(--palette-space-850) 68%,
+    transparent
+  );
+  --theme-color-surface-hero: color-mix(
+    in srgb,
+    var(--palette-space-800) 67%,
+    transparent
+  );
+  --theme-color-surface-overlay: color-mix(
+    in srgb,
+    var(--palette-space-900) 62%,
+    transparent
+  );
+  --theme-color-surface-faint: color-mix(
+    in srgb,
+    var(--palette-ink-100) 2.5%,
+    transparent
+  );
+  --theme-color-content: var(--palette-ink-100);
+  --theme-color-content-muted: color-mix(
+    in srgb,
+    var(--palette-ink-500) 86%,
+    var(--palette-space-850)
+  );
+  --theme-color-content-subtle: color-mix(
+    in srgb,
+    var(--palette-ink-500) 62%,
+    transparent
+  );
+  --theme-color-content-on-accent: var(--palette-space-950);
+
+  /* Boundaries and tracks. */
+  --theme-color-border-subtle: color-mix(
+    in srgb,
+    var(--palette-ink-100) 7%,
+    transparent
+  );
+  --theme-color-border-default: color-mix(
+    in srgb,
+    var(--palette-ink-100) 10%,
+    transparent
+  );
+  --theme-color-border-strong: color-mix(
+    in srgb,
+    var(--palette-ink-100) 15%,
+    transparent
+  );
+  --theme-color-border-orbit: color-mix(
+    in srgb,
+    var(--palette-ink-100) 12%,
+    transparent
+  );
+  --theme-color-border-atmosphere: color-mix(
+    in srgb,
+    var(--palette-ink-100) 3.5%,
+    transparent
+  );
+  --theme-color-decoration: color-mix(
+    in srgb,
+    var(--palette-ink-100) 25%,
+    transparent
+  );
+  --theme-color-track: var(--theme-color-border-subtle);
+
+  /* Brand and status. */
+  --theme-color-accent: var(--palette-lime-400);
+  --theme-color-accent-hover: var(--palette-lime-300);
+  --theme-color-accent-subtle: color-mix(
+    in srgb,
+    var(--theme-color-accent) 8%,
+    transparent
+  );
+  --theme-color-accent-soft: color-mix(
+    in srgb,
+    var(--theme-color-accent) 10%,
+    transparent
+  );
+  --theme-color-accent-muted: color-mix(
+    in srgb,
+    var(--theme-color-accent) 20%,
+    transparent
+  );
+  --theme-color-accent-outline: color-mix(
+    in srgb,
+    var(--theme-color-accent) 25%,
+    transparent
+  );
+  --theme-color-accent-emphasis: color-mix(
+    in srgb,
+    var(--theme-color-accent) 40%,
+    transparent
+  );
+  --theme-color-danger: var(--palette-red-400);
+  --theme-color-danger-content: var(--palette-red-300);
+  --theme-color-danger-content-strong: var(--palette-red-200);
+  --theme-color-danger-subtle: color-mix(
+    in srgb,
+    var(--theme-color-danger) 6%,
+    transparent
+  );
+  --theme-color-danger-soft: color-mix(
+    in srgb,
+    var(--theme-color-danger) 10%,
+    transparent
+  );
+  --theme-color-danger-outline: color-mix(
+    in srgb,
+    var(--theme-color-danger) 20%,
+    transparent
+  );
+  --theme-color-danger-outline-subtle: color-mix(
+    in srgb,
+    var(--theme-color-danger) 15%,
+    transparent
+  );
+  --theme-color-info: var(--palette-blue-400);
+  --theme-color-info-content: var(--palette-blue-200);
+  --theme-color-info-subtle: color-mix(
+    in srgb,
+    var(--theme-color-info) 7%,
+    transparent
+  );
+  --theme-color-info-outline: color-mix(
+    in srgb,
+    var(--theme-color-info) 20%,
+    transparent
+  );
+  --theme-color-highlight: var(--palette-green-300);
+  --theme-color-warning: var(--palette-amber-400);
+
+  /* Data colors stay independent from status and brand meanings. */
+  --theme-color-chart-1: var(--palette-violet-400);
+  --theme-color-chart-2: var(--palette-cyan-400);
+  --theme-color-chart-3: var(--palette-amber-400);
+  --theme-color-chart-4: var(--palette-magenta-400);
+  --theme-color-chart-5: var(--palette-lime-400);
+
+  /* Light sources are atmospheric roles, not data categories. */
+  --theme-color-glow-violet: var(--palette-violet-500);
+  --theme-color-glow-cyan: var(--palette-cyan-500);
+  --theme-color-glow-magenta: var(--palette-magenta-500);
+  --theme-color-glow-amber: var(--palette-orange-400);
+}

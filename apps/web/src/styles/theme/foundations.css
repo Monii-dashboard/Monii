@@ -1,0 +1,30 @@
+/* Raw materials are private to the theme and must not be used by components. */
+:root {
+  --palette-space-1000: #05050d;
+  --palette-space-950: #070711;
+  --palette-space-900: #0d0d1d;
+  --palette-space-850: #121323;
+  --palette-space-800: #19192e;
+  --palette-ink-100: #f6f4ff;
+  --palette-ink-300: #d8d9e4;
+  --palette-ink-500: #aaaabd;
+  --palette-ink-600: #8888a4;
+  --palette-lime-400: #d9ff68;
+  --palette-lime-300: #e7ff9f;
+  --palette-violet-500: #7a42ff;
+  --palette-violet-400: #8b6cff;
+  --palette-violet-300: #a78cff;
+  --palette-cyan-400: #00e8da;
+  --palette-cyan-500: #00c8e5;
+  --palette-magenta-400: #ff58a8;
+  --palette-magenta-500: #ff348f;
+  --palette-amber-400: #ffb15b;
+  --palette-orange-400: #fe8b42;
+  --palette-red-400: #ff785f;
+  --palette-red-300: #ff9a86;
+  --palette-red-200: #ffc3b7;
+  --palette-blue-400: #4b8dff;
+  --palette-blue-200: #a9c8ff;
+  --palette-green-300: #9df78a;
+  --palette-black: #000;
+}

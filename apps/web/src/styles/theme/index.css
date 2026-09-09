@@ -1,0 +1,6 @@
+/* Import order is part of the theme contract. */
+@import "./foundations.css";
+@import "./semantic.css";
+@import "./system.css";
+@import "./effects.css";
+@import "./tailwind.css";
