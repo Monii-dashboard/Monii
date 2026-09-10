@@ -156,6 +156,74 @@ Examples:
 | `prevents overlapping synchronization runs` with sequential calls | Run two starts concurrently and assert that only one obtains the lease. |
 | `explains every excluded account` | Enumerate every supported exclusion reason or narrow the name to the cases in the table. |
 
+### Choosing a boundary without duplicating behavior
+
+Use the most realistic dependency needed to prove a behavior at the smallest
+boundary that owns it. Integration tests are preferred over mocks when the
+claim depends on persistence or communication between meaningful components;
+this is not a reason to replace focused tests of pure policy with slower
+end-to-end setup.
+
+Each behavior should have one primary test owner:
+
+- pure calculations, classifications, and transformations belong in unit tests;
+- isolated orchestration branches may use small local collaborators and assert
+  the orchestration decision, not pretend to prove their persistence semantics;
+- transactions, constraints, concurrency, ordering, mapping, and durable history
+  belong in integration tests against the real PostgreSQL adapter;
+- cross-package tests cover only behavior created by the composition of those
+  packages; and
+- E2E tests cover a small number of critical user-visible journeys rather than
+  repeating every lower-level edge case.
+
+Before adding a test, search for the same behavioral claim elsewhere. Move the
+claim to its primary owner and remove or narrow superseded assertions. Repeating
+a lower-level outcome at a higher level is justified only when the higher level
+adds distinct evidence, such as serialization through GraphQL or presentation
+in a browser. In that case, assert the added boundary rather than copying the
+lower-level scenario matrix.
+
+For persistence integration tests, create state through public use-case or port
+operations when practical. Direct SQL is appropriate only for adapter-specific
+preconditions or evidence that public operations cannot express, such as aging
+a lease, forcing a constraint failure, or inspecting atomic rollback. Keep that
+SQL local and do not let table layout become the domain contract.
+
+Mocks and stubs remain useful for pure orchestration and unavailable external
+systems. They should be local, minimal, and limited to the interaction under
+test. A mock returning a repository-shaped value does not prove persistence.
+
+### Reusable port contracts
+
+A port contract is one reusable group of tests describing behavior that every
+real implementation of a domain-owned port must share. The owning portable
+package defines the examples and performs state-changing setup through public
+ports or use cases. An adapter's integration test supplies a fresh
+implementation and runs those examples. A binding may also supply read-only
+probes for durable concepts that have no product read API yet; those probes must
+not become an alternate write path or leak adapter details into the behavioral
+claim. The contract remains part of the adapter's existing suite; `contract` is
+not a fifth public test category.
+
+In simple terms, an interface checks that an implementation has the right
+operations; a contract checks that those operations keep the same promises. For
+example, `SynchronizationRepository` requires a `startRun` method at compile
+time. Its contract can additionally prove that the first run for a source
+starts, a concurrent second run is refused, and another source remains
+independent.
+
+Only reusable implementations need to run the full relevant contract. One-off
+unit-test fakes may stay deliberately small because they represent a controlled
+answer, not an alternate persistence implementation. If a fake becomes shared,
+stateful, or relied upon for repository semantics, it must pass the same
+contract or be replaced with the real adapter.
+
+Extracting a contract is consolidation work: move common behavioral assertions
+out of ad hoc adapter or cross-package tests, apply them once per real
+implementation, and delete the overlap. Retain a separate adapter-specific test
+only when it proves a distinct implementation risk such as PostgreSQL locking,
+transaction rollback, migration behavior, or database constraints.
+
 ### PostgreSQL integration policy
 
 Every PostgreSQL integration test must use a PostgreSQL Testcontainer created
@@ -222,7 +290,7 @@ and [Playwright Test introduction](https://playwright.dev/docs/test-intro).
 | TST-005 | P1 | Open | Replace static-markup interaction claims with real browser component tests. | TST-002 |
 | TST-006 | P1 | Open | Establish a deterministic Playwright Test E2E harness and first critical journey. | TST-002 |
 | TST-007 | P0 | Fixed | Cover missing financial invariants and failure semantics. | TST-003 |
-| TST-008 | P0 | Open | Apply reusable persistence-port contract suites to PostgreSQL. | TST-001, TST-003 |
+| TST-008 | P0 | Fixed | Apply reusable persistence-port contract suites to PostgreSQL. | TST-001, TST-003 |
 | TST-009 | P1 | Open | Split and deepen Powens boundary coverage. | TST-003 |
 | TST-010 | P1 | Open | Make GraphQL tests exercise production contracts without duplicated scaffolding. | TST-003 |
 | TST-011 | P1 | Open | Add meaningful coverage reporting that includes untouched source files. | TST-003 |
@@ -460,14 +528,32 @@ shared production-quality testing tools rather than one-off stubs.
 
 **Acceptance criteria:**
 
-- [ ] Account/institution identity and merge semantics have a port contract.
-- [ ] Synchronization lease, lifecycle, and failure semantics have a port
+- [x] Account/institution identity and merge semantics have a port contract.
+- [x] Synchronization lease, lifecycle, and failure semantics have a port
       contract.
-- [ ] Observation and snapshot atomicity/read semantics have a port contract.
-- [ ] The PostgreSQL adapter passes every relevant contract in isolated
+- [x] Observation and snapshot atomicity/read semantics have a port contract.
+- [x] The PostgreSQL adapter passes every relevant contract in isolated
       Testcontainers.
-- [ ] One-off fakes either pass the same relevant contract or remain deliberately
+- [x] One-off fakes either pass the same relevant contract or remain deliberately
       local and minimal.
+- [x] Existing scenarios moved into contracts are removed or narrowed so each
+      behavior has one primary test owner.
+
+**Fixed (2026-09-11):** reusable contracts now live beside the portable owners
+of synchronization, account identity, wealth calculation, and wealth-query
+ports. A single cross-package PostgreSQL binding applies all 14 examples to
+fresh, migrated Testcontainers and supplies only read-only durable-state probes;
+all writes pass through public repositories or synchronization use cases. The
+contracts cover concurrent and independent leases, run failure and source
+identity, account and institution identity, durable merge history, observation
+retention, snapshot publication and reads, failed refresh preservation, and
+account-policy snapshots. Superseded merge, failure, policy, and concurrency
+scenarios were removed from the broad integration files. PostgreSQL-only
+rollback and abandoned-lease tests remain separate, as do the distinct
+cross-package external-lifecycle and listing-completeness scenarios. Local
+orchestration fakes remain minimal and make no persistence claims. Verified
+with `pnpm test` (225 tests: 127 unit, 55 integration, and 43 repository),
+`pnpm typecheck`, `pnpm lint`, and `git diff --check`.
 
 ### TST-009 — Powens boundary decomposition
 

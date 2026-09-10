@@ -99,9 +99,36 @@ costly or hard to reverse.
 
 ## Tests
 
+- Read `docs/testing.md` before planning, adding, moving, or substantially
+  changing tests. Its suite boundaries, placement rules, infrastructure policy,
+  and remediation decisions are binding.
 - Test observable behavior rather than implementation details where practical.
 - Keep application and business tests separate from integration, tooling, and
   repository-quality checks.
+- Give each behavior one primary test owner. Before adding a test, search for an
+  existing claim at another level; consolidate or remove overlap unless the new
+  test proves a distinct boundary risk. Higher-level tests should assert the
+  boundary or journey they add, not repeat lower-level edge-case matrices.
+- Prefer the real implementation when behavior depends on a meaningful boundary.
+  In particular, prove persistence, transactions, constraints, concurrency,
+  query semantics, and durable history with the PostgreSQL adapter in an
+  isolated Testcontainer, not with an in-memory fake or mocked repository.
+- Prefer creating integration-test state through public application or port APIs.
+  Use direct SQL only for PostgreSQL-specific setup or verification that the
+  public API cannot express, and keep it local to the adapter test.
+- Keep unit tests for pure policy, deterministic transformations, and isolated
+  orchestration decisions. Use mocks or stubs only when the collaborator's
+  interaction is the behavior under test or when it represents an external
+  boundary; do not use them to claim integration or persistence behavior.
+- When a domain port owns durable semantics, define one reusable contract suite
+  beside the package that owns the port and apply it to each real reusable
+  implementation, including the first. A contract is a set of observable
+  examples, not a new public test category. Local one-off fakes should stay
+  minimal; do not turn them into stateful alternate implementations merely for
+  tests.
+- When extracting a contract, move the shared behavioral assertions into it and
+  delete or narrow superseded tests. Keep adapter-specific tests only for risks
+  unique to that adapter.
 - Add or update tests when behavior changes.
 - Before completion, run the smallest relevant checks from `package.json`, such
   as `pnpm lint`, `pnpm test:unit`, `pnpm test:integration`, or `pnpm build`.
