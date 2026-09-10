@@ -1097,9 +1097,20 @@ async function saveWealthSnapshot(
     synchronizationRunId?: string;
   }>,
 ) {
-  const calculated = calculateWealthSnapshot(
+  const policyCalculation = calculateWealthSnapshot(
     await loadAccountCalculationStates(db),
   );
+  const [latestRun] = await db
+    .select({ status: synchronizationRuns.status })
+    .from(synchronizationRuns)
+    .orderBy(desc(synchronizationRuns.startedAt))
+    .limit(1);
+  const calculated: CalculatedWealthSnapshot = {
+    ...policyCalculation,
+    isComplete:
+      policyCalculation.isComplete &&
+      (latestRun === undefined || latestRun.status === "succeeded"),
+  };
   const [snapshot] = await db
     .insert(snapshots)
     .values({

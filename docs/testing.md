@@ -221,7 +221,7 @@ and [Playwright Test introduction](https://playwright.dev/docs/test-intro).
 | TST-004 | P1 | Fixed | Rename and reshape tests so every name states exactly what is proved. | TST-002, TST-003 |
 | TST-005 | P1 | Open | Replace static-markup interaction claims with real browser component tests. | TST-002 |
 | TST-006 | P1 | Open | Establish a deterministic Playwright Test E2E harness and first critical journey. | TST-002 |
-| TST-007 | P0 | Open | Cover missing financial invariants and failure semantics. | TST-003 |
+| TST-007 | P0 | Fixed | Cover missing financial invariants and failure semantics. | TST-003 |
 | TST-008 | P0 | Open | Apply reusable persistence-port contract suites to PostgreSQL. | TST-001, TST-003 |
 | TST-009 | P1 | Open | Split and deepen Powens boundary coverage. | TST-003 |
 | TST-010 | P1 | Open | Make GraphQL tests exercise production contracts without duplicated scaffolding. | TST-003 |
@@ -403,37 +403,54 @@ duplicate handling, redaction, and preservation of last-valid values, but
 several high-risk rules are unproved. These omissions can change displayed
 wealth without producing obvious type or transport failures.
 
-**Missing cases:**
+**Cases audited:**
 
-- negative cash and liability-like balances;
-- investment estimated value versus balance selection and no double counting;
-- explicit inclusion behavior for business accounts;
-- duplicate representative tie-breaks and negative-value min/max behavior;
-- current-wealth behavior when no snapshot exists;
-- direct decimal parser and formatter boundaries;
-- disabled and deleted account persistence behavior;
-- temporary account absence versus a complete listing that marks it not seen;
-- truncated provider listings and whole-connection outages;
-- transaction rollback when synchronization finalization fails;
-- failure when the fallback `markRunFailed` operation itself fails;
-- abandoned synchronization runs;
-- genuinely concurrent synchronization starts.
+- [x] negative cash and liability-like balances;
+- [x] investment estimated value versus balance selection and no double counting;
+- [x] explicit inclusion behavior for business accounts;
+- [x] duplicate representative tie-breaks and negative-value min/max behavior;
+- [x] current-wealth behavior when no snapshot exists;
+- [x] direct decimal parser and formatter boundaries;
+- [x] disabled and deleted account persistence behavior;
+- [x] temporary account absence versus a complete listing that marks it not seen;
+- [x] truncated provider listings and whole-connection outages;
+- [x] transaction rollback when synchronization finalization fails;
+- [x] failure when the fallback `markRunFailed` operation itself fails;
+- [x] abandoned synchronization runs;
+- [x] genuinely concurrent synchronization starts.
 
 **Acceptance criteria:**
 
-- [ ] Each listed invariant has an executable, accurately named test or is
+- [x] Each listed invariant has an executable, accurately named test or is
       removed from this list with a documented domain reason.
-- [ ] Pure policies are tested at their owning package before repeating only
+- [x] Pure policies are tested at their owning package before repeating only
       the most valuable compositions at integration level.
-- [ ] Monetary examples retain exact decimal-string expectations.
-- [ ] Failure-path tests assert both returned behavior and durable state.
+- [x] Monetary examples retain exact decimal-string expectations.
+- [x] Failure-path tests assert both returned behavior and durable state.
+
+**Fixed (2026-09-10):** package-owned tests now lock down scale-eight decimal
+conversion, signed cash, unsupported liability-like products, investment
+valuation authority, explicit business inclusion, deterministic duplicate
+selection, negative possible ranges, and the no-snapshot projection. Focused
+PostgreSQL scenarios prove lifecycle persistence, truncated-versus-complete
+absence handling, whole-connection outage preservation, atomic finalization
+rollback, abandoned-run replacement, and concurrent lease acquisition. The
+orchestrator also proves that a failed `markRunFailed` fallback is surfaced.
+During this work, integration evidence exposed that connection-level degraded
+runs could persist a snapshot as complete when no individual account result was
+available. Snapshot creation now carries the latest synchronization status into
+durable completeness, so partial, failed, or running knowledge cannot be labeled
+complete. Verified with `pnpm test:unit` (127 tests), `pnpm test:integration`
+(48 tests), `pnpm test:repository` (43 tests), `pnpm typecheck`, and `pnpm lint`.
 
 ### TST-008 — Persistence-port contract suites
 
 **Problem:** `packages/postgres/src/repositories/financial-persistence.ts` is a
-large implementation of several domain ports, but only five broad integration
-stories cover it. In-memory test repositories and PostgreSQL can therefore
-drift on identity, transaction, observation, lease, and snapshot semantics.
+large implementation of several domain ports. Focused regression scenarios now
+cover its highest-risk behavior, but those examples are not yet organized as
+reusable port contracts. In-memory test repositories and PostgreSQL can
+therefore drift on identity, transaction, observation, lease, and snapshot
+semantics.
 
 **Decision:** define focused contract suites next to the packages that own each
 port. A contract is a reusable set of observable examples, not a new public

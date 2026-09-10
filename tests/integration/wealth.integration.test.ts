@@ -338,39 +338,173 @@ test("retains the initial snapshot when account policy creates a new snapshot", 
   ]);
 });
 
-test("allows exactly one of two concurrent starts for one source instance", async ({ db }) => {
+test("persists disabled and deleted lifecycles and excludes their valuations", async ({ db }) => {
   const repository = createPostgresSynchronizationRepository(db);
-  const input = {
-    adapterKey: "test",
-    sourceKey: "source",
-    sourceName: "Test",
-  };
-  let readyCount = 0;
-  let releaseStarts: () => void = () => undefined;
-  const startsReleased = new Promise<void>((resolve) => {
-    releaseStarts = resolve;
+  const queryRepository = createPostgresWealthQueryRepository(db);
+  const lifecycleAccount = (
+    externalId: string,
+    amount: string,
+    lifecycle: NormalizedExternalAccount["lifecycle"],
+  ) => account(externalId, amount, {
+    identity: {
+      accountNumberFingerprint: null,
+      ibanFingerprint: `iban-${externalId}`,
+      keyVersion: "v1",
+      reportedNameFingerprint: `name-${externalId}`,
+    },
+    lifecycle,
   });
-  const startTogether = async (actionId: string) => {
-    readyCount += 1;
-    if (readyCount === 2) releaseStarts();
-    await startsReleased;
-    return repository.startRun({ ...input, actionId });
+
+  await sync(
+    repository,
+    source({
+      connection: [
+        lifecycleAccount("disabled-account", "40.25", "active"),
+        lifecycleAccount("deleted-account", "60.75", "active"),
+      ],
+    }),
+    "initial-lifecycles",
+  );
+  expect((await getCurrentWealth(queryRepository, observedAt)).headlineAmount).toBe(
+    "101.00000000",
+  );
+
+  await sync(
+    repository,
+    source({
+      connection: [
+        lifecycleAccount("disabled-account", "41.25", "disabled"),
+        lifecycleAccount("deleted-account", "61.75", "deleted"),
+      ],
+    }),
+    "terminal-lifecycles",
+  );
+
+  expect(await getCurrentWealth(queryRepository, observedAt)).toMatchObject({
+    headlineAmount: "0.00000000",
+    isComplete: true,
+  });
+  const durable = await db.execute<{
+    external_id: string;
+    lifecycle: string;
+    valuation_count: number;
+  }>(sql`
+    select
+      ea.external_id,
+      ea.lifecycle,
+      count(v.id)::int valuation_count
+    from ingestion.external_accounts ea
+    join financial.account_valuation_candidates v on v.account_id = ea.account_id
+    group by ea.external_id, ea.lifecycle
+    order by ea.external_id
+  `);
+  expect(durable).toEqual([
+    {
+      external_id: "deleted-account",
+      lifecycle: "deleted",
+      valuation_count: 2,
+    },
+    {
+      external_id: "disabled-account",
+      lifecycle: "disabled",
+      valuation_count: 2,
+    },
+  ]);
+  const latestDecisions = await db.execute<{
+    decision: string;
+  }>(sql`
+    select d.decision
+    from wealth.snapshot_account_decisions d
+    where d.snapshot_id = (
+      select id from wealth.snapshots order by recorded_at desc, id desc limit 1
+    )
+    order by d.account_name
+  `);
+  expect(latestDecisions.map(({ decision }) => decision)).toEqual([
+    "excluded_external_lifecycle",
+    "excluded_external_lifecycle",
+  ]);
+});
+
+test("preserves an absent account and only records not-seen after a complete listing", async ({ db }) => {
+  const repository = createPostgresSynchronizationRepository(db);
+  const queryRepository = createPostgresWealthQueryRepository(db);
+  await sync(repository, source({ connection: [account("cash", "42.50")] }), "initial");
+
+  const listingSource = (isComplete: boolean): ExternalFinancialSource => ({
+    getExternalSubjectId: async () => "subject-1",
+    listAccounts: async () => ({
+      accounts: [],
+      failures: [],
+      isComplete,
+      reportedTotal: 1,
+    }),
+    listConnections: async () => [connection("connection")],
+  });
+  expect((await sync(repository, listingSource(false), "truncated")).status).toBe(
+    "partial",
+  );
+  expect(await getCurrentWealth(queryRepository, observedAt)).toMatchObject({
+    headlineAmount: "42.50000000",
+    isComplete: false,
+    latestSynchronizationStatus: "partial",
+  });
+  const afterTruncated = await db.execute<{ status: string }>(sql`
+    select status from ingestion.synchronization_account_results order by finished_at
+  `);
+  expect(afterTruncated.map(({ status }) => status)).toEqual(["succeeded"]);
+
+  expect((await sync(repository, listingSource(true), "complete")).status).toBe(
+    "partial",
+  );
+  expect(await getCurrentWealth(queryRepository, observedAt)).toMatchObject({
+    health: "synchronization_failed",
+    headlineAmount: "42.50000000",
+    isComplete: false,
+    latestSynchronizationStatus: "partial",
+  });
+  const afterComplete = await db.execute<{ status: string }>(sql`
+    select status from ingestion.synchronization_account_results order by finished_at
+  `);
+  expect(afterComplete.map(({ status }) => status)).toEqual([
+    "succeeded",
+    "not_seen",
+  ]);
+});
+
+test("preserves account state through a whole-connection outage", async ({ db }) => {
+  const repository = createPostgresSynchronizationRepository(db);
+  const queryRepository = createPostgresWealthQueryRepository(db);
+  await sync(repository, source({ connection: [account("cash", "42.50")] }), "initial");
+  const outageSource: ExternalFinancialSource = {
+    getExternalSubjectId: async () => "subject-1",
+    listAccounts: async () => {
+      throw new Error("Account listing must not run for an inactive connection");
+    },
+    listConnections: async () => [{
+      ...connection("connection"),
+      active: false,
+      sourceErrorCode: "provider_outage",
+    }],
   };
 
-  const attempts = await Promise.all([
-    startTogether("first"),
-    startTogether("second"),
-  ]);
-
-  expect(attempts.map((attempt) => attempt.status).sort()).toEqual([
-    "skipped_already_running",
-    "started",
-  ]);
-  const started = attempts.find((attempt) => attempt.status === "started");
-  if (started?.status === "started") {
-    await repository.markRunFailed(started.runId, {
-      code: "test_cleanup",
-      kind: "test",
-    });
-  }
+  expect((await sync(repository, outageSource, "outage")).status).toBe("failed");
+  expect(await getCurrentWealth(queryRepository, observedAt)).toMatchObject({
+    health: "synchronization_failed",
+    headlineAmount: "42.50000000",
+    isComplete: false,
+    latestSynchronizationStatus: "failed",
+  });
+  const durable = await db.execute<{
+    account_statuses: string[];
+    connection_statuses: string[];
+  }>(sql`
+    select
+      array(select status from ingestion.synchronization_account_results order by finished_at) account_statuses,
+      array(select status from ingestion.synchronization_connection_results order by finished_at) connection_statuses
+  `);
+  expect(durable[0]).toEqual({
+    account_statuses: ["succeeded"],
+    connection_statuses: ["succeeded", "failed"],
+  });
 });

@@ -35,6 +35,65 @@ const baseState = {
 };
 
 describe("current wealth projection", () => {
+  test.each([
+    {
+      expectedHealth: "fresh",
+      latestSynchronizationStatus: null,
+      scenario: "no synchronization has run",
+    },
+    {
+      expectedHealth: "synchronization_failed",
+      latestSynchronizationStatus: "failed",
+      scenario: "the first synchronization failed",
+    },
+  ] as const)("returns an incomplete zero view when $scenario", ({
+    expectedHealth,
+    latestSynchronizationStatus,
+  }) => {
+    expect(
+      buildCurrentWealthView(
+        {
+          lastSuccessfulSynchronizationAt: null,
+          latestSynchronizationStatus,
+          snapshot: null,
+        },
+        observedAt,
+      ),
+    ).toEqual({
+      currency: "EUR",
+      duplicateAdjustedEstimateAmount: "0",
+      headlineAmount: "0",
+      health: expectedHealth,
+      institutions: [],
+      isComplete: false,
+      lastSuccessfulSynchronizationAt: null,
+      latestSynchronizationStatus,
+      likelyDuplicateGroupCount: 0,
+      possibleTotalMaximum: "0",
+      possibleTotalMinimum: "0",
+      recordedAt: null,
+    });
+  });
+
+  test("orders a negative duplicate range numerically", () => {
+    const view = buildCurrentWealthView(
+      {
+        ...baseState,
+        snapshot: {
+          ...baseState.snapshot,
+          duplicateAdjustedEstimateAmount: "-40.25",
+          headlineAmount: "-140.5",
+          isComplete: false,
+          likelyDuplicateGroupCount: 1,
+        },
+      },
+      observedAt,
+    );
+
+    expect(view.possibleTotalMinimum).toBe("-140.5");
+    expect(view.possibleTotalMaximum).toBe("-40.25");
+  });
+
   test("substitutes fallback labels for unnamed accounts and institutions", () => {
     const view = buildCurrentWealthView(
       baseState,

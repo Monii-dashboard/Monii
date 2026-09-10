@@ -126,4 +126,41 @@ describe("synchronization orchestration", () => {
     expect(result.status).toBe("skipped_already_running");
     expect(source.getExternalSubjectId).not.toHaveBeenCalled();
   });
+
+  test("surfaces the fallback persistence error when run failure recording also fails", async () => {
+    const persistence = repository();
+    vi.mocked(persistence.identifyRunSource).mockRejectedValueOnce(
+      new Error("source identification failed"),
+    );
+    vi.mocked(persistence.finalizeRun).mockRejectedValueOnce(
+      new Error("transactional finalization failed"),
+    );
+    vi.mocked(persistence.markRunFailed).mockRejectedValueOnce(
+      new Error("fallback failure recording failed"),
+    );
+
+    await expect(
+      synchronizeSourceInstance({
+        actionId: "action",
+        adapterKey: "test",
+        repository: persistence,
+        source: {
+          getExternalSubjectId: async () => "subject-1",
+          listAccounts: vi.fn(),
+          listConnections: vi.fn(),
+        },
+        sourceKey: "source",
+        sourceName: "Test",
+      }),
+    ).rejects.toThrow("fallback failure recording failed");
+    expect(persistence.finalizeRun).toHaveBeenCalledWith(
+      "run-1",
+      "failed",
+      { code: null, kind: "unexpected" },
+    );
+    expect(persistence.markRunFailed).toHaveBeenCalledWith(
+      "run-1",
+      { code: null, kind: "unexpected" },
+    );
+  });
 });
