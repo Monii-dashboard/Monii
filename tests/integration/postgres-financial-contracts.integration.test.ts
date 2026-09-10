@@ -20,23 +20,22 @@ import {
 } from "@monii/postgres/wealth";
 import { getCurrentWealth } from "@monii/wealth-query";
 import { sql } from "drizzle-orm";
-import { onTestFinished } from "vitest";
 
-import { startPostgresTestDatabase } from "../support/postgres";
+import "@testkit/integration";
+import { getIntegrationDatabase } from "@testkit/postgres";
 
 async function createPostgresContractHarness() {
-  const testDatabase = await startPostgresTestDatabase();
-  onTestFinished(() => testDatabase.stop());
+  const db = getIntegrationDatabase();
 
   const reports: FinancialOperationalReport[] = [];
   const synchronizationRepository = createPostgresSynchronizationRepository(
-    testDatabase.db,
+    undefined,
     { report: (record) => reports.push(record) },
   );
   const calculationRepository = createPostgresWealthCalculationRepository(
-    testDatabase.db,
+    undefined,
   );
-  const queryRepository = createPostgresWealthQueryRepository(testDatabase.db);
+  const queryRepository = createPostgresWealthQueryRepository();
   const repository = {
     changeAccountInclusionPolicy:
       calculationRepository.changeAccountInclusionPolicy,
@@ -120,7 +119,7 @@ async function createPostgresContractHarness() {
     finalizeEmptyRun: (runId: string) =>
       synchronizationRepository.finalizeRun(runId, "succeeded"),
     inspectIdentityHistory: async () => {
-      const [counts] = await testDatabase.db.execute<{
+      const [counts] = await db.execute<{
         account_count: number;
         alias_count: number;
         external_account_count: number;
@@ -130,7 +129,7 @@ async function createPostgresContractHarness() {
           (select count(*)::int from financial.account_merges) alias_count,
           (select count(*)::int from ingestion.external_accounts) external_account_count
       `);
-      const snapshots = await testDatabase.db.execute<{ headline_amount: string }>(
+      const snapshots = await db.execute<{ headline_amount: string }>(
         sql`
           select headline_amount
           from wealth.snapshots
@@ -146,7 +145,7 @@ async function createPostgresContractHarness() {
       };
     },
     inspectLatestUnknownObservation: async () => {
-      const [stored] = await testDatabase.db.execute<{
+      const [stored] = await db.execute<{
         canonical_name: string;
         currency: string | null;
         raw_currency: string;
@@ -177,18 +176,18 @@ async function createPostgresContractHarness() {
       };
     },
     inspectObservationHistory: async () => {
-      const [counts] = await testDatabase.db.execute<{ observation_count: number }>(
+      const [counts] = await db.execute<{ observation_count: number }>(
         sql`
           select count(*)::int observation_count
           from ingestion.external_account_observations
         `,
       );
-      const results = await testDatabase.db.execute<{ status: string }>(sql`
+      const results = await db.execute<{ status: string }>(sql`
         select status
         from ingestion.synchronization_account_results
         order by finished_at, id
       `);
-      const snapshots = await testDatabase.db.execute<{ headline_amount: string }>(
+      const snapshots = await db.execute<{ headline_amount: string }>(
         sql`
           select headline_amount
           from wealth.snapshots
@@ -202,7 +201,7 @@ async function createPostgresContractHarness() {
       };
     },
     inspectSnapshotDecisions: async () => {
-      const decisions = await testDatabase.db.execute<{ decision: string }>(sql`
+      const decisions = await db.execute<{ decision: string }>(sql`
         select d.decision
         from wealth.snapshot_account_decisions d
         join wealth.snapshots s on s.id = d.snapshot_id

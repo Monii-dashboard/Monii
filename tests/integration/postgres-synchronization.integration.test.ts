@@ -2,10 +2,12 @@ import type { FinancialOperationalReport } from "@monii/ingestion";
 import { createPostgresSynchronizationRepository } from "@monii/postgres/ingestion";
 import { sql } from "drizzle-orm";
 
-import { expect, test } from "../support/postgres";
+import { expect, it } from "@testkit/integration";
+import { getIntegrationDatabase } from "@testkit/postgres";
 
-test("rolls back the run transition when snapshot creation fails", async ({ db }) => {
-  const repository = createPostgresSynchronizationRepository(db);
+it("rolls back the run transition when snapshot creation fails", async () => {
+  const db = getIntegrationDatabase();
+  const repository = createPostgresSynchronizationRepository();
   const started = await repository.startRun({
     actionId: "rollback",
     adapterKey: "test",
@@ -62,9 +64,10 @@ test("rolls back the run transition when snapshot creation fails", async ({ db }
   });
 });
 
-test("marks a run older than two hours abandoned before starting its replacement", async ({ db }) => {
+it("marks a run older than two hours abandoned before starting its replacement", async () => {
+  const db = getIntegrationDatabase();
   const reports: FinancialOperationalReport[] = [];
-  const repository = createPostgresSynchronizationRepository(db, {
+  const repository = createPostgresSynchronizationRepository(undefined, {
     report: (record) => reports.push(record),
   });
   const first = await repository.startRun({

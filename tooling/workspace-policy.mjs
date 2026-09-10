@@ -25,12 +25,27 @@ function dependencies(pkg) {
   return Object.assign({}, ...dependencyFields.map((field) => pkg[field]));
 }
 
+function exposesTestSupport(value, key = "") {
+  if (/(^|[./])test-support([/.]|$)/.test(key)) return true;
+  if (typeof value === "string") return /(^|[./])test-support([/.]|$)/.test(value);
+  if (Array.isArray(value)) return value.some((entry) => exposesTestSupport(entry));
+  if (value && typeof value === "object") {
+    return Object.entries(value).some(([entryKey, entryValue]) =>
+      exposesTestSupport(entryValue, entryKey)
+    );
+  }
+  return false;
+}
+
 export function validateWorkspace(packages) {
   const byName = new Map(packages.map((pkg) => [pkg.name, pkg]));
   if (byName.size !== packages.length) throw new Error("Duplicate workspace package name");
   for (const pkg of packages) {
     if (!pkg.name || !["portable", "node"].includes(pkg.monii?.platform)) {
       throw new Error(`${pkg.name ?? pkg.directory}: missing or invalid monii.platform`);
+    }
+    if (exposesTestSupport(pkg.exports)) {
+      throw new Error(`${pkg.name}: test-support must not be exposed through package exports`);
     }
     for (const [name, version] of Object.entries(dependencies(pkg))) {
       const target = byName.get(name);
@@ -81,12 +96,21 @@ export function workspaceImportRule(packages) {
     create(context) {
       const filename = path.resolve(context.filename);
       const owner = packages.find((pkg) => contains(pkg.directory, filename));
+      const isIntegrationTest = /\.integration\.test\.[cm]?[jt]sx?$/.test(filename);
+      const isTestSupport = filename.split(path.sep).includes("test-support") ||
+        filename.includes(`${path.sep}tests${path.sep}support${path.sep}testkit${path.sep}`);
+      const mayUseTestkit = isIntegrationTest || isTestSupport;
+      let importsIntegrationTestApi = false;
       function check(node) {
         const specifier = node.type === "TemplateLiteral" && node.expressions.length === 0
           ? node.quasis[0].value.cooked
           : node.value;
         if (typeof specifier !== "string") return;
+        if (specifier === "@testkit/integration") importsIntegrationTestApi = true;
         let reason;
+        if (specifier.startsWith("@testkit/") && !mayUseTestkit) {
+          reason = "Testkit imports are allowed only from integration tests and isolated test-support modules.";
+        }
         const target = packages.find((pkg) => specifier === pkg.name || specifier.startsWith(`${pkg.name}/`));
         if (specifier.startsWith(".") || path.isAbsolute(specifier)) {
           const resolved = path.resolve(path.dirname(filename), specifier);
@@ -96,15 +120,16 @@ export function workspaceImportRule(packages) {
         } else if (target) {
           if (target.group === "apps" && owner !== target) reason = "Apps must not import another app's internals.";
           else if (!publicEntry(target, specifier)) reason = "Use an explicit public package export.";
-          else if (owner && owner !== target && !Object.hasOwn(dependencies(owner), target.name)) reason = "Declare workspace dependencies in the owning manifest.";
-          else if (owner?.monii.platform === "portable" && target.monii.platform !== "portable") reason = "Portable packages cannot import Node packages.";
+          else if (owner && owner !== target && !mayUseTestkit && !Object.hasOwn(dependencies(owner), target.name)) reason = "Declare workspace dependencies in the owning manifest.";
+          else if (owner?.monii.platform === "portable" && !mayUseTestkit && target.monii.platform !== "portable") reason = "Portable packages cannot import Node packages.";
         }
-        if (owner?.monii.platform === "portable" && (
+        if (owner?.monii.platform === "portable" && !mayUseTestkit && (
           specifier.startsWith("node:") || nodeModules.has(specifier) ||
           adapters.some((adapter) => specifier === adapter || specifier.startsWith(`${adapter}/`))
         )) reason = "Keep portable packages independent of Node APIs, frameworks, and concrete adapters.";
         if (
           owner?.name === "@monii/web" &&
+          !mayUseTestkit &&
           !contains(path.join(owner.directory, "src/app/api"), filename) &&
           target?.monii?.platform === "node" &&
           target.name !== "@monii/runtime"
@@ -114,12 +139,41 @@ export function workspaceImportRule(packages) {
         if (reason) context.report({ node, messageId: "boundary", data: { reason } });
       }
       return {
-        ImportDeclaration: (node) => check(node.source),
+        ImportDeclaration: (node) => {
+          check(node.source);
+          if (
+            isIntegrationTest &&
+            node.source.value === "vitest" &&
+            node.specifiers.some((specifier) =>
+              specifier.type === "ImportSpecifier" &&
+              ["it", "test"].includes(specifier.imported.name)
+            )
+          ) {
+            context.report({
+              node,
+              messageId: "boundary",
+              data: {
+                reason: "Integration tests must import it from @testkit/integration, not from vitest.",
+              },
+            });
+          }
+        },
         ExportNamedDeclaration: (node) => { if (node.source) check(node.source); },
         ExportAllDeclaration: (node) => check(node.source),
         ImportExpression: (node) => check(node.source),
         CallExpression: (node) => {
           if (node.callee.name === "require" && node.arguments[0]) check(node.arguments[0]);
+        },
+        "Program:exit": (node) => {
+          if (isIntegrationTest && !importsIntegrationTestApi) {
+            context.report({
+              node,
+              messageId: "boundary",
+              data: {
+                reason: "Integration tests must import their test API from @testkit/integration.",
+              },
+            });
+          }
         },
       };
     },
@@ -137,6 +191,10 @@ export function workspaceLintConfig(root) {
     },
     ...packages.filter((pkg) => pkg.monii.platform === "portable").map((pkg) => ({
       files: [`${path.relative(root, pkg.directory)}/**/*.{js,mjs,cjs,ts,tsx,mts,cts}`],
+      ignores: [
+        `${path.relative(root, pkg.directory)}/**/*.integration.test.{js,mjs,cjs,ts,tsx,mts,cts}`,
+        `${path.relative(root, pkg.directory)}/test-support/**/*.{js,mjs,cjs,ts,tsx,mts,cts}`,
+      ],
       rules: {
         "no-restricted-globals": ["error", "process", "Buffer", "__dirname", "__filename", "require", "global"],
         "no-restricted-syntax": ["error", {

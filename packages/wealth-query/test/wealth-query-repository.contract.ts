@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { WealthQueryRepository } from "../src/index";
 
@@ -22,7 +22,7 @@ export function wealthQueryRepositoryContract(
   createHarness: HarnessFactory,
 ): void {
   describe("WealthQueryRepository contract", () => {
-    test("returns an empty state before financial knowledge is persisted", async () => {
+    it("returns an empty state before financial knowledge is persisted", async () => {
       const { repository } = await createHarness();
 
       await expect(repository.loadCurrentWealthState()).resolves.toEqual({
@@ -32,7 +32,7 @@ export function wealthQueryRepositoryContract(
       });
     });
 
-    test("publishes a snapshot only when its synchronization is finalized", async () => {
+    it("publishes a snapshot only when its synchronization is finalized", async () => {
       const harness = await createHarness();
       const runId = await harness.startEmptyRun();
 
@@ -53,7 +53,7 @@ export function wealthQueryRepositoryContract(
       });
     });
 
-    test("returns the newest observation while retaining earlier snapshots", async () => {
+    it("returns the newest observation while retaining earlier snapshots", async () => {
       const harness = await createHarness();
       await harness.arrangeSuccessfulAccount("42");
       await harness.arrangeSuccessfulAccount("52");
@@ -71,7 +71,7 @@ export function wealthQueryRepositoryContract(
       });
     });
 
-    test("keeps the last usable observation after an account refresh fails", async () => {
+    it("keeps the last usable observation after an account refresh fails", async () => {
       const harness = await createHarness();
       await harness.arrangeSuccessfulAccount("42");
       await harness.arrangeAccountFailure();
@@ -90,7 +90,7 @@ export function wealthQueryRepositoryContract(
         .toEqual(["succeeded", "provider_error"]);
     });
 
-    test("keeps account state when an entire connection refresh fails", async () => {
+    it("keeps account state when an entire connection refresh fails", async () => {
       const harness = await createHarness();
       await harness.arrangeSuccessfulAccount("42.50");
       await harness.arrangeConnectionFailure();

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   synchronizeSourceInstance,
@@ -63,7 +63,7 @@ export function accountIdentityPersistenceContract(
   createHarness: HarnessFactory,
 ): void {
   describe("account and institution persistence contract", () => {
-    test("merges strong account identities without rewriting snapshot history", async () => {
+    it("merges strong account identities without rewriting snapshot history", async () => {
       const harness = await createHarness();
       const weakIdentity = {
         accountNumberFingerprint: null,
@@ -133,7 +133,7 @@ export function accountIdentityPersistenceContract(
       );
     });
 
-    test("preserves canonical labels and unknown values across observations", async () => {
+    it("preserves canonical labels and unknown values across observations", async () => {
       const harness = await createHarness();
       const unknown = (amount: string, reportedName: string) =>
         contractAccount("mystery", amount, {
@@ -168,7 +168,7 @@ export function accountIdentityPersistenceContract(
       });
     });
 
-    test("reuses one institution identity across its source connections", async () => {
+    it("reuses one institution identity across its source connections", async () => {
       const harness = await createHarness();
 
       await synchronize(

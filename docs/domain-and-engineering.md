@@ -69,6 +69,15 @@ wealth-calculation, and wealth-query are portable; PostgreSQL, Powens, GraphQL,
 runtime, and the app composition roots are Node. Web frontend code cannot import
 Node adapters outside HTTP route bootstraps.
 
+Portable ownership applies to production APIs and manifest dependencies. A
+recognized `.integration.test.ts` file inside a portable package may compose
+Node adapters through the repository's virtual `@testkit/*` imports, and the
+package may own isolated helpers under `test-support`. These are test-only
+composition roots: lint rejects their use from production, unit tests, and
+portable contract suites, and workspace validation rejects manifests that
+export `test-support`. This exception must not create a production dependency
+edge or weaken the portable package's public boundary.
+
 The workspace graph must be acyclic. Portable capabilities cannot import their
 Node implementations; app composition roots assemble them. Runtime remains
 independent of other workspace packages. Third-party compatibility remains an

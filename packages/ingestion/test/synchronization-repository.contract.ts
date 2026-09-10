@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { SynchronizationRepository } from "../src/index";
 
@@ -16,7 +16,7 @@ export function synchronizationRepositoryContract(
   createHarness: HarnessFactory,
 ): void {
   describe("SynchronizationRepository contract", () => {
-    test("allows exactly one concurrent running lease for one source", async () => {
+    it("allows exactly one concurrent running lease for one source", async () => {
       const { repository } = await createHarness();
       const attempts = await Promise.all([
         repository.startRun(run("first")),
@@ -29,7 +29,7 @@ export function synchronizationRepositoryContract(
       ]);
     });
 
-    test("allows independent sources to hold running leases", async () => {
+    it("allows independent sources to hold running leases", async () => {
       const { repository } = await createHarness();
 
       await expect(
@@ -43,7 +43,7 @@ export function synchronizationRepositoryContract(
       ]);
     });
 
-    test("releases a source lease after recording a run failure", async () => {
+    it("releases a source lease after recording a run failure", async () => {
       const { repository } = await createHarness();
       const first = await repository.startRun(run("failed"));
       if (first.status !== "started") throw new Error("Expected run to start");
@@ -61,7 +61,7 @@ export function synchronizationRepositoryContract(
       );
     });
 
-    test("rejects a different external subject for an identified source", async () => {
+    it("rejects a different external subject for an identified source", async () => {
       const { repository } = await createHarness();
       const started = await repository.startRun(run("identity"));
       if (started.status !== "started") throw new Error("Expected run to start");

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { WealthCalculationRepository } from "../src/index";
 
@@ -18,7 +18,7 @@ export function wealthCalculationRepositoryContract(
   createHarness: HarnessFactory,
 ): void {
   describe("WealthCalculationRepository contract", () => {
-    test("creates a new snapshot when an existing account policy changes", async () => {
+    it("creates a new snapshot when an existing account policy changes", async () => {
       const harness = await createHarness();
       const accountId = await harness.arrangeIncludedAccount("42");
 
@@ -39,7 +39,7 @@ export function wealthCalculationRepositoryContract(
       ]);
     });
 
-    test("rejects a missing account without creating a snapshot", async () => {
+    it("rejects a missing account without creating a snapshot", async () => {
       const harness = await createHarness();
 
       await expect(

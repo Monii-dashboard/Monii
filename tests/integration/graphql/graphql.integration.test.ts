@@ -1,5 +1,5 @@
 import { CombinedGraphQLErrors } from "@apollo/client/errors";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, it, vi } from "@testkit/integration";
 
 import {
   createGraphqlServer,
@@ -66,7 +66,7 @@ function createTestClient(timeoutMs = 30_000) {
   return { client, serverErrors };
 }
 
-test("excludes test-only fields from the production schema", async () => {
+it("excludes test-only fields from the production schema", async () => {
   const server = createGraphqlServer({ schema: graphqlSchema });
   const response = await server.fetch("http://graphql.test/api/graphql", {
     method: "POST",
@@ -99,7 +99,7 @@ test("excludes test-only fields from the production schema", async () => {
   });
 });
 
-test("serializes the current-wealth projection returned by the repository", async () => {
+it("serializes the current-wealth projection returned by the repository", async () => {
   const recordedAt = new Date("2026-09-08T08:30:00.000Z");
   const server = createGraphqlServer({
     schema: graphqlSchema,
@@ -185,7 +185,7 @@ test("serializes the current-wealth projection returned by the repository", asyn
   });
 });
 
-test("executes a generated query document through the in-memory transport", async () => {
+it("executes a generated query document through the in-memory transport", async () => {
   const { client } = createTestClient();
 
   try {
@@ -202,7 +202,7 @@ test("executes a generated query document through the in-memory transport", asyn
   }
 });
 
-test("executes a generated mutation document through the in-memory transport", async () => {
+it("executes a generated mutation document through the in-memory transport", async () => {
   const { client } = createTestClient();
 
   try {
@@ -218,7 +218,7 @@ test("executes a generated mutation document through the in-memory transport", a
   }
 });
 
-test("preserves public codes and masks unexpected errors", async () => {
+it("preserves public codes and masks unexpected errors", async () => {
   const { client, serverErrors } = createTestClient();
   const consoleError = vi
     .spyOn(globalThis.console, "error")
@@ -277,7 +277,7 @@ test("preserves public codes and masks unexpected errors", async () => {
   }
 });
 
-test("aborts GraphQL execution at the client deadline", async () => {
+it("aborts GraphQL execution at the client deadline", async () => {
   const { client } = createTestClient(10);
   testGraphqlState.slowResolverAbortCount = 0;
 

@@ -8,6 +8,10 @@
     "codegen.ts",
     "drizzle.config.ts",
     "graphql.config.ts",
+    "apps/*/test/**/*.ts",
+    "apps/*/test-support/**/*.ts",
+    "packages/*/test/**/*.ts",
+    "packages/*/test-support/**/*.ts",
     "tests/**/*.ts",
     "vitest.config.mts"
   ],

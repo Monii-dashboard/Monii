@@ -81,6 +81,19 @@ test("rejects a package dependency on an application", () => {
   expect(() => validateWorkspace(discoverWorkspace(root))).toThrow(/app/);
 });
 
+test("rejects package exports of isolated test support", () => {
+  const root = workspace();
+  writeFileSync(path.join(root, "packages/accounts/package.json"), JSON.stringify({
+    name: "@monii/accounts",
+    monii: { platform: "portable" },
+    exports: {
+      ".": "./src/index.ts",
+      "./testing": "./test-support/index.ts",
+    },
+  }));
+  expect(() => validateWorkspace(discoverWorkspace(root))).toThrow(/test-support/);
+});
+
 test.each([
   'import "node:fs";', 'import "fs/promises";', 'export * from "next/server";',
   'export { buildSchema } from "type-graphql";', 'void import("drizzle-orm");',
@@ -108,6 +121,42 @@ test("retains web postgres restriction for static and dynamic imports", () => {
     expect(lint(root, code, "apps/web/src/page.js")).toHaveLength(1);
     expect(lint(root, code, "apps/web/src/app/api/route.js")).toEqual([]);
   }
+});
+
+test("allows testkit only from integration tests and isolated test support", () => {
+  const root = workspace();
+  expect(lint(root, 'import "@testkit/postgres";')).toHaveLength(1);
+  expect(lint(
+    root,
+    'import { it } from "@testkit/integration"; import "@testkit/postgres";',
+    "packages/accounts/src/example.integration.test.js",
+  )).toEqual([]);
+  expect(lint(
+    root,
+    'import "@testkit/postgres";',
+    "packages/accounts/test-support/index.js",
+  )).toEqual([]);
+});
+
+test("requires integration tests to use the integration test API", () => {
+  const root = workspace();
+  const filename = "packages/accounts/src/example.integration.test.js";
+  expect(lint(root, 'import { it } from "vitest";', filename)).toHaveLength(2);
+  expect(lint(root, 'import { it } from "@testkit/integration";', filename)).toEqual([]);
+});
+
+test("allows Node adapters only in portable integration and test-support files", () => {
+  const root = workspace();
+  expect(lint(
+    root,
+    'import { it } from "@testkit/integration"; import "@monii/postgres/public";',
+    "packages/accounts/src/example.integration.test.js",
+  )).toEqual([]);
+  expect(lint(
+    root,
+    'import "@monii/postgres/public";',
+    "packages/accounts/test-support/index.js",
+  )).toEqual([]);
 });
 
 test("discovers a new package and applies policy without central configuration", () => {

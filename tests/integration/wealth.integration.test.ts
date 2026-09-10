@@ -8,7 +8,8 @@ import { createPostgresWealthQueryRepository } from "@monii/postgres/wealth";
 import { getCurrentWealth } from "@monii/wealth-query";
 import { sql } from "drizzle-orm";
 
-import { expect, test } from "../support/postgres";
+import { expect, it } from "@testkit/integration";
+import { getIntegrationDatabase } from "@testkit/postgres";
 
 const observedAt = new Date("2026-08-31T10:00:00Z");
 
@@ -83,9 +84,10 @@ async function synchronize(
   });
 }
 
-test("excludes newly disabled and deleted accounts while retaining their observations", async ({ db }) => {
-  const repository = createPostgresSynchronizationRepository(db);
-  const queryRepository = createPostgresWealthQueryRepository(db);
+it("excludes newly disabled and deleted accounts while retaining their observations", async () => {
+  const db = getIntegrationDatabase();
+  const repository = createPostgresSynchronizationRepository();
+  const queryRepository = createPostgresWealthQueryRepository();
   const lifecycleAccount = (
     externalId: string,
     amount: string,
@@ -133,9 +135,10 @@ test("excludes newly disabled and deleted accounts while retaining their observa
   ]);
 });
 
-test("records not-seen only after a complete listing while retaining the last value", async ({ db }) => {
-  const repository = createPostgresSynchronizationRepository(db);
-  const queryRepository = createPostgresWealthQueryRepository(db);
+it("records not-seen only after a complete listing while retaining the last value", async () => {
+  const db = getIntegrationDatabase();
+  const repository = createPostgresSynchronizationRepository();
+  const queryRepository = createPostgresWealthQueryRepository();
   await synchronize(repository, source([account("cash", "42.50")]), "initial");
 
   const emptyListing = (isComplete: boolean): ExternalFinancialSource => ({

@@ -129,6 +129,30 @@ costly or hard to reverse.
 - When extracting a contract, move the shared behavioral assertions into it and
   delete or narrow superseded tests. Keep adapter-specific tests only for risks
   unique to that adapter.
+- Integration tests may live beside the owning source or under `test`, but must
+  use the `.integration.test.ts` or `.integration.test.tsx` suffix. Import
+  `it`, `describe`, hooks, assertions, and `vi` from `@testkit/integration`;
+  never import `it` or `test` directly from Vitest in an integration file.
+- The integration lifecycle automatically creates and migrates a fresh
+  PostgreSQL Testcontainer for every test, before its hooks and body. Do not
+  add database fixture parameters or external database fallbacks. PostgreSQL
+  repository factories should use the active integration database by default;
+  import `@testkit/postgres` only for necessary direct setup or inspection.
+- Keep non-database integration capabilities independently importable and lazy.
+  Put app-specific in-process endpoint bindings under that app's
+  `test-support`, select the app explicitly, and keep transport helpers generic
+  over operations and variables. Do not add business-operation methods to a
+  global testkit.
+- Put persisted-state helpers under the owning package's `test-support`. Keep
+  them granular: create one valid row or tightly coupled fact from explicit
+  defaults with typed overrides. Compose complex arrangements in the test from
+  several owner helpers. Add a multi-table helper only for a stable invariant,
+  not merely to shorten one scenario.
+- Treat `@testkit/*` and `test-support` as isolated test-only APIs. They may be
+  imported only by integration tests and other test-support modules, never by
+  production code, unit tests, or portable contract suites. Do not expose
+  test-support through package manifests or add production workspace
+  dependencies for it.
 - Add or update tests when behavior changes.
 - Before completion, run the smallest relevant checks from `package.json`, such
   as `pnpm lint`, `pnpm test:unit`, `pnpm test:integration`, or `pnpm build`.

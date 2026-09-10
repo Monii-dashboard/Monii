@@ -5,7 +5,10 @@
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["apps/web/src/*"],
+      "@testkit/*": ["tests/support/testkit/*"],
+      "@testkit/apps/*": ["apps/*/test-support/index.ts"],
+      "@testkit/packages/*": ["packages/*/test-support/index.ts"]
     }
   },
   "include": [

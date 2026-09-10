@@ -1,25 +1,11 @@
 import { log } from "@monii/runtime/log";
 import { runWithOperationContext } from "@monii/runtime/operation";
-import { createGraphqlServer, graphqlSchema } from "@monii/graphql";
-import { createPostgresWealthQueryRepository } from "@monii/postgres/wealth";
+
+import { createWebGraphqlServer } from "./server";
 
 export const runtime = "nodejs";
 
-let postgresWealthRepository:
-  | ReturnType<typeof createPostgresWealthQueryRepository>
-  | undefined;
-
-const wealthRepository = {
-  loadCurrentWealthState() {
-    postgresWealthRepository ??= createPostgresWealthQueryRepository();
-    return postgresWealthRepository.loadCurrentWealthState();
-  },
-};
-
-const graphqlServer = createGraphqlServer({
-  schema: graphqlSchema,
-  wealthRepository,
-});
+const graphqlServer = createWebGraphqlServer();
 
 function handleGraphqlRequest(request: Request) {
   return runWithOperationContext(

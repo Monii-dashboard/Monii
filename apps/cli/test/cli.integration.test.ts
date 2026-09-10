@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "@testkit/integration";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const cliRoot = join(root, "apps/cli");
@@ -30,7 +30,7 @@ function invoke(args: string[], options: { cwd?: string; nodeEnv?: string; pnpm?
 }
 
 describe.each(["development", "production"])("help without financial configuration (%s)", (nodeEnv) => {
-  test.each([
+  it.each([
     { args: [], invocation: "no arguments" },
     { args: ["--help"], invocation: "--help" },
     { args: ["-h"], invocation: "-h" },
@@ -43,7 +43,7 @@ describe.each(["development", "production"])("help without financial configurati
     expect(result.err).toBe("");
   }, 30_000);
 
-  test.each([
+  it.each([
     { args: ["sync", "--help"], invocation: "sync --help" },
     { args: ["sync", "-h"], invocation: "sync -h" },
     { args: ["help", "sync"], invocation: "help sync" },
@@ -56,14 +56,14 @@ describe.each(["development", "production"])("help without financial configurati
   }, 30_000);
 });
 
-test("version output comes from package metadata", async () => {
+it("version output comes from package metadata", async () => {
   const { version } = JSON.parse(await readFile(join(cliRoot, "package.json"), "utf8"));
   const result = invoke(["--version"]);
   expect(result.code).toBe(0);
   expect(result.out).toContain(`@monii/cli/${version}`);
 }, 30_000);
 
-test.each([
+it.each([
   { args: ["missing"], invocation: "missing" },
   { args: ["--unknown"], invocation: "--unknown" },
   { args: ["sync", "--unknown"], invocation: "sync --unknown" },
@@ -78,7 +78,7 @@ test.each([
   expect(result.err).toMatch(/not found|Unexpected|Nonexistent/i);
 }, 30_000);
 
-test.each([
+it.each([
   {
     args: ["cli", "--", "sync", "--help"],
     invocation: "the root pnpm script",
@@ -93,7 +93,7 @@ test.each([
   expect(result.out).toContain("pnpm cli sync");
 }, 30_000);
 
-test("discovers a nested TypeScript command without registration", async () => {
+it("discovers a nested TypeScript command without registration", async () => {
   const fixture = await mkdtemp(join(tmpdir(), "monii-cli-"));
   try {
     await cp(join(cliRoot, "package.json"), join(fixture, "package.json"));

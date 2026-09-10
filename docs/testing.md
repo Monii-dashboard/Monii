@@ -108,20 +108,25 @@ The target shape is:
 apps/
   cli/
     src/**/*.test.ts                 isolated command behavior
-    test/**/*.integration.test.ts    spawned CLI behavior
+    **/*.integration.test.ts         spawned or composed integration behavior
+    test-support/                    app-owned endpoint bindings when needed
   console/
     src/**/*.test.ts                 isolated module behavior
-    test/**/*.integration.test.ts    complete REPL/composition behavior
+    **/*.integration.test.ts         complete REPL/composition behavior
   web/
     src/**/*.test.tsx                isolated browser component behavior
+    src/**/*.integration.test.ts     colocated app composition behavior
+    test-support/                    web-owned in-process endpoint bindings
 packages/
   accounts/src/**/*.test.ts
+  accounts/src/**/*.integration.test.ts
+  accounts/test-support/             narrow account state helpers
   ingestion/src/**/*.test.ts
   wealth-calculation/src/**/*.test.ts
   wealth-query/src/**/*.test.ts
   powens/src/**/*.test.ts
-  postgres/test/**/*.integration.test.ts
-  graphql/test/**/*.integration.test.ts
+  postgres/**/*.integration.test.ts
+  graphql/**/*.integration.test.ts
 tests/
   integration/                       only true cross-package scenarios
   e2e/**/*.e2e.spec.ts               Playwright Test journeys
@@ -131,6 +136,11 @@ tests/
 
 This is a direction, not a requirement to create every directory immediately.
 Empty placeholder directories and speculative helpers should not be committed.
+An integration test may be colocated inside `src` or placed in `test`; its
+`.integration.test.ts` or `.integration.test.tsx` suffix, not a top-level test
+directory, selects the suite. Put it closest to the behavior whose result it
+asserts, even when it uses app-level endpoints or another package's setup
+helpers.
 
 ### Naming tests precisely
 
@@ -224,12 +234,56 @@ implementation, and delete the overlap. Retain a separate adapter-specific test
 only when it proves a distinct implementation risk such as PostgreSQL locking,
 transaction rollback, migration behavior, or database constraints.
 
+### Modular integration testkit
+
+Every integration file imports `it` and its normal Vitest vocabulary from
+`@testkit/integration`. It must not import `it` or `test` directly from
+`vitest`. The shared integration API installs one default lifecycle: before the
+test's hooks and body run, it starts a fresh PostgreSQL Testcontainer and
+applies the committed migrations; afterward, it disposes lazy test resources
+and the database in `finally` cleanup.
+
+The active database is propagated through asynchronous context. Production
+repository factories such as `createPostgresWealthQueryRepository()` use that
+active database when no database is passed, while retaining their normal
+configured-database fallback outside tests. Tests therefore do not receive or
+thread a `postgres` fixture parameter. `@testkit/postgres` exposes the active
+database only when direct storage setup or inspection is genuinely required.
+
+PostgreSQL is the only eager integration capability. Everything else is an
+independently imported, lazy resource:
+
+- root testkit modules provide generic mechanics, not business scenarios;
+- an app owns its endpoint binding under its `test-support` directory;
+- tests select a specific app explicitly, such as `@testkit/apps/web`, so a
+  future second API cannot collide with a global `graphql` or `http` fixture;
+- in-process GraphQL support executes any typed document with variables and
+  returns its result; it must not grow operation-specific methods such as
+  `currentWealth()`; and
+- event-system support is deferred until the production boundary is known.
+
+State support belongs to the package that owns the persisted concept, exposed
+to integration tests through virtual imports such as
+`@testkit/packages/accounts`. Prefer a small helper that inserts one valid row
+or one tightly coupled fact using visible defaults plus typed overrides. A
+multi-table helper is justified only when those rows form a stable invariant.
+Complex scenario setup stays in the test and composes multiple owner helpers;
+do not hide a use case behind a broad `buildWealthScenario`-style method.
+
+`@testkit/*` and owner `test-support` modules are test-only architecture. Lint
+permits them only from integration files or other isolated test-support
+modules. Production files, unit tests, and portable contract suites cannot
+import them. Package manifests must not export `test-support`, and manifests
+must not acquire testkit dependencies: the virtual aliases avoid production
+workspace edges and cycles.
+
 ### PostgreSQL integration policy
 
-Every PostgreSQL integration test must use a PostgreSQL Testcontainer created
-by the test fixture. The integration suite must never accept an arbitrary
-database URL, connect to the Specific development database, reuse a developer's
-local data, or fall back to another database.
+Every integration test receives a PostgreSQL Testcontainer created by the
+shared integration lifecycle, even if that test does not currently query it.
+The integration suite must never accept an arbitrary database URL, connect to
+the Specific development database, reuse a developer's local data, or fall back
+to another database.
 
 The accepted initial isolation boundary is one container per individual test:
 
@@ -298,6 +352,7 @@ and [Playwright Test introduction](https://playwright.dev/docs/test-intro).
 | TST-013 | P1 | Open | Split CI feedback by suite and retain useful browser/integration diagnostics. | TST-001, TST-005, TST-006 |
 | TST-014 | P2 | Fixed | Eliminate noisy expected-error output and nondeterministic global state. | TST-003 |
 | TST-015 | P2 | Open | Align testing documentation, scripts, globs, and directory claims with reality. | TST-002, TST-003 |
+| TST-016 | P0 | Fixed | Establish a modular integration testkit with an implicit isolated database and owner-local support. | TST-001, TST-003, TST-008 |
 
 ### TST-001 — Testcontainers-only PostgreSQL isolation
 
@@ -588,9 +643,9 @@ the no-documents case even though operations now exist.
 
 **Acceptance criteria:**
 
-- [ ] A test executes the production dashboard document against the production
+- [x] A test executes the production dashboard document against the production
       GraphQL schema/server composition with a controlled repository.
-- [ ] A PostgreSQL-backed test is added only where it proves behavior not already
+- [x] A PostgreSQL-backed test is added only where it proves behavior not already
       covered by the resolver and repository contracts.
 - [ ] Synthetic schema and generated artifacts are retained only for a distinct,
       stated contract.
@@ -598,6 +653,14 @@ the no-documents case even though operations now exist.
 - [ ] GraphQL document discovery has one canonical definition or a test proving
       all required tool configurations stay aligned.
 - [ ] Stale `ignoreNoDocuments` configuration is removed.
+
+**Progress (2026-09-11):** a colocated web integration test executes the actual
+generated dashboard document through the production in-process GraphQL server
+and PostgreSQL repository composition. Its small owner-local setup helpers
+create controlled persisted state. This test proves the app-specific wiring,
+document serialization, and transport response together; it does not repeat the
+repository contract's edge-case matrix. The remaining synthetic-contract and
+configuration cleanup keeps this issue open.
 
 ### TST-011 — Coverage visibility
 
@@ -701,6 +764,48 @@ wrong architecture.
 - [ ] Durable test policy changes are recorded here rather than scattered across
       tool configuration comments.
 
+### TST-016 — Modular integration testkit and owner-local support
+
+**Problem:** an advanced integration test should be able to stay beside the
+behavior it protects while arranging real state through other packages or an
+app endpoint. The old database fixture required explicit plumbing, root-level
+integration files encouraged ownership drift, and a single broad fixture would
+eventually load every app and grow business-specific convenience methods.
+
+**Acceptance criteria:**
+
+- [x] Integration tests are discovered by suffix anywhere under an owning app
+      or package, including `src`.
+- [x] Every integration file uses the canonical `@testkit/integration` API, with
+      lint rules rejecting a missing import or direct Vitest `it`/`test`.
+- [x] A fresh migrated PostgreSQL Testcontainer is active before each test's
+      hooks and body and is always cleaned up.
+- [x] Production PostgreSQL repository factories use the async-scoped test
+      database by default without fixture callback parameters.
+- [x] Non-database capabilities load independently and lazily, and app-owned
+      bindings identify the specific endpoint being exercised.
+- [x] In-process GraphQL support accepts arbitrary typed documents and variables
+      without business-operation wrapper methods.
+- [x] Owner-local state helpers demonstrate valid, granular inserts with typed
+      overrides while the test composes the complex scenario.
+- [x] Lint and workspace validation isolate testkit and test-support from
+      production, unit tests, portable contracts, and package exports.
+
+**Fixed (2026-09-11):** `@testkit/integration` now establishes the per-test
+database and asynchronous integration context. The PostgreSQL client resolves
+that active database before its ordinary configured fallback. Generic lazy
+resource mechanics and typed GraphQL execution are separate modules; the web
+app owns its GraphQL server binding. Accounts and wealth-query own small
+single-table insert helpers, and the colocated dashboard integration test
+composes them explicitly before calling the real generated operation. Vitest
+aliases keep these imports out of package manifests, while lint and repository
+tests enforce all import and export boundaries. Verified with `pnpm typecheck`,
+`pnpm lint`, `pnpm test:repository` (47 tests), and `pnpm test:integration` (57
+tests in 10 files). The strict database default increased the measured full
+integration duration from roughly 48 seconds to 111 seconds; correctness and
+uniform availability are the accepted priority, and any future optimization
+must preserve per-test isolation.
+
 ## Recommended implementation order
 
 Fix the foundation before moving files in bulk:
@@ -710,9 +815,10 @@ Fix the foundation before moving files in bulk:
 3. TST-003 and TST-004: move tests to owners while correcting their names and
    assertions in the same focused batches.
 4. TST-007 and TST-008: lock down financial policy and persistence contracts.
-5. TST-005 and TST-006: add real browser component and E2E coverage.
-6. TST-009 and TST-010: deepen provider and GraphQL boundaries.
-7. TST-011 through TST-015: make omissions visible, reduce support-code debt,
+5. TST-016: provide the modular integration foundation for app-level tests.
+6. TST-005 and TST-006: add real browser component and E2E coverage.
+7. TST-009 and TST-010: deepen provider and GraphQL boundaries.
+8. TST-011 through TST-015: make omissions visible, reduce support-code debt,
    and align CI and documentation.
 
 The order is deliberately incremental. Each issue should leave the suite
