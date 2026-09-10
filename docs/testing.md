@@ -228,7 +228,7 @@ and [Playwright Test introduction](https://playwright.dev/docs/test-intro).
 | TST-011 | P1 | Open | Add meaningful coverage reporting that includes untouched source files. | TST-003 |
 | TST-012 | P2 | Open | Remove or relocate weak helpers, duplicate builders, and test-only pseudo-production code. | TST-003 |
 | TST-013 | P1 | Open | Split CI feedback by suite and retain useful browser/integration diagnostics. | TST-001, TST-005, TST-006 |
-| TST-014 | P2 | Open | Eliminate noisy expected-error output and nondeterministic global state. | TST-003 |
+| TST-014 | P2 | Fixed | Eliminate noisy expected-error output and nondeterministic global state. | TST-003 |
 | TST-015 | P2 | Open | Align testing documentation, scripts, globs, and directory claims with reality. | TST-002, TST-003 |
 
 ### TST-001 — Testcontainers-only PostgreSQL isolation
@@ -257,8 +257,8 @@ transaction-owning behavior.
 `PostgreSqlContainer`, applies migrations for every test, and cleans up the
 client and container in `finally` blocks. The Specific database injection and
 the old transaction-only isolation were removed. An executable isolation
-regression proves consecutive tests receive distinct containers and cannot see
-each other's schema changes. Verified with `pnpm test:integration` (7 tests),
+regression provisions two independent test databases and proves schema changes
+cannot cross their container boundary. Verified with `pnpm test:integration` (7 tests),
 `pnpm test:unit` (126 tests), `pnpm test:repository` (38 tests), `pnpm typecheck`,
 focused ESLint, and `specific check`.
 
@@ -576,13 +576,26 @@ leaked globals create order-dependent flakes.
 
 **Acceptance criteria:**
 
-- [ ] Expected errors are captured and asserted without polluting successful
+- [x] Expected errors are captured and asserted without polluting successful
       test output.
-- [ ] Unexpected errors remain visible.
-- [ ] Environment, timers, spies, and global mutations are restored through
+- [x] Unexpected errors remain visible.
+- [x] Environment, timers, spies, and global mutations are restored through
       runner-supported cleanup.
-- [ ] Suites pass in randomized or reversed order where the runner supports it.
-- [ ] No test correctness depends on another test having run first.
+- [x] Suites pass in randomized or reversed order where the runner supports it.
+- [x] No test correctness depends on another test having run first.
+
+**Fixed (2026-09-10):** GraphQL Yoga's raw default error logger is disabled in
+favor of Monii's structured masking logger. The error integration test asserts
+that expected errors produce no console output while both unexpected failures
+remain captured as `graphql.unexpected_error` records without their private
+messages. Environment stubs, console spies, client cleanup, and mutable GraphQL
+test state now use Vitest cleanup hooks. The PostgreSQL isolation regression no
+longer shares a container ID or requires a preceding test; it provisions and
+compares two isolated databases inside one self-contained test. The complete
+matrix passed in shuffled file and test order with
+`pnpm exec vitest run --sequence.shuffle --sequence.seed=1401` (217 tests).
+Normal execution was verified with `pnpm test` (127 unit, 47 integration, and
+43 repository tests), plus `pnpm typecheck` and `pnpm lint`.
 
 ### TST-015 — Documentation and configuration drift
 

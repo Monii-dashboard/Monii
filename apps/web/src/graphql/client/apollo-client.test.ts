@@ -1,6 +1,10 @@
-import { expect, test, vi } from "vitest";
+import { afterEach, expect, onTestFinished, test, vi } from "vitest";
 
 import { createApolloGraphqlClient } from "./apollo-client";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 test.each([
   { enabled: true, nodeEnv: "development" },
@@ -14,12 +18,10 @@ test.each([
   const client = createApolloGraphqlClient({
     uri: "http://graphql.test/api/graphql",
   });
-
-  try {
-    expect(client.devtoolsConfig.enabled).toBe(enabled);
-  } finally {
+  onTestFinished(async () => {
     await client.clearStore();
     client.stop();
-    vi.unstubAllEnvs();
-  }
+  });
+
+  expect(client.devtoolsConfig.enabled).toBe(enabled);
 });

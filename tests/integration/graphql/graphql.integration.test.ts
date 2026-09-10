@@ -1,5 +1,5 @@
 import { CombinedGraphQLErrors } from "@apollo/client/errors";
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 
 import {
   createGraphqlServer,
@@ -18,6 +18,11 @@ import {
   graphqlTestUnknownErrorCodeDocument,
 } from "./operations";
 import { testGraphqlSchema, testGraphqlState } from "./schema";
+
+afterEach(() => {
+  testGraphqlState.slowResolverAbortCount = 0;
+  vi.restoreAllMocks();
+});
 
 function createInMemoryFetch(
   server: ReturnType<typeof createGraphqlServer>,
@@ -215,6 +220,9 @@ test("executes a generated mutation document through the in-memory transport", a
 
 test("preserves public codes and masks unexpected errors", async () => {
   const { client, serverErrors } = createTestClient();
+  const consoleError = vi
+    .spyOn(globalThis.console, "error")
+    .mockImplementation(() => {});
 
   try {
     const expectedResult = await client.query({
@@ -262,6 +270,7 @@ test("preserves public codes and masks unexpected errors", async () => {
     ]);
     expect(JSON.stringify(serverErrors[0])).not.toContain("private test failure");
     expect(JSON.stringify(serverErrors[1])).not.toContain("private coded failure");
+    expect(consoleError).not.toHaveBeenCalled();
   } finally {
     await client.clearStore();
     client.stop();

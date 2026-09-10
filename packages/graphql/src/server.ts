@@ -50,6 +50,10 @@ export function createGraphqlServer({
     fetchAPI: { Response },
     cors: false,
     graphiql: process.env.NODE_ENV === "development",
+    // Operational failures are emitted through Monii's structured logger in
+    // maskError. Yoga's default logger would additionally print raw expected
+    // and masked resolver errors, duplicating logs and exposing private detail.
+    logging: false,
     // TODO: Add query-cost and rate controls before the public schema becomes
     // large enough for expensive nested requests to be a practical risk.
     plugins: [executionCancellationPlugin()],

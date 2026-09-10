@@ -17,44 +17,73 @@ type DatabaseConnection = {
   close: () => Promise<void>;
 };
 
+export type StartedPostgresTestDatabase = {
+  database: DatabaseConnection;
+  db: Database;
+  postgres: StartedPostgreSqlContainer;
+  stop: () => Promise<void>;
+};
+
+export async function startPostgresTestDatabase(): Promise<StartedPostgresTestDatabase> {
+  let postgres: StartedPostgreSqlContainer;
+  try {
+    postgres = await new PostgreSqlContainer("postgres:17-alpine").start();
+  } catch (cause) {
+    throw new Error(
+      "PostgreSQL integration tests require a running Docker-compatible container runtime; test databases are provisioned exclusively with Testcontainers.",
+      { cause },
+    );
+  }
+
+  const database = createDatabase(postgres.getConnectionUri());
+  try {
+    await migrate(database.db, {
+      migrationsFolder: path.resolve(import.meta.dirname, "../../drizzle"),
+    });
+  } catch (cause) {
+    await database.close().catch(() => undefined);
+    await postgres.stop().catch(() => undefined);
+    throw cause;
+  }
+
+  return {
+    database,
+    db: database.db,
+    postgres,
+    stop: async () => {
+      try {
+        await database.close();
+      } finally {
+        await postgres.stop();
+      }
+    },
+  };
+}
+
 export const test = baseTest.extend<{
   $test: {
+    postgresTestDatabase: StartedPostgresTestDatabase;
     postgres: StartedPostgreSqlContainer;
     database: DatabaseConnection;
     db: Database;
   };
 }>({
-  postgres: async ({}, provideFixture) => {
-    let container: StartedPostgreSqlContainer;
+  postgresTestDatabase: async ({}, provideFixture) => {
+    const testDatabase = await startPostgresTestDatabase();
     try {
-      container = await new PostgreSqlContainer("postgres:17-alpine").start();
-    } catch (cause) {
-      throw new Error(
-        "PostgreSQL integration tests require a running Docker-compatible container runtime; test databases are provisioned exclusively with Testcontainers.",
-        { cause },
-      );
-    }
-
-    try {
-      await provideFixture(container);
+      await provideFixture(testDatabase);
     } finally {
-      await container.stop();
+      await testDatabase.stop();
     }
   },
-  database: async ({ postgres }, provideFixture) => {
-    const connection = createDatabase(postgres.getConnectionUri());
-
-    try {
-      await migrate(connection.db, {
-        migrationsFolder: path.resolve(import.meta.dirname, "../../drizzle"),
-      });
-      await provideFixture(connection);
-    } finally {
-      await connection.close();
-    }
+  postgres: async ({ postgresTestDatabase }, provideFixture) => {
+    await provideFixture(postgresTestDatabase.postgres);
   },
-  db: async ({ database }, provideFixture) => {
-    await provideFixture(database.db);
+  database: async ({ postgresTestDatabase }, provideFixture) => {
+    await provideFixture(postgresTestDatabase.database);
+  },
+  db: async ({ postgresTestDatabase }, provideFixture) => {
+    await provideFixture(postgresTestDatabase.db);
   },
 });
 

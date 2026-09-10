@@ -1,10 +1,15 @@
 import { setTimeout as sleep } from "node:timers/promises";
 
-import { expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 
 import { getOperationContext } from "@monii/runtime/context";
 import { log } from "@monii/runtime/log";
 import { runWithOperationContext } from "@monii/runtime/operation";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
 
 test("provides operation context throughout asynchronous work", async () => {
   await runWithOperationContext({ surface: "web" }, async () => {
@@ -61,33 +66,29 @@ test("logs structured records with protected operation fields", () => {
     .spyOn(globalThis.console, "log")
     .mockImplementation(() => {});
 
-  try {
-    runWithOperationContext(
-      { surface: "web" },
-      () =>
-        log.info("Wealth calculated", "wealth.calculated", {
-          action_id: "cannot-override",
-          account_count: 3,
-          surface: "cli",
-          timestamp: "cannot-override",
-        }),
-    );
+  runWithOperationContext(
+    { surface: "web" },
+    () =>
+      log.info("Wealth calculated", "wealth.calculated", {
+        action_id: "cannot-override",
+        account_count: 3,
+        surface: "cli",
+        timestamp: "cannot-override",
+      }),
+  );
 
-    expect(consoleLog).toHaveBeenCalledTimes(1);
-    const record = JSON.parse(String(consoleLog.mock.calls[0]?.[0]));
-    expect(record).toMatchObject({
-      account_count: 3,
-      event: "wealth.calculated",
-      level: "info",
-      surface: "web",
-    });
-    expect(record.message).toBe("Wealth calculated");
-    expect(record.action_id).toMatch(/^web-/);
-    expect(record.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    expect(record.timestamp).not.toBe("cannot-override");
-  } finally {
-    consoleLog.mockRestore();
-  }
+  expect(consoleLog).toHaveBeenCalledTimes(1);
+  const record = JSON.parse(String(consoleLog.mock.calls[0]?.[0]));
+  expect(record).toMatchObject({
+    account_count: 3,
+    event: "wealth.calculated",
+    level: "info",
+    surface: "web",
+  });
+  expect(record.message).toBe("Wealth calculated");
+  expect(record.action_id).toMatch(/^web-/);
+  expect(record.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  expect(record.timestamp).not.toBe("cannot-override");
 });
 
 test("supports explicit severity logging", () => {
@@ -95,70 +96,56 @@ test("supports explicit severity logging", () => {
     .spyOn(globalThis.console, "log")
     .mockImplementation(() => {});
 
-  try {
-    runWithOperationContext({ surface: "cli" }, () => {
-      log.info("Synchronization started", "sync.started", {
-        body: { account_count: 2 },
-      });
-      log.warn("Partial synchronization", "sync.partial", {
-        body: { account_count: 1 },
-      });
-      log.error("Synchronization failed", "sync.failed", {
-        body: { retryable: true },
-      });
-    });
-
-    expect(consoleLog).toHaveBeenCalledTimes(3);
-    expect(JSON.parse(String(consoleLog.mock.calls[0]?.[0]))).toMatchObject({
-      level: "info",
-      event: "sync.started",
-      message: "Synchronization started",
+  runWithOperationContext({ surface: "cli" }, () => {
+    log.info("Synchronization started", "sync.started", {
       body: { account_count: 2 },
     });
-    expect(JSON.parse(String(consoleLog.mock.calls[1]?.[0]))).toMatchObject({
-      level: "warn",
-      message: "Partial synchronization",
-      event: "sync.partial",
+    log.warn("Partial synchronization", "sync.partial", {
+      body: { account_count: 1 },
     });
-    expect(JSON.parse(String(consoleLog.mock.calls[2]?.[0]))).toMatchObject({
-      level: "error",
-      event: "sync.failed",
-      message: "Synchronization failed",
+    log.error("Synchronization failed", "sync.failed", {
+      body: { retryable: true },
     });
-  } finally {
-    consoleLog.mockRestore();
-  }
+  });
+
+  expect(consoleLog).toHaveBeenCalledTimes(3);
+  expect(JSON.parse(String(consoleLog.mock.calls[0]?.[0]))).toMatchObject({
+    level: "info",
+    event: "sync.started",
+    message: "Synchronization started",
+    body: { account_count: 2 },
+  });
+  expect(JSON.parse(String(consoleLog.mock.calls[1]?.[0]))).toMatchObject({
+    level: "warn",
+    message: "Partial synchronization",
+    event: "sync.partial",
+  });
+  expect(JSON.parse(String(consoleLog.mock.calls[2]?.[0]))).toMatchObject({
+    level: "error",
+    event: "sync.failed",
+    message: "Synchronization failed",
+  });
 });
 
 test("formats colored, human-readable logs when enabled locally", () => {
   const consoleLog = vi
     .spyOn(globalThis.console, "log")
     .mockImplementation(() => {});
-  const previousSetting = process.env.MONII_PRETTY_LOGS;
-  process.env.MONII_PRETTY_LOGS = "true";
+  vi.stubEnv("MONII_PRETTY_LOGS", "true");
 
-  try {
-    runWithOperationContext({ surface: "cli" }, () => {
-      log.warn("Partial synchronization", "sync.partial", {
-        account_count: 1,
-      });
+  runWithOperationContext({ surface: "cli" }, () => {
+    log.warn("Partial synchronization", "sync.partial", {
+      account_count: 1,
     });
+  });
 
-    const output = String(consoleLog.mock.calls[0]?.[0]);
-    expect(output).toMatch(/^\u001B\[2m\d{4}-\d{2}-\d{2}T/);
-    expect(output).toContain("\u001B[33mWARN ");
-    expect(output).toContain("[cli]");
-    expect(output).toContain("sync.partial");
-    expect(output).toContain("Partial synchronization");
-    expect(output).toContain('{"account_count":1}');
-  } finally {
-    if (previousSetting === undefined) {
-      delete process.env.MONII_PRETTY_LOGS;
-    } else {
-      process.env.MONII_PRETTY_LOGS = previousSetting;
-    }
-    consoleLog.mockRestore();
-  }
+  const output = String(consoleLog.mock.calls[0]?.[0]);
+  expect(output).toMatch(/^\u001B\[2m\d{4}-\d{2}-\d{2}T/);
+  expect(output).toContain("\u001B[33mWARN ");
+  expect(output).toContain("[cli]");
+  expect(output).toContain("sync.partial");
+  expect(output).toContain("Partial synchronization");
+  expect(output).toContain('{"account_count":1}');
 });
 
 test("redacts sensitive identity fields and serializes errors safely", () => {
@@ -166,29 +153,25 @@ test("redacts sensitive identity fields and serializes errors safely", () => {
     .spyOn(globalThis.console, "log")
     .mockImplementation(() => {});
 
-  try {
-    runWithOperationContext({ surface: "cli" }, () => {
-      log.error("Safe failure", "sync.failed", {
-        account_number: "raw-account-number",
-        error: new Error("provider response containing sensitive details"),
-        iban: "raw-iban",
-        nested: { access_token: "raw-nested-token" },
-        token: "raw-token",
-      });
+  runWithOperationContext({ surface: "cli" }, () => {
+    log.error("Safe failure", "sync.failed", {
+      account_number: "raw-account-number",
+      error: new Error("provider response containing sensitive details"),
+      iban: "raw-iban",
+      nested: { access_token: "raw-nested-token" },
+      token: "raw-token",
     });
+  });
 
-    const serialized = String(consoleLog.mock.calls[0]?.[0]);
-    const record = JSON.parse(serialized);
-    expect(record).toMatchObject({
-      account_number: "[redacted]",
-      error: { name: "Error" },
-      iban: "[redacted]",
-      nested: { access_token: "[redacted]" },
-      token: "[redacted]",
-    });
-    expect(serialized).not.toContain("raw-");
-    expect(serialized).not.toContain("provider response");
-  } finally {
-    consoleLog.mockRestore();
-  }
+  const serialized = String(consoleLog.mock.calls[0]?.[0]);
+  const record = JSON.parse(serialized);
+  expect(record).toMatchObject({
+    account_number: "[redacted]",
+    error: { name: "Error" },
+    iban: "[redacted]",
+    nested: { access_token: "[redacted]" },
+    token: "[redacted]",
+  });
+  expect(serialized).not.toContain("raw-");
+  expect(serialized).not.toContain("provider response");
 });
