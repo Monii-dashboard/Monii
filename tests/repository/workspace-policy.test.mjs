@@ -31,8 +31,11 @@ function lint(root, code, filename = "packages/accounts/src/example.js") {
   return new Linter({ cwd: root }).verify(code, workspaceLintConfig(root), { filename: path.join(root, filename) });
 }
 
-test("accepts the repository graph and compatible declared dependencies", () => {
+test("accepts the current repository workspace graph", () => {
   validateWorkspace(discoverWorkspace(fileURLToPath(new URL("../../", import.meta.url))));
+});
+
+test("allows local code and compatible declared dependencies", () => {
   const root = workspace();
   expect(lint(root, 'export { value } from "@monii/accounts";', "packages/postgres/src/index.js")).toEqual([]);
   expect(lint(root, 'import { value } from "./local.js";')).toEqual([]);
@@ -41,22 +44,39 @@ test("accepts the repository graph and compatible declared dependencies", () => 
   expect(lint(root, 'import "@monii/postgres";', "packages/backend/src/index.js")).toEqual([]);
 });
 
-test.each([undefined, "browser", null, 42])("rejects invalid platform %s", (platform) => {
+test.each([
+  { caseName: "missing monii.platform", platform: undefined },
+  { caseName: "unsupported browser platform", platform: "browser" },
+  { caseName: "null platform", platform: null },
+  { caseName: "numeric platform", platform: 42 },
+])("rejects $caseName", ({ platform }) => {
   const root = workspace();
   add(root, "invalid", platform === undefined ? "portable" : platform);
   if (platform === undefined) writeFileSync(path.join(root, "packages/invalid/package.json"), '{"name":"@monii/invalid"}');
   expect(() => validateWorkspace(discoverWorkspace(root))).toThrow(/monii.platform/);
 });
 
-test("rejects incompatible dependencies, cycles, runtime coupling, and app dependencies", () => {
+test("rejects a portable package dependency on a Node package", () => {
   const root = workspace();
   add(root, "accounts", "portable", { "@monii/postgres": "workspace:*" });
   expect(() => validateWorkspace(discoverWorkspace(root))).toThrow(/portable/);
+});
+
+test("rejects a cycle in the workspace dependency graph", () => {
+  const root = workspace();
   add(root, "accounts", "node", { "@monii/postgres": "workspace:*" });
   expect(() => validateWorkspace(discoverWorkspace(root))).toThrow(/cycle/);
+});
+
+test("rejects application-domain coupling from runtime", () => {
+  const root = workspace();
   add(root, "accounts");
   add(root, "runtime", "node", { "@monii/accounts": "workspace:*" });
   expect(() => validateWorkspace(discoverWorkspace(root))).toThrow(/Runtime/);
+});
+
+test("rejects a package dependency on an application", () => {
+  const root = workspace();
   add(root, "runtime", "node", { "@monii/web": "workspace:*" });
   expect(() => validateWorkspace(discoverWorkspace(root))).toThrow(/app/);
 });
@@ -108,9 +128,13 @@ test.each(["dependencies", "devDependencies", "peerDependencies", "optionalDepen
   expect(() => validateWorkspace(packages)).toThrow(/portable/);
 });
 
-test("rejects undeclared imports and unresolved workspace dependencies", () => {
+test("rejects an undeclared workspace import", () => {
   const root = workspace();
   expect(lint(root, 'import "@monii/runtime/public";', "packages/postgres/src/index.js")).toHaveLength(1);
+});
+
+test("rejects a dependency on an unknown workspace package", () => {
+  const root = workspace();
   add(root, "missing", "portable", { "@monii/absent": "workspace:*" });
   expect(() => validateWorkspace(discoverWorkspace(root))).toThrow(/unknown workspace/);
 });

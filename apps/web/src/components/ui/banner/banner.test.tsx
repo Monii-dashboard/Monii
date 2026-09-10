@@ -20,13 +20,18 @@ function renderBanner(
 
 describe("Banner", () => {
   test.each([
-    [undefined, "border-info-outline"],
-    ["critical", "border-danger-outline"],
-    ["caution", "border-warning/25"],
-  ] as const)("renders the %s treatment and supplied content", (type, tone) => {
+    { name: "default", tone: "border-info-outline", type: undefined },
+    { name: "critical", tone: "border-danger-outline", type: "critical" },
+    { name: "caution", tone: "border-warning/25", type: "caution" },
+  ] as const)("renders the $name treatment", ({ type, tone }) => {
     const markup = renderBanner(type);
 
     expect(markup).toContain(tone);
+  });
+
+  test("renders the supplied title, description, and action", () => {
+    const markup = renderBanner();
+
     expect(markup).toContain("Banner title");
     expect(markup).toContain("Banner description");
     expect(markup).toContain(">Act</button>");

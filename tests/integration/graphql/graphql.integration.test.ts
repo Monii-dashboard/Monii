@@ -27,7 +27,7 @@ function createInMemoryFetch(
 }
 
 function createTestClient(timeoutMs = 30_000) {
-  const serverErrors: string[] = [];
+  const serverErrors: Record<string, unknown>[] = [];
   const captureLog = (...args: unknown[]) => {
     const message = typeof args[0] === "string" ? args[0] : undefined;
     const event = typeof args[1] === "string" ? args[1] : undefined;
@@ -36,13 +36,11 @@ function createTestClient(timeoutMs = 30_000) {
       unknown
     >;
 
-    serverErrors.push(
-      JSON.stringify({
-        ...fields,
-        ...(message === undefined ? {} : { message }),
-        ...(event === undefined ? {} : { event }),
-      }),
-    );
+    serverErrors.push({
+      ...fields,
+      ...(message === undefined ? {} : { message }),
+      ...(event === undefined ? {} : { event }),
+    });
   };
   const logger = {
     info: captureLog,
@@ -78,7 +76,9 @@ test("excludes test-only fields from the production schema", async () => {
   };
 
   expect(result.data).toBeUndefined();
-  expect(result.errors?.[0]?.message).toContain("testEcho");
+  expect(result.errors?.[0]?.message).toBe(
+    'Cannot query field "testEcho" on type "Query".',
+  );
 
   const healthResponse = await server.fetch(
     "http://graphql.test/api/graphql",
@@ -94,7 +94,7 @@ test("excludes test-only fields from the production schema", async () => {
   });
 });
 
-test("serves the current persisted wealth projection", async () => {
+test("serializes the current-wealth projection returned by the repository", async () => {
   const recordedAt = new Date("2026-09-08T08:30:00.000Z");
   const server = createGraphqlServer({
     schema: graphqlSchema,
@@ -180,7 +180,7 @@ test("serves the current persisted wealth projection", async () => {
   });
 });
 
-test("executes generated query and mutation documents in memory", async () => {
+test("executes a generated query document through the in-memory transport", async () => {
   const { client } = createTestClient();
 
   try {
@@ -189,12 +189,23 @@ test("executes generated query and mutation documents in memory", async () => {
       variables: { value: "typesafe" },
       fetchPolicy: "no-cache",
     });
+
+    expect(queryResult.data?.testEcho).toBe("typesafe");
+  } finally {
+    await client.clearStore();
+    client.stop();
+  }
+});
+
+test("executes a generated mutation document through the in-memory transport", async () => {
+  const { client } = createTestClient();
+
+  try {
     const mutationResult = await client.mutate({
       mutation: graphqlTestMutationDocument,
       variables: { value: "monii" },
     });
 
-    expect(queryResult.data?.testEcho).toBe("typesafe");
     expect(mutationResult.data?.testReverse).toBe("iinom");
   } finally {
     await client.clearStore();
@@ -245,10 +256,12 @@ test("preserves public codes and masks unexpected errors", async () => {
       "privateDetail",
     );
     expect(serverErrors).toHaveLength(2);
-    expect(serverErrors[0]).toContain("graphql.unexpected_error");
-    expect(serverErrors[0]).not.toContain("private test failure");
-    expect(serverErrors[1]).toContain("graphql.unexpected_error");
-    expect(serverErrors[1]).not.toContain("private coded failure");
+    expect(serverErrors).toMatchObject([
+      { event: "graphql.unexpected_error" },
+      { event: "graphql.unexpected_error" },
+    ]);
+    expect(JSON.stringify(serverErrors[0])).not.toContain("private test failure");
+    expect(JSON.stringify(serverErrors[1])).not.toContain("private coded failure");
   } finally {
     await client.clearStore();
     client.stop();

@@ -6,8 +6,13 @@ import { expect, test } from "./postgres";
 describe.sequential("PostgreSQL integration fixture", () => {
   let precedingContainerId: string | undefined;
 
-  test("provides a migrated database that accepts writes", async ({ db, postgres }) => {
+  test("applies committed migrations and accepts writes", async ({ db, postgres }) => {
     precedingContainerId = postgres.getId();
+    const migratedTables = await db.execute<{ tableName: string | null }>(sql`
+      select to_regclass('financial.accounts')::text as "tableName"
+    `);
+    expect(migratedTables[0]?.tableName).toBe("financial.accounts");
+
     await db.execute(sql`
       create table postgres_fixture_safeguard (
         value text not null

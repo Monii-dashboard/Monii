@@ -300,7 +300,7 @@ test("keeps the last valuation when one account refresh fails", async ({ db }) =
   expect(results.map((row) => row.status)).toEqual(["succeeded", "provider_error"]);
 });
 
-test("creates a new immutable snapshot when account policy changes", async ({ db }) => {
+test("retains the initial snapshot when account policy creates a new snapshot", async ({ db }) => {
   const synchronizationRepository = createPostgresSynchronizationRepository(db);
   const calculationRepository = createPostgresWealthCalculationRepository(db);
   const queryRepository = createPostgresWealthQueryRepository(db);
@@ -338,21 +338,37 @@ test("creates a new immutable snapshot when account policy changes", async ({ db
   ]);
 });
 
-test("prevents overlapping runs for one source instance", async ({ db }) => {
+test("allows exactly one of two concurrent starts for one source instance", async ({ db }) => {
   const repository = createPostgresSynchronizationRepository(db);
   const input = {
-    actionId: "first",
     adapterKey: "test",
     sourceKey: "source",
     sourceName: "Test",
   };
-  const first = await repository.startRun(input);
-  const second = await repository.startRun({ ...input, actionId: "second" });
+  let readyCount = 0;
+  let releaseStarts: () => void = () => undefined;
+  const startsReleased = new Promise<void>((resolve) => {
+    releaseStarts = resolve;
+  });
+  const startTogether = async (actionId: string) => {
+    readyCount += 1;
+    if (readyCount === 2) releaseStarts();
+    await startsReleased;
+    return repository.startRun({ ...input, actionId });
+  };
 
-  expect(first.status).toBe("started");
-  expect(second).toEqual({ status: "skipped_already_running" });
-  if (first.status === "started") {
-    await repository.markRunFailed(first.runId, {
+  const attempts = await Promise.all([
+    startTogether("first"),
+    startTogether("second"),
+  ]);
+
+  expect(attempts.map((attempt) => attempt.status).sort()).toEqual([
+    "skipped_already_running",
+    "started",
+  ]);
+  const started = attempts.find((attempt) => attempt.status === "started");
+  if (started?.status === "started") {
+    await repository.markRunFailed(started.runId, {
       code: "test_cleanup",
       kind: "test",
     });

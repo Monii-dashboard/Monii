@@ -30,7 +30,12 @@ function invoke(args: string[], options: { cwd?: string; nodeEnv?: string; pnpm?
 }
 
 describe.each(["development", "production"])("help without financial configuration (%s)", (nodeEnv) => {
-  test.each([[], ["--help"], ["-h"], ["help"]])("root help: %j", (...args) => {
+  test.each([
+    { args: [], invocation: "no arguments" },
+    { args: ["--help"], invocation: "--help" },
+    { args: ["-h"], invocation: "-h" },
+    { args: ["help"], invocation: "help" },
+  ])("prints root help for $invocation", ({ args }) => {
     const result = invoke(args, { nodeEnv });
     expect(result.code).toBe(0);
     expect(result.out).toContain("pnpm cli [COMMAND]");
@@ -38,7 +43,11 @@ describe.each(["development", "production"])("help without financial configurati
     expect(result.err).toBe("");
   }, 30_000);
 
-  test.each([["sync", "--help"], ["sync", "-h"], ["help", "sync"]])("command help: %j", (...args) => {
+  test.each([
+    { args: ["sync", "--help"], invocation: "sync --help" },
+    { args: ["sync", "-h"], invocation: "sync -h" },
+    { args: ["help", "sync"], invocation: "help sync" },
+  ])("prints sync help for $invocation", ({ args }) => {
     const result = invoke(args, { nodeEnv });
     expect(result.code).toBe(0);
     expect(result.out).toContain("pnpm cli sync");
@@ -55,19 +64,30 @@ test("version output comes from package metadata", async () => {
 }, 30_000);
 
 test.each([
-  ["missing"], ["--unknown"], ["sync", "--unknown"], ["sync", "extra"],
-  ["--", "sync", "extra"], ["sync", "--", "--help"],
-  ["--", "sync", "--", "--help"], ["--", "--", "sync"],
-])("rejects invalid input before syncing: %j", (...args) => {
+  { args: ["missing"], invocation: "missing" },
+  { args: ["--unknown"], invocation: "--unknown" },
+  { args: ["sync", "--unknown"], invocation: "sync --unknown" },
+  { args: ["sync", "extra"], invocation: "sync extra" },
+  { args: ["--", "sync", "extra"], invocation: "-- sync extra" },
+  { args: ["sync", "--", "--help"], invocation: "sync -- --help" },
+  { args: ["--", "sync", "--", "--help"], invocation: "-- sync -- --help" },
+  { args: ["--", "--", "sync"], invocation: "-- -- sync" },
+])("rejects $invocation before synchronization", ({ args }) => {
   const result = invoke(args);
   expect(result.code).not.toBe(0);
   expect(result.err).toMatch(/not found|Unexpected|Nonexistent/i);
 }, 30_000);
 
 test.each([
-  ["cli", "--", "sync", "--help"],
-  ["--filter", "@monii/cli", "cli", "--", "sync", "--help"],
-])("preserves pnpm and cron argument forwarding: %j", (...args) => {
+  {
+    args: ["cli", "--", "sync", "--help"],
+    invocation: "the root pnpm script",
+  },
+  {
+    args: ["--filter", "@monii/cli", "cli", "--", "sync", "--help"],
+    invocation: "the filtered cron command",
+  },
+])("forwards sync help arguments through $invocation", ({ args }) => {
   const result = invoke(args, { pnpm: true, cwd: root });
   expect(result.code).toBe(0);
   expect(result.out).toContain("pnpm cli sync");

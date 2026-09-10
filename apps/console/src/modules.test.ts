@@ -92,11 +92,24 @@ test("discovers workspace package exports and preserves partial usefulness", asy
   expect(monii.$console.loadErrors["@monii/server/broken"]?.message).toBe(
     "missing provider configuration",
   );
-  expect(monii.$console.loadErrors["@monii/server/features/*"]?.message).toContain(
-    "unsupported wildcard",
+  expect(monii.$console.loadErrors["@monii/server/features/*"]?.message).toBe(
+    "@monii/server export ./features/* uses an unsupported wildcard",
   );
+});
+
+test("freezes the console registry and package namespaces", async () => {
+  const workspaceRoot = await createWorkspace({
+    wealth: {
+      name: "@monii/wealth",
+      exports: { ".": "./src/index.ts" },
+    },
+  });
+  const monii = await loadWorkspaceModules(workspaceRoot, {
+    importModule: async () => ({ calculateWealth: () => 42 }),
+  });
+
   expect(Object.isFrozen(monii)).toBe(true);
-  expect(Object.isFrozen(wealth)).toBe(true);
+  expect(Object.isFrozen(monii.wealth)).toBe(true);
 });
 
 test("reports namespace collisions without replacing the first export", async () => {
@@ -120,8 +133,8 @@ test("reports namespace collisions without replacing the first export", async ()
 
   expect(wealth.reports).toBe("root export");
   expect(monii.$console.loadedModules).toEqual(["@monii/wealth"]);
-  expect(monii.$console.loadErrors["@monii/wealth/reports"]?.message).toContain(
-    "collides",
+  expect(monii.$console.loadErrors["@monii/wealth/reports"]?.message).toBe(
+    "@monii/wealth/reports namespace collides with exported value wealth.reports",
   );
 });
 

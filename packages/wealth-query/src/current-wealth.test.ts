@@ -3,68 +3,99 @@ import { describe, expect, test } from "vitest";
 import { buildCurrentWealthView } from "./current-wealth";
 
 const observedAt = new Date("2026-08-30T12:00:00Z");
+const baseAccount = {
+  accountId: "account-1",
+  accountName: null,
+  adjustedAmount: "10",
+  category: "cash" as const,
+  contributedAmount: "10",
+  decision: "included" as const,
+  duplicateRole: "none" as const,
+  evaluatedAmount: "10",
+  evaluatedCurrency: "EUR",
+  identityConflict: false,
+  institutionId: null,
+  institutionName: null,
+  refreshUncertain: false,
+  valuationEffectiveAt: observedAt,
+  valuationRecordedAt: observedAt,
+};
+const baseState = {
+  lastSuccessfulSynchronizationAt: observedAt,
+  latestSynchronizationStatus: "succeeded" as const,
+  snapshot: {
+    accounts: [baseAccount],
+    duplicateAdjustedEstimateAmount: "10",
+    headlineAmount: "10",
+    isComplete: true,
+    likelyDuplicateGroupCount: 0,
+    recordedAt: observedAt,
+    snapshotId: "snapshot-1",
+  },
+};
 
 describe("current wealth projection", () => {
-  test("uses frozen labels and distinguishes failed refresh from staleness", () => {
-    const baseAccount = {
-      accountId: "account-1",
-      accountName: null,
-      adjustedAmount: "10",
-      category: "cash" as const,
-      contributedAmount: "10",
-      decision: "included" as const,
-      duplicateRole: "none" as const,
-      evaluatedAmount: "10",
-      evaluatedCurrency: "EUR",
-      identityConflict: false,
-      institutionId: null,
-      institutionName: null,
-      refreshUncertain: false,
-      valuationEffectiveAt: observedAt,
-      valuationRecordedAt: observedAt,
-    };
-    const state = {
-      lastSuccessfulSynchronizationAt: observedAt,
-      latestSynchronizationStatus: "succeeded" as const,
-      snapshot: {
-        accounts: [baseAccount],
-        duplicateAdjustedEstimateAmount: "10",
-        headlineAmount: "10",
-        isComplete: true,
-        likelyDuplicateGroupCount: 0,
-        recordedAt: observedAt,
-        snapshotId: "snapshot-1",
-      },
-    };
+  test("substitutes fallback labels for unnamed accounts and institutions", () => {
+    const view = buildCurrentWealthView(
+      baseState,
+      new Date("2026-09-01T12:00:00Z"),
+    );
 
-    const fresh = buildCurrentWealthView(state, new Date("2026-09-01T12:00:00Z"));
-    expect(fresh.health).toBe("fresh");
-    expect(fresh.institutions[0]).toMatchObject({
+    expect(view.institutions[0]).toMatchObject({
       accounts: [{ name: "Unnamed account" }],
       contributedAmount: "10",
       name: "Unknown institution",
     });
-    expect(
-      buildCurrentWealthView(state, new Date("2026-09-01T12:00:00.001Z")).health,
-    ).toBe("stale");
-    expect(
-      buildCurrentWealthView(
-        {
-          ...state,
-          snapshot: {
-            ...state.snapshot,
-            accounts: [{ ...baseAccount, refreshUncertain: true }],
-          },
+  });
+
+  test.each([
+    {
+      caseName: "the last successful synchronization is exactly two days old",
+      expected: "fresh",
+      latestSynchronizationStatus: "succeeded",
+      now: new Date("2026-09-01T12:00:00Z"),
+      refreshUncertain: false,
+    },
+    {
+      caseName: "the freshness threshold has elapsed by one millisecond",
+      expected: "stale",
+      latestSynchronizationStatus: "succeeded",
+      now: new Date("2026-09-01T12:00:00.001Z"),
+      refreshUncertain: false,
+    },
+    {
+      caseName: "the account refresh is uncertain",
+      expected: "synchronization_failed",
+      latestSynchronizationStatus: "succeeded",
+      now: new Date("2026-08-30T13:00:00Z"),
+      refreshUncertain: true,
+    },
+    {
+      caseName: "the latest synchronization failed",
+      expected: "synchronization_failed",
+      latestSynchronizationStatus: "failed",
+      now: new Date("2026-08-30T13:00:00Z"),
+      refreshUncertain: false,
+    },
+  ] as const)("reports $expected when $caseName", ({
+    expected,
+    latestSynchronizationStatus,
+    now,
+    refreshUncertain,
+  }) => {
+    const view = buildCurrentWealthView(
+      {
+        ...baseState,
+        latestSynchronizationStatus,
+        snapshot: {
+          ...baseState.snapshot,
+          accounts: [{ ...baseAccount, refreshUncertain }],
         },
-        new Date("2026-08-30T13:00:00Z"),
-      ).health,
-    ).toBe("synchronization_failed");
-    expect(
-      buildCurrentWealthView(
-        { ...state, latestSynchronizationStatus: "failed" },
-        new Date("2026-08-30T13:00:00Z"),
-      ).health,
-    ).toBe("synchronization_failed");
+      },
+      now,
+    );
+
+    expect(view.health).toBe(expected);
   });
 
   test("sums each institution contribution without losing decimal precision", () => {

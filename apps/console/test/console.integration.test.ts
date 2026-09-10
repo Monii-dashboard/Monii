@@ -27,7 +27,7 @@ function waitFor(
   });
 }
 
-test("runs TypeScript code and private imports inside one console operation", async () => {
+async function runConsoleSession(commands: readonly string[]): Promise<string> {
   const { startMoniiConsole } = await import("../src/console");
   const input = new PassThrough();
   const output = new PassThrough();
@@ -55,32 +55,51 @@ test("runs TypeScript code and private imports inside one console operation", as
     const consoleExited = startMoniiConsole({ input, output, terminal: false });
 
     await waitForNextPrompt("startup");
-    await evaluate("const answer: number = 42");
-    await evaluate("answer");
-    await evaluate('typeof monii["wealth-calculation"].calculateWealthSnapshot');
-    await evaluate("monii.runtime.context.getOperationContext()");
-    await evaluate(".clear");
-    await evaluate("typeof monii");
-    await evaluate("monii.runtime.context.getOperationContext()");
-    await evaluate(
-      'const privateModule = await import("./packages/accounts/src/account-valuation.ts")',
-    );
-    await evaluate('"decimalToScaledInteger" in privateModule');
+    for (const command of commands) await evaluate(command);
     input.write(".exit\n");
 
     await consoleExited;
   });
+
+  return writtenOutput;
+}
+
+test("evaluates TypeScript and keeps preloaded modules after clearing bindings", async () => {
+  const writtenOutput = await runConsoleSession([
+    "const answer: number = 42",
+    "answer",
+    'typeof monii["wealth-calculation"].calculateWealthSnapshot',
+    ".clear",
+    "typeof monii",
+  ]);
 
   expect(writtenOutput).toContain("Monii TypeScript console (console-");
   expect(writtenOutput).toContain("@monii/postgres/schema");
   expect(writtenOutput).toContain("@monii/wealth-calculation");
   expect(writtenOutput).toContain("'function'");
   expect(writtenOutput).toMatch(/\b42\b/);
-  expect(writtenOutput).toContain("surface: 'console'");
   expect(writtenOutput).toContain("'object'");
-  expect(writtenOutput).toContain("true");
+}, 20_000);
+
+test("keeps one operation context before and after clearing bindings", async () => {
+  const writtenOutput = await runConsoleSession([
+    "monii.runtime.context.getOperationContext()",
+    ".clear",
+    "monii.runtime.context.getOperationContext()",
+  ]);
+
+  expect(writtenOutput.match(/surface: 'console'/g)).toHaveLength(2);
   const actionIds = [
     ...writtenOutput.matchAll(/console-[0-9a-f-]{36}/g),
   ].map(([actionId]) => actionId);
   expect(new Set(actionIds).size).toBe(1);
+}, 20_000);
+
+test("imports a private TypeScript source file relative to the repository root", async () => {
+  const writtenOutput = await runConsoleSession([
+    'const privateModule = await import("./packages/accounts/src/account-valuation.ts")',
+    '"decimalToScaledInteger" in privateModule',
+  ]);
+
+  expect(writtenOutput).toContain("true");
 }, 20_000);

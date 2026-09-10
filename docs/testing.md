@@ -218,7 +218,7 @@ and [Playwright Test introduction](https://playwright.dev/docs/test-intro).
 | TST-001 | P0 | Fixed | Make PostgreSQL integration tests Testcontainers-only and isolated per test. | — |
 | TST-002 | P0 | Fixed | Reduce the public taxonomy to unit, integration, E2E, and repository suites. | — |
 | TST-003 | P1 | Fixed | Move tests to their owning package or app and reserve root tests for real boundaries. | TST-002 |
-| TST-004 | P1 | Open | Rename and reshape tests so every name states exactly what is proved. | TST-002, TST-003 |
+| TST-004 | P1 | Fixed | Rename and reshape tests so every name states exactly what is proved. | TST-002, TST-003 |
 | TST-005 | P1 | Open | Replace static-markup interaction claims with real browser component tests. | TST-002 |
 | TST-006 | P1 | Open | Establish a deterministic Playwright Test E2E harness and first critical journey. | TST-002 |
 | TST-007 | P0 | Open | Cover missing financial invariants and failure semantics. | TST-003 |
@@ -336,13 +336,27 @@ has the attribute.
 
 **Acceptance criteria:**
 
-- [ ] Every existing test name is audited against its act and assertions.
-- [ ] Attribute, role, value, and error assertions use semantic matchers or
+- [x] Every existing test name is audited against its act and assertions.
+- [x] Attribute, role, value, and error assertions use semantic matchers or
       parsed structures rather than ambiguous substrings.
-- [ ] Claims of concurrency use concurrent execution with a controlled barrier.
-- [ ] Claims of persistence use the real persistence implementation.
-- [ ] Table-driven tests name each business case in failure output.
-- [ ] No single test verifies unrelated behavior merely to reduce test count.
+- [x] Claims of concurrency use concurrent execution with a controlled barrier.
+- [x] Claims of persistence use the real persistence implementation.
+- [x] Table-driven tests name each business case in failure output.
+- [x] No single test verifies unrelated behavior merely to reduce test count.
+
+**Fixed (2026-09-10):** all existing test names were compared with their setup,
+action, and assertions. Overstated static-interaction, fake-persistence,
+exhaustive-coverage, and sequential-concurrency claims were narrowed or given
+the missing proof. The PostgreSQL overlap scenario now releases two starts
+through a controlled barrier and asserts that exactly one acquires the run.
+Ambiguous attribute checks now match complete attributes, GraphQL log checks
+use parsed records, and environment, CLI invocation, Powens option, and
+repository-policy tables print the case being exercised. Omnibus tests were
+split where they mixed exit mapping with logging, console evaluation with
+context and imports, health with fallback labels, generated queries with
+mutations, or independent workspace rules. Verified with `pnpm test:unit` (103
+tests), `pnpm test:integration` (43 tests), `pnpm test:repository` (43 tests),
+`pnpm typecheck`, and `pnpm lint`.
 
 ### TST-005 — Real browser component behavior
 

@@ -13,20 +13,20 @@ describe("Button", () => {
     expect(markup).toContain(">Save</button>");
   });
 
-  test("connects native form behavior and state", () => {
+  test("forwards form, submit, autofocus, and disabled attributes", () => {
     const markup = renderToStaticMarkup(
       <Button autoFocus behavior="submit" disabled form="profile" type="secondary">
         Submit
       </Button>,
     );
 
-    expect(markup).toContain("autofocus");
+    expect(markup).toContain('autofocus=""');
     expect(markup).toContain('form="profile"');
     expect(markup).toContain('type="submit"');
-    expect(markup).toContain("disabled");
+    expect(markup).toContain('disabled=""');
   });
 
-  test("uses Next navigation when href is provided", () => {
+  test("renders an anchor with its href and requested size", () => {
     const markup = renderToStaticMarkup(
       <Button href="/accounts" size="large" type="secondary">
         Accounts
@@ -38,7 +38,7 @@ describe("Button", () => {
     expect(markup).toContain("min-h-12");
   });
 
-  test("visually and functionally disables pending buttons and links", () => {
+  test("marks pending buttons disabled and pending links aria-disabled and untabbable", () => {
     const buttonMarkup = renderToStaticMarkup(
       <Button pending type="primary">
         Saving
@@ -51,7 +51,7 @@ describe("Button", () => {
     );
 
     expect(buttonMarkup).toContain('aria-busy="true"');
-    expect(buttonMarkup).toContain("disabled");
+    expect(buttonMarkup).toContain('disabled=""');
     expect(buttonMarkup).toContain("animate-spin");
     expect(linkMarkup).toContain('aria-disabled="true"');
     expect(linkMarkup).toContain('tabindex="-1"');

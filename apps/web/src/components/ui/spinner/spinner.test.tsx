@@ -12,6 +12,11 @@ describe("Spinner", () => {
     const markup = renderToStaticMarkup(<Spinner size={size} />);
 
     expect(markup).toContain(className);
+  });
+
+  test("renders as decorative by default", () => {
+    const markup = renderToStaticMarkup(<Spinner />);
+
     expect(markup).toContain('aria-hidden="true"');
   });
 
@@ -20,6 +25,6 @@ describe("Spinner", () => {
 
     expect(markup).toContain('aria-label="Loading accounts"');
     expect(markup).toContain('role="status"');
-    expect(markup).not.toContain("aria-hidden");
+    expect(markup).not.toContain("aria-hidden=");
   });
 });

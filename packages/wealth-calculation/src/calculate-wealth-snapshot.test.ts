@@ -108,7 +108,7 @@ describe("wealth calculation policy", () => {
     expect(snapshot.headlineAmount).toBe("0");
   });
 
-  test("returns an explicit decision for every account eligibility branch", () => {
+  test("returns the expected decision for each represented eligibility branch", () => {
     const decisions = calculateWealthSnapshot([
       account({ accountId: "merged", mergedIntoAccountId: "canonical" }),
       account({ accountId: "archived", archivedAt: observedAt }),

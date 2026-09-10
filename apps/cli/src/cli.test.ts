@@ -63,8 +63,14 @@ function outcome(status: SynchronizationResult["status"]): SynchronizationResult
 
 test.each([
   ["succeeded", 0], ["skipped_already_running", 0], ["partial", 1], ["failed", 1],
-] as const)("maps %s to exit %i and preserves structured events", async (status, exit) => {
-  const result = outcome(status);
+] as const)("maps %s synchronization to exit code %i", async (status, exit) => {
+  vi.mocked(synchronizeSourceInstance).mockResolvedValueOnce(outcome(status));
+
+  expect(await runCli(["--", "sync"])).toBe(exit);
+  expect(close).toHaveBeenCalledOnce();
+});
+
+test("preserves operation context and redacts provider fields from structured reports", async () => {
   vi.mocked(synchronizeSourceInstance).mockImplementationOnce(async ({ actionId, reporter }) => {
     expect(actionId).toBe(getOperationContext().action_id);
     reporter?.report({
@@ -82,9 +88,10 @@ test.each([
       level: "info",
       message: "Connection completed",
     });
-    return result;
+    return outcome("succeeded");
   });
-  expect(await runCli(["--", "sync"])).toBe(exit);
+
+  expect(await runCli(["--", "sync"])).toBe(0);
   expect(close).toHaveBeenCalledOnce();
   expect(records[0]).toMatchObject({ event: "ingestion.connection.failed", level: "error", connection_id: "connection-fixture", message: "Connection failed" });
   expect(records[1]).toMatchObject({ event: "ingestion.connection.completed", level: "info", count: 1, message: "Connection completed" });
@@ -93,7 +100,10 @@ test.each([
   expect(records[0].action_id).toMatch(/^cli-/);
 });
 
-test.each([new Error("secret provider payload"), "secret provider payload"])("safely reports thrown values in the original context", async (error) => {
+test.each([
+  { error: new Error("secret provider payload"), kind: "Error object" },
+  { error: "secret provider payload", kind: "string" },
+])("safely reports a thrown $kind in the original context", async ({ error }) => {
   vi.mocked(synchronizeSourceInstance).mockRejectedValueOnce(error);
   expect(await runCli(["sync"])).toBe(1);
   expect(close).toHaveBeenCalledOnce();
@@ -116,7 +126,10 @@ test.each(["config", "repository"])("closes the database when %s initialization 
   expect(records.at(-1)).toMatchObject({ event: "ingestion.command.crashed", action_id: records[0].action_id });
 });
 
-test.each([false, true])("awaits cleanup before completing (failure: %s)", async (failed) => {
+test.each([
+  { failed: false, outcome: "successful synchronization" },
+  { failed: true, outcome: "failed synchronization" },
+])("awaits cleanup after $outcome", async ({ failed }) => {
   if (failed) vi.mocked(synchronizeSourceInstance).mockRejectedValueOnce(new Error("sync failed"));
   else vi.mocked(synchronizeSourceInstance).mockResolvedValueOnce(outcome("succeeded"));
   let release!: () => void;

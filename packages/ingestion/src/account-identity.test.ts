@@ -59,7 +59,7 @@ describe("external account identity policy", () => {
     ).toBe("likely_duplicate");
   });
 
-  test("explains every identity assessment with stable reason codes", () => {
+  test("returns stable reason codes for missing, conflicting, and insufficient evidence", () => {
     expect(
       assessExternalAccountIdentity(
         identity({ category: "unknown", currency: null, institutionId: null }),

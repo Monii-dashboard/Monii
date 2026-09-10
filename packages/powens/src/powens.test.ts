@@ -264,7 +264,7 @@ describe("Powens read endpoints", () => {
     );
   });
 
-  test("normalizes provider accounts without leaking provider identity", async () => {
+  test("normalizes account amounts, lifecycle, purpose, and source-local timestamps", async () => {
     const responses = [
       { id: 42, signin: "2026-08-30T12:00:00Z" },
       {
@@ -453,9 +453,9 @@ describe("Powens console endpoints", () => {
   });
 
   test.each([
-    [undefined, false],
-    [true, true],
-  ])("renews a user token with revokePrevious %s", async (value, expected) => {
+    { expected: false, input: undefined, mode: "the default revokePrevious value" },
+    { expected: true, input: true, mode: "revokePrevious enabled" },
+  ])("renews a user token with $mode", async ({ input, expected }) => {
     const fetchMock = vi.fn<typeof fetch>(async () =>
       Response.json({ access_token: "renewed-token", token_type: "Bearer" }),
     );
@@ -464,7 +464,7 @@ describe("Powens console endpoints", () => {
     });
 
     await runWithOperationContext({ surface: "console" }, () =>
-      client.renewUserAccessToken({ revokePrevious: value, userId: 88 }),
+      client.renewUserAccessToken({ revokePrevious: input, userId: 88 }),
     );
 
     expect(requestDetails(fetchMock)).toMatchObject({
@@ -553,7 +553,7 @@ describe("Powens transport", () => {
     });
   });
 
-  test("falls back safely for a non-JSON API error", async () => {
+  test("maps a non-JSON 503 response to an API error without a provider code", async () => {
     const client = createPowensClient(config, {
       fetch: async () => new Response("unavailable", { status: 503 }),
     });

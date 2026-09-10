@@ -26,6 +26,6 @@ describe("Icon", () => {
 
     expect(markup).toContain('aria-label="Information"');
     expect(markup).toContain('role="img"');
-    expect(markup).not.toContain("aria-hidden");
+    expect(markup).not.toContain("aria-hidden=");
   });
 });
