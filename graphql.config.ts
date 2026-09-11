@@ -12,11 +12,10 @@ const graphqlConfig = {
       documents: frontendDocuments,
     },
     test: {
-      schema: "tests/integration/graphql/generated/schema.graphql",
+      schema: "apps/web/test-support/graphql-client/generated/schema.graphql",
       documents: [
-        "tests/integration/graphql/**/*.{ts,tsx}",
-        "!tests/integration/graphql/**/*.test.{ts,tsx}",
-        "!tests/integration/graphql/generated/**/*",
+        "apps/web/test-support/graphql-client/**/*.{ts,tsx}",
+        "!apps/web/test-support/graphql-client/generated/**/*",
       ],
     },
   },

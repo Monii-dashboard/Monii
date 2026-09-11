@@ -122,13 +122,14 @@ packages/
   accounts/src/**/*.integration.test.ts
   accounts/test-support/             narrow account state helpers
   ingestion/src/**/*.test.ts
+  ingestion/test/*.contract.ts       reusable port behavior owned by ingestion
+  ingestion/test-support/            small source-input fakes with overrides
   wealth-calculation/src/**/*.test.ts
   wealth-query/src/**/*.test.ts
   powens/src/**/*.test.ts
   postgres/**/*.integration.test.ts
   graphql/**/*.integration.test.ts
 tests/
-  integration/                       only true cross-package scenarios
   e2e/**/*.e2e.spec.ts               Playwright Test journeys
   repository/**/*.test.mjs           repository-quality checks
   support/                            cross-cutting test infrastructure only
@@ -141,6 +142,13 @@ An integration test may be colocated inside `src` or placed in `test`; its
 directory, selects the suite. Put it closest to the behavior whose result it
 asserts, even when it uses app-level endpoints or another package's setup
 helpers.
+
+Name a file after its behavioral subject or surface, not merely the concrete
+technology used to run it. For example,
+`synchronization-repository.integration.test.ts` identifies a port contract,
+while PostgreSQL-specific rollback behavior belongs in
+`synchronization-finalization.integration.test.ts`. A `postgres-*` omnibus file
+that binds unrelated ports is not an acceptable owner.
 
 ### Naming tests precisely
 
@@ -233,6 +241,13 @@ out of ad hoc adapter or cross-package tests, apply them once per real
 implementation, and delete the overlap. Retain a separate adapter-specific test
 only when it proves a distinct implementation risk such as PostgreSQL locking,
 transaction rollback, migration behavior, or database constraints.
+
+Keep the contract definition beside the portable package that owns the port.
+For each real adapter, add one colocated integration binding that calls that
+contract with the smallest required harness. This call is what registers the
+contract's `describe` and `it` cases with Vitest; a contract file is a reusable
+test definition, not a separately discovered suite. Keep adapter-specific
+locking, rollback, migration, and constraint cases beside the adapter source.
 
 ### Modular integration testkit
 
@@ -426,26 +441,29 @@ and encourages generic shared fixtures.
 **Acceptance criteria:**
 
 - [x] Package-owned unit tests are colocated beside the source they protect.
-- [x] Package-owned integration tests live under that package or app's `test/`
-      directory.
-- [x] Root `tests/integration` contains only scenarios spanning multiple owners.
+- [x] Package-owned integration tests live under their package or app, beside
+      source or in a focused `test` directory.
+- [x] Root `tests/integration` is absent until a scenario has no primary package
+      or app owner.
 - [x] Root `tests/support` contains only infrastructure with multiple real
       consumers.
 - [x] No empty test category is retained as a promise of future coverage.
 - [x] Vitest and TypeScript globs discover the target structure without broad
       accidental matches.
 
-**Fixed (2026-09-10):** package unit tests now live in their owning `src`
-directories; CLI, console, and web route integration tests live under their
-apps; and the former combined wealth unit file was split across ingestion,
-wealth-calculation, and wealth-query. Root `tests` now contains only
-cross-package wealth and GraphQL integration scenarios, their generated/support
-artifacts, PostgreSQL test infrastructure, and repository checks. The empty E2E
-placeholder and one-line integration re-export were removed. App TypeScript
-includes, GraphQL Codegen, GraphQL config, ESLint paths, README, and engineering
-documentation were updated with the move. Verified with 93 unit tests, 40
-integration tests, 38 repository tests, `pnpm typecheck`, `pnpm lint`, and
-`pnpm graphql:check`.
+**Fixed (2026-09-11):** package unit tests live in their owning `src`
+directories. Integration files are split by capability and live with their
+primary owner: CLI help/invocation/discovery, console sessions, web route and
+Apollo-client transport, GraphQL server behavior, ingestion lifecycle/listing
+behavior, portable port-contract bindings, and PostgreSQL-specific transaction
+and lease risks. The former root wealth, GraphQL, PostgreSQL-contract, and
+PostgreSQL-synchronization omnibus files were removed. Root `tests` now contains
+only cross-cutting testkit infrastructure and repository checks. TypeScript,
+GraphQL Codegen, GraphQL config, ESLint paths, README, and engineering
+documentation follow the owner-local paths.
+Verified with `pnpm test:integration` (57 tests in 18 files),
+`pnpm test:unit` (127 tests), `pnpm test:repository`, `pnpm typecheck`,
+`pnpm lint`, and `pnpm graphql:check`.
 
 ### TST-004 — Exact descriptions and assertions
 
@@ -593,22 +611,26 @@ shared production-quality testing tools rather than one-off stubs.
       local and minimal.
 - [x] Existing scenarios moved into contracts are removed or narrowed so each
       behavior has one primary test owner.
+- [x] Repository checks reject an orphan contract without its owner-local
+      integration binding.
 
-**Fixed (2026-09-11):** reusable contracts now live beside the portable owners
-of synchronization, account identity, wealth calculation, and wealth-query
-ports. A single cross-package PostgreSQL binding applies all 14 examples to
-fresh, migrated Testcontainers and supplies only read-only durable-state probes;
-all writes pass through public repositories or synchronization use cases. The
+**Fixed (2026-09-11):** reusable contracts live beside the portable owners of
+synchronization, account identity, wealth calculation, and wealth-query ports.
+Each contract now has an explicit colocated PostgreSQL integration binding with
+only its required harness; calling the contract function registers its examples
+with Vitest. All writes pass through public repositories or synchronization use
+cases, while bindings supply only necessary read-only durable-state probes. The
 contracts cover concurrent and independent leases, run failure and source
 identity, account and institution identity, durable merge history, observation
 retention, snapshot publication and reads, failed refresh preservation, and
 account-policy snapshots. Superseded merge, failure, policy, and concurrency
 scenarios were removed from the broad integration files. PostgreSQL-only
-rollback and abandoned-lease tests remain separate, as do the distinct
-cross-package external-lifecycle and listing-completeness scenarios. Local
-orchestration fakes remain minimal and make no persistence claims. Verified
-with `pnpm test` (225 tests: 127 unit, 55 integration, and 43 repository),
-`pnpm typecheck`, `pnpm lint`, and `git diff --check`.
+rollback and abandoned-lease tests remain beside the PostgreSQL implementation.
+External-lifecycle and listing-completeness scenarios live beside ingestion.
+Local orchestration fakes remain minimal and make no persistence claims.
+Verified with `pnpm test:integration` (57 tests in 18 files),
+`pnpm test:unit` (127 tests), `pnpm test:repository`, `pnpm typecheck`, and
+`pnpm lint`.
 
 ### TST-009 — Powens boundary decomposition
 
@@ -634,12 +656,11 @@ partial connection data.
 
 ### TST-010 — Production GraphQL contract coverage
 
-**Problem:** GraphQL tests maintain a synthetic schema, operations, generated
-client artifacts, SDL, and a compile-only `hook-contract.ts`. They prove useful
-pieces, but the production `currentWealthDashboardQuery` is not exercised
-through the actual Apollo-to-Yoga/TypeGraphQL composition. Document globs are
-duplicated across Codegen, GraphQL config, and ESLint, and Codegen still ignores
-the no-documents case even though operations now exist.
+**Problem:** GraphQL testing maintains a synthetic schema, operations, generated
+client artifacts, SDL, and a compile-only `hook-contract.ts`. The production
+dashboard path is now covered, but document globs remain duplicated across
+Codegen, GraphQL config, and ESLint, and Codegen still ignores the no-documents
+case even though operations exist.
 
 **Acceptance criteria:**
 
@@ -647,7 +668,7 @@ the no-documents case even though operations now exist.
       GraphQL schema/server composition with a controlled repository.
 - [x] A PostgreSQL-backed test is added only where it proves behavior not already
       covered by the resolver and repository contracts.
-- [ ] Synthetic schema and generated artifacts are retained only for a distinct,
+- [x] Synthetic schema and generated artifacts are retained only for a distinct,
       stated contract.
 - [ ] `hook-contract.ts` becomes an explicit type test or is removed.
 - [ ] GraphQL document discovery has one canonical definition or a test proving
@@ -660,7 +681,11 @@ and PostgreSQL repository composition. Its small owner-local setup helpers
 create controlled persisted state. This test proves the app-specific wiring,
 document serialization, and transport response together; it does not repeat the
 repository contract's edge-case matrix. The remaining synthetic-contract and
-configuration cleanup keeps this issue open.
+configuration cleanup keeps this issue open. The old broad GraphQL integration
+file is split: production server serialization belongs to `packages/graphql`,
+while the synthetic schema and generated documents now belong solely to the
+web Apollo client's query, mutation, error-masking, and deadline transport
+contract under `apps/web/test-support/graphql-client`.
 
 ### TST-011 — Coverage visibility
 
@@ -800,9 +825,9 @@ single-table insert helpers, and the colocated dashboard integration test
 composes them explicitly before calling the real generated operation. Vitest
 aliases keep these imports out of package manifests, while lint and repository
 tests enforce all import and export boundaries. Verified with `pnpm typecheck`,
-`pnpm lint`, `pnpm test:repository` (47 tests), and `pnpm test:integration` (57
-tests in 10 files). The strict database default increased the measured full
-integration duration from roughly 48 seconds to 111 seconds; correctness and
+`pnpm lint`, `pnpm test:repository`, and `pnpm test:integration` (57 tests in
+18 files). The strict database default increased the measured full integration
+duration from roughly 48 seconds to 85 seconds; correctness and
 uniform availability are the accepted priority, and any future optimization
 must preserve per-test isolation.
 

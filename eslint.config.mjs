@@ -8,9 +8,8 @@ import nextTs from "eslint-config-next/typescript";
 const allGraphqlDocuments = [
   "apps/web/src/**/*.{ts,tsx}",
   "!apps/web/src/generated/**/*",
-  "tests/integration/graphql/**/*.{ts,tsx}",
-  "!tests/integration/graphql/**/*.test.{ts,tsx}",
-  "!tests/integration/graphql/generated/**/*",
+  "apps/web/test-support/graphql-client/**/*.{ts,tsx}",
+  "!apps/web/test-support/graphql-client/generated/**/*",
 ];
 
 function graphqlOperationConfig() {
@@ -23,7 +22,7 @@ function graphqlOperationConfig() {
         // continues to validate application operations against the narrower
         // production schema.
         graphQLConfig: {
-          schema: "tests/integration/graphql/generated/schema.graphql",
+          schema: "apps/web/test-support/graphql-client/generated/schema.graphql",
           documents: allGraphqlDocuments,
         },
       },
@@ -69,10 +68,9 @@ const eslintConfig = defineConfig([
     processor: graphqlPlugin.processor,
   },
   {
-    files: ["tests/integration/graphql/**/*.{ts,tsx}"],
+    files: ["apps/web/test-support/graphql-client/**/*.{ts,tsx}"],
     ignores: [
-      "tests/integration/graphql/**/*.test.{ts,tsx}",
-      "tests/integration/graphql/generated/**/*",
+      "apps/web/test-support/graphql-client/generated/**/*",
     ],
     processor: graphqlPlugin.processor,
   },
@@ -82,10 +80,9 @@ const eslintConfig = defineConfig([
     ...graphqlOperationConfig(),
   },
   {
-    files: ["tests/integration/graphql/**/*.{ts,tsx}/*.graphql"],
+    files: ["apps/web/test-support/graphql-client/**/*.{ts,tsx}/*.graphql"],
     ignores: [
-      "tests/integration/graphql/**/*.test.{ts,tsx}/*.graphql",
-      "tests/integration/graphql/generated/**/*",
+      "apps/web/test-support/graphql-client/generated/**/*",
     ],
     ...graphqlOperationConfig(),
   },
@@ -98,7 +95,7 @@ const eslintConfig = defineConfig([
     "**/build/**",
     "**/next-env.d.ts",
     "apps/web/src/generated/**",
-    "tests/integration/graphql/generated/**",
+    "apps/web/test-support/graphql-client/generated/**",
     "specific_examples/**",
   ]),
 ]);

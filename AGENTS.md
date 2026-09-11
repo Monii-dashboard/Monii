@@ -129,6 +129,11 @@ costly or hard to reverse.
 - When extracting a contract, move the shared behavioral assertions into it and
   delete or narrow superseded tests. Keep adapter-specific tests only for risks
   unique to that adapter.
+- Keep each port contract beside its owning portable package and invoke it from
+  one colocated `*.integration.test.ts` binding per real adapter. The binding
+  owns only the harness that contract requires. Put implementation-specific
+  transaction, locking, migration, or constraint tests beside the adapter
+  source instead of mixing them into the portable contract.
 - Integration tests may live beside the owning source or under `test`, but must
   use the `.integration.test.ts` or `.integration.test.tsx` suffix. Import
   `it`, `describe`, hooks, assertions, and `vi` from `@testkit/integration`;

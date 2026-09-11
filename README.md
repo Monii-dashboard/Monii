@@ -113,10 +113,11 @@ GraphQL operations may be declared in frontend TypeScript with the generated
 `graphql()` function. Run `pnpm graphql:generate` after changing the backend
 schema or an operation. Generated schema and client artifacts are committed
 under `apps/web/src/generated/graphql` (frontend) and
-`tests/integration/graphql/generated` (test contracts); `pnpm graphql:check`
-fails when they are stale. Backend operations are added as decorated TypeGraphQL
-resolver classes under `packages/graphql/src`. Keep decorated GraphQL DTOs at
-the transport boundary instead of annotating financial domain objects.
+`apps/web/test-support/graphql-client/generated` (web-client transport
+contracts); `pnpm graphql:check` fails when they are stale. Backend operations
+are added as decorated TypeGraphQL resolver classes under
+`packages/graphql/src`. Keep decorated GraphQL DTOs at the transport boundary
+instead of annotating financial domain objects.
 
 GitHub Actions runs lint, typechecking, tests, and the GraphQL staleness check
 as separate required-check candidates for pull requests to and pushes on
