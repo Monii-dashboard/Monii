@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, it, vi } from "@testkit/integration";
 
 import { POST } from "../src/app/api/graphql/route";
 import { executeJsonRoute } from "./support/route";
@@ -7,7 +7,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-test("serves the health query through the application route", async () => {
+it("serves the health query through the application route", async () => {
   const consoleLog = vi
     .spyOn(globalThis.console, "log")
     .mockImplementation(() => {});

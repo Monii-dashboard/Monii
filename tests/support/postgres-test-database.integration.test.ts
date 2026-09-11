@@ -1,13 +1,12 @@
 import { sql } from "drizzle-orm";
 
+import { expect, it } from "@testkit/integration";
 import {
-  expect,
   startPostgresTestDatabase,
-  test,
   type StartedPostgresTestDatabase,
 } from "./postgres";
 
-test("provisions migrated databases that are isolated from each other", async () => {
+it("provisions migrated databases that are isolated from each other", async () => {
   const databases: StartedPostgresTestDatabase[] = [];
 
   try {

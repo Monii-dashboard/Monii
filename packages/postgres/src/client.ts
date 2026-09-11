@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
@@ -10,8 +12,16 @@ export function createDatabase(databaseUrl: string) {
 }
 
 let database: ReturnType<typeof createDatabase> | undefined;
+const databaseContext = new AsyncLocalStorage<Database>();
+
+export function runWithDatabase<T>(db: Database, callback: () => T): T {
+  return databaseContext.run(db, callback);
+}
 
 export function getDatabase() {
+  const activeDatabase = databaseContext.getStore();
+  if (activeDatabase) return activeDatabase;
+
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is not configured");
   database ??= createDatabase(databaseUrl);

@@ -5,7 +5,6 @@ import {
   type StartedPostgreSqlContainer,
 } from "@testcontainers/postgresql";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
-import { expect, test as baseTest } from "vitest";
 
 import {
   createDatabase,
@@ -59,32 +58,3 @@ export async function startPostgresTestDatabase(): Promise<StartedPostgresTestDa
     },
   };
 }
-
-export const test = baseTest.extend<{
-  $test: {
-    postgresTestDatabase: StartedPostgresTestDatabase;
-    postgres: StartedPostgreSqlContainer;
-    database: DatabaseConnection;
-    db: Database;
-  };
-}>({
-  postgresTestDatabase: async ({}, provideFixture) => {
-    const testDatabase = await startPostgresTestDatabase();
-    try {
-      await provideFixture(testDatabase);
-    } finally {
-      await testDatabase.stop();
-    }
-  },
-  postgres: async ({ postgresTestDatabase }, provideFixture) => {
-    await provideFixture(postgresTestDatabase.postgres);
-  },
-  database: async ({ postgresTestDatabase }, provideFixture) => {
-    await provideFixture(postgresTestDatabase.database);
-  },
-  db: async ({ postgresTestDatabase }, provideFixture) => {
-    await provideFixture(postgresTestDatabase.db);
-  },
-});
-
-export { expect };

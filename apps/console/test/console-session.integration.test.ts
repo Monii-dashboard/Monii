@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import { PassThrough } from "node:stream";
 
-import { expect, test } from "vitest";
+import { expect, it } from "@testkit/integration";
 
 import { runWithOperationContext } from "@monii/runtime/operation";
 
@@ -64,7 +64,7 @@ async function runConsoleSession(commands: readonly string[]): Promise<string> {
   return writtenOutput;
 }
 
-test("evaluates TypeScript and keeps preloaded modules after clearing bindings", async () => {
+it("evaluates TypeScript and keeps preloaded modules after clearing bindings", async () => {
   const writtenOutput = await runConsoleSession([
     "const answer: number = 42",
     "answer",
@@ -81,7 +81,7 @@ test("evaluates TypeScript and keeps preloaded modules after clearing bindings",
   expect(writtenOutput).toContain("'object'");
 }, 20_000);
 
-test("keeps one operation context before and after clearing bindings", async () => {
+it("keeps one operation context before and after clearing bindings", async () => {
   const writtenOutput = await runConsoleSession([
     "monii.runtime.context.getOperationContext()",
     ".clear",
@@ -95,7 +95,7 @@ test("keeps one operation context before and after clearing bindings", async () 
   expect(new Set(actionIds).size).toBe(1);
 }, 20_000);
 
-test("imports a private TypeScript source file relative to the repository root", async () => {
+it("imports a private TypeScript source file relative to the repository root", async () => {
   const writtenOutput = await runConsoleSession([
     'const privateModule = await import("./packages/accounts/src/account-valuation.ts")',
     '"decimalToScaledInteger" in privateModule',

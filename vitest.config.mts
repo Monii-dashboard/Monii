@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { configDefaults, defineConfig } from "vitest/config";
 
 const applicationExcludes = [
@@ -6,6 +8,34 @@ const applicationExcludes = [
 ];
 
 export default defineConfig({
+  resolve: {
+    alias: [
+      {
+        find: /^@testkit\/apps\/([^/]+)$/,
+        replacement: fileURLToPath(
+          new URL("./apps/$1/test-support/index.ts", import.meta.url),
+        ),
+      },
+      {
+        find: /^@testkit\/packages\/([^/]+)$/,
+        replacement: fileURLToPath(
+          new URL("./packages/$1/test-support/index.ts", import.meta.url),
+        ),
+      },
+      {
+        find: /^@testkit\/(.+)$/,
+        replacement: fileURLToPath(
+          new URL("./tests/support/testkit/$1.ts", import.meta.url),
+        ),
+      },
+      {
+        find: /^@\/(.+)$/,
+        replacement: fileURLToPath(
+          new URL("./apps/web/src/$1", import.meta.url),
+        ),
+      },
+    ],
+  },
   test: {
     projects: [
       {

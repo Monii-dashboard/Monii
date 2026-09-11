@@ -43,10 +43,11 @@ Monii is organized as a small, source-first pnpm workspace:
 - `packages/powens` owns Powens transport, configuration, DTOs, and normalization.
 - `packages/postgres` owns Drizzle schemas and PostgreSQL port implementations.
 - `packages/graphql` owns the GraphQL transport and resolver composition.
-- Unit tests live beside their owning package or app source. App-owned
-  integration tests live under that app's `test` directory. Root `tests` owns
-  only genuine cross-package integration scenarios, shared test support, and
-  repository-quality checks.
+- Unit and integration tests live beside their owning package or app behavior,
+  either in `src` or a focused `test` directory. Root `tests` currently owns
+  only cross-cutting testkit infrastructure and repository-quality checks; a
+  future root integration test is justified only when no package or app owns
+  the composed behavior.
 
 The private operator CLI uses oclif file-based discovery under
 `apps/cli/src/commands` and generated help. Commands own parsing, metadata, and
@@ -68,6 +69,15 @@ packages may depend on portable or Node packages. Accounts, ingestion,
 wealth-calculation, and wealth-query are portable; PostgreSQL, Powens, GraphQL,
 runtime, and the app composition roots are Node. Web frontend code cannot import
 Node adapters outside HTTP route bootstraps.
+
+Portable ownership applies to production APIs and manifest dependencies. A
+recognized `.integration.test.ts` file inside a portable package may compose
+Node adapters through the repository's virtual `@testkit/*` imports, and the
+package may own isolated helpers under `test-support`. These are test-only
+composition roots: lint rejects their use from production, unit tests, and
+portable contract suites, and workspace validation rejects manifests that
+export `test-support`. This exception must not create a production dependency
+edge or weaken the portable package's public boundary.
 
 The workspace graph must be acyclic. Portable capabilities cannot import their
 Node implementations; app composition roots assemble them. Runtime remains

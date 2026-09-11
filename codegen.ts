@@ -3,7 +3,7 @@ import { printSchema } from "graphql";
 
 import { graphqlSchema } from "@monii/graphql";
 
-import { testGraphqlSchema } from "./tests/integration/graphql/schema";
+import { testGraphqlSchema } from "./apps/web/test-support/graphql-client/schema";
 
 const applicationSchema = printSchema(graphqlSchema);
 const testSchema = printSchema(testGraphqlSchema);
@@ -13,9 +13,8 @@ const applicationDocuments = [
   "!apps/web/src/generated/**/*",
 ];
 const testDocuments = [
-  "tests/integration/graphql/**/*.{ts,tsx}",
-  "!tests/integration/graphql/**/*.test.{ts,tsx}",
-  "!tests/integration/graphql/generated/**/*",
+  "apps/web/test-support/graphql-client/**/*.{ts,tsx}",
+  "!apps/web/test-support/graphql-client/generated/**/*",
 ];
 
 const config: CodegenConfig = {
@@ -41,11 +40,11 @@ const config: CodegenConfig = {
         strictScalars: true,
       },
     },
-    "tests/integration/graphql/generated/schema.graphql": {
+    "apps/web/test-support/graphql-client/generated/schema.graphql": {
       schema: testSchema,
       plugins: ["schema-ast"],
     },
-    "tests/integration/graphql/generated/client/": {
+    "apps/web/test-support/graphql-client/generated/client/": {
       schema: testSchema,
       documents: testDocuments,
       preset: "client",
