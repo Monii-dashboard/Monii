@@ -6,7 +6,9 @@
   "exports": {
     "./client": "./src/client.ts",
     "./ingestion": "./src/repositories/ingestion.ts",
+    "./models": "./src/models/index.ts",
     "./schema": "./src/schema/index.ts",
+    "./transaction": "./src/transaction.ts",
     "./wealth": "./src/repositories/wealth.ts"
   },
   "scripts": {

@@ -12,9 +12,9 @@ export function createDatabase(databaseUrl: string) {
 }
 
 let database: ReturnType<typeof createDatabase> | undefined;
-const databaseContext = new AsyncLocalStorage<Database>();
+const databaseContext = new AsyncLocalStorage<ActiveDatabase>();
 
-export function runWithDatabase<T>(db: Database, callback: () => T): T {
+export function runWithDatabase<T>(db: ActiveDatabase, callback: () => T): T {
   return databaseContext.run(db, callback);
 }
 
@@ -32,3 +32,4 @@ export type Database = ReturnType<typeof createDatabase>["db"];
 export type DatabaseTransaction = Parameters<
   Parameters<Database["transaction"]>[0]
 >[0];
+export type ActiveDatabase = Database | DatabaseTransaction;

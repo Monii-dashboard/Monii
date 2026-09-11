@@ -122,7 +122,7 @@ packages/
   accounts/src/**/*.integration.test.ts
   accounts/test-support/             narrow account state helpers
   ingestion/src/**/*.test.ts
-  ingestion/test/*.contract.ts       reusable port behavior owned by ingestion
+  ingestion/test/*.contract.ts       transitional repository coverage only
   ingestion/test-support/            small source-input fakes with overrides
   wealth-calculation/src/**/*.test.ts
   wealth-query/src/**/*.test.ts
@@ -145,10 +145,9 @@ helpers.
 
 Name a file after its behavioral subject or surface, not merely the concrete
 technology used to run it. For example,
-`synchronization-repository.integration.test.ts` identifies a port contract,
-while PostgreSQL-specific rollback behavior belongs in
-`synchronization-finalization.integration.test.ts`. A `postgres-*` omnibus file
-that binds unrelated ports is not an acceptable owner.
+`synchronization-finalization.integration.test.ts` identifies the operation and
+behavior it owns. A `postgres-*` omnibus file that groups unrelated models,
+queries, or operations is not an acceptable owner.
 
 ### Naming tests precisely
 
@@ -201,53 +200,38 @@ adds distinct evidence, such as serialization through GraphQL or presentation
 in a browser. In that case, assert the added boundary rather than copying the
 lower-level scenario matrix.
 
-For persistence integration tests, create state through public use-case or port
-operations when practical. Direct SQL is appropriate only for adapter-specific
-preconditions or evidence that public operations cannot express, such as aging
-a lease, forcing a constraint failure, or inspecting atomic rollback. Keep that
-SQL local and do not let table layout become the domain contract.
+For persistence integration tests, create state through public application
+operations or granular owner-local helpers backed by the real table models when
+practical. Direct SQL is appropriate only for PostgreSQL-specific preconditions
+or evidence those APIs cannot express, such as aging a lease, forcing a
+constraint failure, or inspecting atomic rollback. Keep that SQL local and do
+not let table layout become the domain contract.
 
 Mocks and stubs remain useful for pure orchestration and unavailable external
 systems. They should be local, minimal, and limited to the interaction under
 test. A mock returning a repository-shaped value does not prove persistence.
 
-### Reusable port contracts
+### Persistence behavior without contract duplication
 
-A port contract is one reusable group of tests describing behavior that every
-real implementation of a domain-owned port must share. The owning portable
-package defines the examples and performs state-changing setup through public
-ports or use cases. An adapter's integration test supplies a fresh
-implementation and runs those examples. A binding may also supply read-only
-probes for durable concepts that have no product read API yet; those probes must
-not become an alternate write path or leak adapter details into the behavioral
-claim. The contract remains part of the adapter's existing suite; `contract` is
-not a fifth public test category.
+Monii has one PostgreSQL implementation. A repository interface plus a reusable
+contract plus a PostgreSQL binding therefore adds three places to understand a
+single behavior without currently protecting implementation interchangeability.
+New persistence work should instead use table models for CRUD, named query
+modules for custom SQL, and explicit application operations for multi-table
+workflows. Test the observable behavior once beside the model, query, or
+operation that owns it, using the real isolated PostgreSQL database.
 
-In simple terms, an interface checks that an implementation has the right
-operations; a contract checks that those operations keep the same promises. For
-example, `SynchronizationRepository` requires a `startRun` method at compile
-time. Its contract can additionally prove that the first run for a source
-starts, a concurrent second run is refused, and another source remains
-independent.
+The existing repository contracts remain temporary regression coverage while
+the repositories are migrated. They must not be deleted merely because the new
+model base exists. For each migrated operation, move its relevant behavioral
+claim into an owner-local integration test, keep PostgreSQL-specific locking,
+rollback, migration, and constraint cases beside the responsible code, then
+remove the superseded contract example and binding. The end state has neither a
+second copy of the claim nor a reusable harness for only one implementation.
 
-Only reusable implementations need to run the full relevant contract. One-off
-unit-test fakes may stay deliberately small because they represent a controlled
-answer, not an alternate persistence implementation. If a fake becomes shared,
-stateful, or relied upon for repository semantics, it must pass the same
-contract or be replaced with the real adapter.
-
-Extracting a contract is consolidation work: move common behavioral assertions
-out of ad hoc adapter or cross-package tests, apply them once per real
-implementation, and delete the overlap. Retain a separate adapter-specific test
-only when it proves a distinct implementation risk such as PostgreSQL locking,
-transaction rollback, migration behavior, or database constraints.
-
-Keep the contract definition beside the portable package that owns the port.
-For each real adapter, add one colocated integration binding that calls that
-contract with the smallest required harness. This call is what registers the
-contract's `describe` and `it` cases with Vitest; a contract file is a reusable
-test definition, not a separately discovered suite. Keep adapter-specific
-locking, rollback, migration, and constraint cases beside the adapter source.
+If Monii later gains a genuine second implementation of the same interface, a
+shared contract can again be appropriate. That decision should be based on the
+real variation, not used pre-emptively to justify an abstraction.
 
 ### Modular integration testkit
 
@@ -259,11 +243,11 @@ applies the committed migrations; afterward, it disposes lazy test resources
 and the database in `finally` cleanup.
 
 The active database is propagated through asynchronous context. Production
-repository factories such as `createPostgresWealthQueryRepository()` use that
-active database when no database is passed, while retaining their normal
-configured-database fallback outside tests. Tests therefore do not receive or
-thread a `postgres` fixture parameter. `@testkit/postgres` exposes the active
-database only when direct storage setup or inspection is genuinely required.
+models, named queries, and transitional repository factories use that active
+database while retaining their normal configured-database fallback outside
+tests. Tests therefore do not receive or thread a `postgres` fixture parameter.
+`@testkit/postgres` exposes the active database only when direct storage setup
+or inspection is genuinely required.
 
 PostgreSQL is the only eager integration capability. Everything else is an
 independently imported, lazy resource:
@@ -368,6 +352,7 @@ and [Playwright Test introduction](https://playwright.dev/docs/test-intro).
 | TST-014 | P2 | Fixed | Eliminate noisy expected-error output and nondeterministic global state. | TST-003 |
 | TST-015 | P2 | Open | Align testing documentation, scripts, globs, and directory claims with reality. | TST-002, TST-003 |
 | TST-016 | P0 | Fixed | Establish a modular integration testkit with an implicit isolated database and owner-local support. | TST-001, TST-003, TST-008 |
+| TST-017 | P0 | In progress | Replace single-implementation repositories and contracts with inherited models, named queries, and operation-owned integration tests. | TST-008, TST-016 |
 
 ### TST-001 — Testcontainers-only PostgreSQL isolation
 
@@ -632,6 +617,11 @@ Verified with `pnpm test:integration` (57 tests in 18 files),
 `pnpm test:unit` (127 tests), `pnpm test:repository`, `pnpm typecheck`, and
 `pnpm lint`.
 
+This remains the historical record of why the current contract coverage exists.
+The later single-database model decision in TST-017 supersedes contracts as the
+target architecture; their behavioral claims remain valuable migration coverage
+until each repository operation has a single owner-local replacement.
+
 ### TST-009 — Powens boundary decomposition
 
 **Problem:** one large test file mixes configuration, URL construction,
@@ -805,8 +795,8 @@ eventually load every app and grow business-specific convenience methods.
       lint rules rejecting a missing import or direct Vitest `it`/`test`.
 - [x] A fresh migrated PostgreSQL Testcontainer is active before each test's
       hooks and body and is always cleaned up.
-- [x] Production PostgreSQL repository factories use the async-scoped test
-      database by default without fixture callback parameters.
+- [x] Production PostgreSQL access uses the async-scoped test database by
+      default without fixture callback parameters.
 - [x] Non-database capabilities load independently and lazily, and app-owned
       bindings identify the specific endpoint being exercised.
 - [x] In-process GraphQL support accepts arbitrary typed documents and variables
@@ -831,6 +821,51 @@ duration from roughly 48 seconds to 85 seconds; correctness and
 uniform availability are the accepted priority, and any future optimization
 must preserve per-test isolation.
 
+### TST-017 — Inherited PostgreSQL models and operation-owned tests
+
+**Problem:** Monii has one database implementation, but persistence behavior is
+spread across portable repository interfaces, a large combined PostgreSQL
+repository, reusable contract definitions, and adapter bindings. That structure
+was useful for exposing missing behavior, but it now makes a single concrete
+path look like several interchangeable implementations and encourages duplicate
+test ownership.
+
+**Decision:** use one lightweight class per table, inheriting typed CRUD from a
+shared model base that resolves the active database implicitly. Put custom SQL
+in named query modules and wrap multi-table workflows in explicit application
+operations using an async-context transaction helper. Migrate contract claims
+to one integration test beside the behavior that owns each claim; do not trade
+the current contracts for duplicate model, query, and operation tests.
+
+**Acceptance criteria:**
+
+- [x] Every current table has a concrete model inheriting `create`, `find`,
+      `findMany`, `update`, and `delete`, including non-`id` and composite keys.
+- [x] Model calls automatically use the active integration database and do not
+      receive a database fixture or constructor dependency.
+- [x] An explicit transaction wrapper propagates one transaction through nested
+      model calls, uses savepoints when nested, and supports post-commit effects.
+- [x] Integration coverage proves inherited CRUD, rollback, savepoint, and
+      post-commit behavior against isolated PostgreSQL.
+- [x] Owner-local state helpers begin using models rather than direct testkit
+      database access.
+- [ ] Purpose-specific PostgreSQL reads are moved to named query modules.
+- [ ] Multi-table repository writes are moved to explicit application
+      operations using the transaction wrapper.
+- [ ] Existing repository interfaces, factories, implementations, contracts,
+      and bindings are removed after their behavior has one replacement owner.
+- [ ] The complete unit, integration, repository, type, and lint checks pass
+      after the migration.
+
+**In progress (2026-09-11):** the inherited model base, concrete table models,
+implicit database/transaction context, nested savepoints, and `afterCommit`
+foundation are implemented. Account and wealth-query integration state helpers
+exercise that public model path. Existing repositories and contracts remain
+deliberately intact: this branch establishes the reviewable foundation without
+silently discarding their behavioral coverage. The next migration should take
+one cohesive repository operation at a time and update this checklist as its
+old abstraction and overlap disappear.
+
 ## Recommended implementation order
 
 Fix the foundation before moving files in bulk:
@@ -841,9 +876,11 @@ Fix the foundation before moving files in bulk:
    assertions in the same focused batches.
 4. TST-007 and TST-008: lock down financial policy and persistence contracts.
 5. TST-016: provide the modular integration foundation for app-level tests.
-6. TST-005 and TST-006: add real browser component and E2E coverage.
-7. TST-009 and TST-010: deepen provider and GraphQL boundaries.
-8. TST-011 through TST-015: make omissions visible, reduce support-code debt,
+6. TST-017: migrate repositories and contracts incrementally without losing
+   behavioral coverage.
+7. TST-005 and TST-006: add real browser component and E2E coverage.
+8. TST-009 and TST-010: deepen provider and GraphQL boundaries.
+9. TST-011 through TST-015: make omissions visible, reduce support-code debt,
    and align CI and documentation.
 
 The order is deliberately incremental. Each issue should leave the suite

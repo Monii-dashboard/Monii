@@ -41,7 +41,10 @@ Monii is organized as a small, source-first pnpm workspace:
 - `packages/wealth-query` owns the current-wealth read contract and presentation
   projection. It is portable and independent from worker orchestration.
 - `packages/powens` owns Powens transport, configuration, DTOs, and normalization.
-- `packages/postgres` owns Drizzle schemas and PostgreSQL port implementations.
+- `packages/postgres` owns Drizzle schemas, row models, database context,
+  transactions, and PostgreSQL-specific queries. Its existing repository
+  implementations are transitional while callers move to the model/query
+  design below.
 - `packages/graphql` owns the GraphQL transport and resolver composition.
 - Unit and integration tests live beside their owning package or app behavior,
   either in `src` or a focused `test` directory. Root `tests` currently owns
@@ -370,6 +373,45 @@ accounting before they are needed.
 - Emit typed domain events from portable capabilities, but invoke handlers
   synchronously and explicitly for now. A persisted outbox or external event bus
   is justified only when delivery, retry, or independent deployment requires it.
+
+### PostgreSQL models and transactions
+
+Monii has one PostgreSQL database. Persistence-aware Node code accesses it
+through lightweight table models in `@monii/postgres/models`; normal callers do
+not accept or pass a database client. The client resolver uses the active
+asynchronous database context when one exists and otherwise uses the configured
+process database.
+
+Each table has a small class extending the shared `modelFor` base. The base
+provides typed `create`, `find`, `findMany`, `update`, and `delete` operations,
+including support for non-`id` and composite primary keys. A concrete model does
+not repeat those methods. It may add a clearly named table-owned operation such
+as `Account.archive`, but models must remain representations of persisted rows,
+not service containers. Do not add implicit relation loading, mutable dirty
+tracking, lifecycle hooks, or generic business workflows to the base model.
+
+Simple equality lookups belong on the inherited model API. Joins, aggregates,
+locking reads, and other purpose-specific SQL belong in named PostgreSQL query
+modules. A workflow that changes several tables belongs in an explicit
+application operation and composes model methods and focused queries. Portable
+packages continue to own pure rules and domain language; they do not import the
+Node-only models.
+
+Use `transaction(async () => { ... })` to make a multi-table operation atomic.
+The transaction helper installs its Drizzle transaction in asynchronous context,
+so every model and query called below it automatically uses the same client.
+The transaction boundary itself must remain explicit at the operation level;
+asynchronous context removes client plumbing, not ownership of atomicity. Nested
+transactions use database savepoints. Register logging or another effect that
+must describe committed state with `afterCommit` and await all work started
+inside the transaction.
+
+Do not add a repository, persistence interface, or reusable repository-contract
+suite for a table when PostgreSQL is the only implementation. Existing
+repositories and their contracts preserve important behavior during migration;
+replace them incrementally with models, named queries, and operation-level
+integration tests before deleting them. Add an interface later only for a real
+external boundary or demonstrated second implementation.
 
 ## Application API boundary
 
