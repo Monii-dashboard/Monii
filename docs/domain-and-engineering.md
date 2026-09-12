@@ -391,7 +391,7 @@ tracking, lifecycle hooks, or generic business workflows to the base model.
 
 Simple equality lookups belong on the inherited model API. A reusable read that
 still concerns one table—such as the latest snapshot, current claims, or the
-latest synchronization status—is registered under a snake-case literal name in
+latest synchronization status—is registered under a `snake_case` literal name in
 that table's model file. Callers use `Model.query("query_name").load()`,
 `.loadOne()`, or `.count()`. The registry preserves the result inferred from
 each Drizzle selection, so a query name exposes only its actual projected

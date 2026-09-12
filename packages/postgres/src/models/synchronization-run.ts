@@ -9,7 +9,10 @@ const queries = {
     getDatabase()
       .select({ status: synchronizationRuns.status })
       .from(synchronizationRuns)
-      .orderBy(desc(synchronizationRuns.startedAt))
+      .orderBy(
+        desc(synchronizationRuns.startedAt),
+        desc(synchronizationRuns.id),
+      )
       .limit(1),
   ),
   last_successful_completion: defineModelQuery(() =>
@@ -17,7 +20,10 @@ const queries = {
       .select({ finishedAt: synchronizationRuns.finishedAt })
       .from(synchronizationRuns)
       .where(eq(synchronizationRuns.status, "succeeded"))
-      .orderBy(desc(synchronizationRuns.finishedAt))
+      .orderBy(
+        desc(synchronizationRuns.finishedAt),
+        desc(synchronizationRuns.id),
+      )
       .limit(1),
   ),
 };
