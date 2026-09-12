@@ -4,11 +4,13 @@ import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
 } from "@testcontainers/postgresql";
+import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 
 import {
   createDatabase,
   type Database,
+  runtimeDatabaseRole,
 } from "@monii/postgres/client";
 
 type DatabaseConnection = {
@@ -19,6 +21,8 @@ type DatabaseConnection = {
 export type StartedPostgresTestDatabase = {
   database: DatabaseConnection;
   db: Database;
+  runtimeDatabase: DatabaseConnection;
+  runtimeDb: Database;
   postgres: StartedPostgreSqlContainer;
   stop: () => Promise<void>;
 };
@@ -35,11 +39,17 @@ export async function startPostgresTestDatabase(): Promise<StartedPostgresTestDa
   }
 
   const database = createDatabase(postgres.getConnectionUri());
+  let runtimeDatabase: DatabaseConnection | undefined;
   try {
     await migrate(database.db, {
       migrationsFolder: path.resolve(import.meta.dirname, "../../drizzle"),
     });
+    runtimeDatabase = createDatabase(postgres.getConnectionUri(), {
+      role: runtimeDatabaseRole,
+    });
+    await runtimeDatabase.db.execute(sql`select 1`);
   } catch (cause) {
+    await runtimeDatabase?.close().catch(() => undefined);
     await database.close().catch(() => undefined);
     await postgres.stop().catch(() => undefined);
     throw cause;
@@ -48,12 +58,18 @@ export async function startPostgresTestDatabase(): Promise<StartedPostgresTestDa
   return {
     database,
     db: database.db,
+    runtimeDatabase,
+    runtimeDb: runtimeDatabase.db,
     postgres,
     stop: async () => {
       try {
-        await database.close();
+        await runtimeDatabase.close();
       } finally {
-        await postgres.stop();
+        try {
+          await database.close();
+        } finally {
+          await postgres.stop();
+        }
       }
     },
   };

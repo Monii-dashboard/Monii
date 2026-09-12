@@ -1,21 +1,45 @@
-import { expect, it, vi } from "@testkit/integration";
+import { expect, expectTypeOf, it, vi } from "@testkit/integration";
 
-import { accounts, institutions } from "./schema/financial";
-import { accountPolicies } from "./schema/wealth";
+import {
+  accounts,
+  accountValuationCandidates,
+  institutions,
+} from "./schema/financial";
+import { synchronizationRuns } from "./schema/ingestion";
+import {
+  accountPolicies,
+  snapshotAccountDecisions,
+  snapshots,
+} from "./schema/wealth";
 import { afterCommit, isInTransaction, transaction } from "./transaction";
 import { modelFor } from "./model";
 
-class Account extends modelFor(accounts, ["id"] as const) {
+class Account extends modelFor(accounts) {
   static archive(id: string, archivedAt = new Date()) {
     return this.update(id, { archivedAt, updatedAt: archivedAt });
   }
 }
 
-class AccountPolicy extends modelFor(accountPolicies, ["accountId"] as const) {}
+class AccountPolicy extends modelFor(accountPolicies) {}
 
-class Institution extends modelFor(institutions, ["id"] as const) {}
+class AccountValuationCandidate extends modelFor(accountValuationCandidates) {}
 
-it("inherits create, find, findMany, update, and delete for an id model", async () => {
+class Institution extends modelFor(institutions) {}
+
+class SnapshotAccountDecision extends modelFor(snapshotAccountDecisions) {}
+
+class SynchronizationRun extends modelFor(synchronizationRuns) {}
+
+class WealthSnapshot extends modelFor(snapshots) {}
+
+it("exposes only create and update writes for a mutable no-delete model", async () => {
+  expectTypeOf(Account).toHaveProperty("create");
+  expectTypeOf(Account).toHaveProperty("update");
+  expectTypeOf(Account).not.toHaveProperty("delete");
+  expect("create" in Account).toBe(true);
+  expect("update" in Account).toBe(true);
+  expect("delete" in Account).toBe(false);
+
   const institution = await Institution.create({ name: "Northbank" });
   const account = await Account.create({
     category: "cash",
@@ -31,8 +55,9 @@ it("inherits create, find, findMany, update, and delete for an id model", async 
     institutionId: institution.id,
     name: "Everyday",
   });
-  await expect(Account.findMany({ institutionId: institution.id })).resolves
-    .toHaveLength(1);
+  await expect(
+    Account.findMany({ institutionId: institution.id }),
+  ).resolves.toHaveLength(1);
   await expect(Account.find(undefined as never)).rejects.toThrow(
     "Model primary key id is required",
   );
@@ -44,8 +69,9 @@ it("inherits create, find, findMany, update, and delete for an id model", async 
     archivedAt,
   });
 
-  await expect(Account.delete(account.id)).resolves.toBe(true);
-  await expect(Account.find(account.id)).resolves.toBeNull();
+  await expect(Account.find(account.id)).resolves.toMatchObject({
+    name: "Daily account",
+  });
 });
 
 it("uses a configured non-id primary key without redefining inherited methods", async () => {
@@ -63,23 +89,87 @@ it("uses a configured non-id primary key without redefining inherited methods", 
   await expect(
     AccountPolicy.update(account.id, { inclusionPolicy: "exclude" }),
   ).resolves.toMatchObject({ inclusionPolicy: "exclude" });
-  await expect(AccountPolicy.delete(account.id)).resolves.toBe(true);
+});
+
+it("exposes create but no mutable methods for append-only and lifecycle models", () => {
+  expectTypeOf(AccountValuationCandidate).toHaveProperty("create");
+  expectTypeOf(AccountValuationCandidate).not.toHaveProperty("update");
+  expectTypeOf(AccountValuationCandidate).not.toHaveProperty("delete");
+  expectTypeOf(SynchronizationRun).toHaveProperty("create");
+  expectTypeOf(SynchronizationRun).not.toHaveProperty("update");
+  expectTypeOf(SynchronizationRun).not.toHaveProperty("delete");
+
+  expect("create" in AccountValuationCandidate).toBe(true);
+  expect("update" in AccountValuationCandidate).toBe(false);
+  expect("delete" in AccountValuationCandidate).toBe(false);
+  expect("create" in SynchronizationRun).toBe(true);
+  expect("update" in SynchronizationRun).toBe(false);
+  expect("delete" in SynchronizationRun).toBe(false);
+});
+
+it("requires every composite primary-key field when finding one record", async () => {
+  expectTypeOf(SnapshotAccountDecision.find).parameter(0).toEqualTypeOf<{
+    accountId: string;
+    snapshotId: string;
+  }>();
+
+  const account = await Account.create({
+    category: "cash",
+    purpose: "personal",
+  });
+  const snapshot = await WealthSnapshot.create({
+    actionId: "composite-model-key",
+    causationId: "00000000-0000-0000-0000-000000000001",
+    contributingAccountCount: 0,
+    duplicateAdjustedEstimateAmount: "0",
+    headlineAmount: "0",
+    isComplete: false,
+    missingAccountCount: 1,
+    reason: "account_policy_changed",
+  });
+  await SnapshotAccountDecision.create({
+    accountCategory: "cash",
+    accountId: account.id,
+    accountManagementMode: "external",
+    accountPurpose: "personal",
+    decision: "missing_selected_valuation",
+    inclusionPolicy: "automatic",
+    selectedValuationMethod: "reported",
+    snapshotId: snapshot.id,
+  });
+
+  await expect(
+    SnapshotAccountDecision.find({
+      accountId: account.id,
+      snapshotId: snapshot.id,
+    }),
+  ).resolves.toMatchObject({ accountId: account.id, snapshotId: snapshot.id });
+  await expect(
+    SnapshotAccountDecision.findMany({ snapshotId: snapshot.id }),
+  ).resolves.toHaveLength(1);
+  await expect(
+    SnapshotAccountDecision.find({ snapshotId: "missing" } as never),
+  ).rejects.toThrow("Model primary key accountId is required");
 });
 
 it("rolls back model calls through the active async transaction", async () => {
   const committed = vi.fn();
   let accountId = "";
 
-  await expect(transaction(async () => {
-    expect(isInTransaction()).toBe(true);
-    accountId = (await Account.create({
-      category: "cash",
-      name: "Rolled back",
-      purpose: "personal",
-    })).id;
-    afterCommit(committed);
-    throw new Error("rollback");
-  })).rejects.toThrow("rollback");
+  await expect(
+    transaction(async () => {
+      expect(isInTransaction()).toBe(true);
+      accountId = (
+        await Account.create({
+          category: "cash",
+          name: "Rolled back",
+          purpose: "personal",
+        })
+      ).id;
+      afterCommit(committed);
+      throw new Error("rollback");
+    }),
+  ).rejects.toThrow("rollback");
 
   expect(isInTransaction()).toBe(false);
   expect(committed).not.toHaveBeenCalled();

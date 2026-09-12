@@ -14,8 +14,4 @@ const queries = {
   ),
 };
 
-export class WealthSnapshot extends modelFor(
-  snapshots,
-  ["id"] as const,
-  queries,
-) {}
+export class WealthSnapshot extends modelFor(snapshots, queries) {}

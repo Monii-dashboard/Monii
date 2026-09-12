@@ -27,7 +27,7 @@ aroundEach(async (runTest) => {
   const context = createIntegrationContext(postgres);
   try {
     await runWithIntegrationContext(context, () =>
-      runWithDatabase(postgres.db, runTest),
+      runWithDatabase(postgres.runtimeDb, runTest),
     );
   } finally {
     try {

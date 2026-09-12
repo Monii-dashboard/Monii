@@ -5,8 +5,16 @@ import postgres from "postgres";
 
 import * as schema from "./schema";
 
-export function createDatabase(databaseUrl: string) {
-  const client = postgres(databaseUrl);
+export const runtimeDatabaseRole = "monii_runtime";
+
+export function createDatabase(
+  databaseUrl: string,
+  options: Readonly<{ role?: string }> = {},
+) {
+  const client = postgres(
+    databaseUrl,
+    options.role ? { connection: { role: options.role } } : {},
+  );
   const db = drizzle(client, { schema });
   return { db, close: () => client.end() };
 }
@@ -24,7 +32,7 @@ export function getDatabase() {
 
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is not configured");
-  database ??= createDatabase(databaseUrl);
+  database ??= createDatabase(databaseUrl, { role: runtimeDatabaseRole });
   return database.db;
 }
 

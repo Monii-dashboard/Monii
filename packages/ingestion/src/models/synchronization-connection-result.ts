@@ -3,5 +3,4 @@ import { synchronizationConnectionResults } from "@monii/postgres/schema/ingesti
 
 export class SynchronizationConnectionResult extends modelFor(
   synchronizationConnectionResults,
-  ["id"] as const,
 ) {}

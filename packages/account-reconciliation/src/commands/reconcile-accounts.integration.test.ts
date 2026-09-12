@@ -41,7 +41,7 @@ function source(
             externalId: "shared-institution",
             reportedName: "Example Bank",
           },
-        })
+        }),
       ),
   };
 }
@@ -138,6 +138,7 @@ it("promotes a likely duplicate to a confirmed identity and publishes a canonica
 });
 
 it("reconciles independently without inventing a persisted reconciliation run", async () => {
+  const db = getIntegrationDatabase();
   await synchronize(
     {
       "connection-1": [duplicateCandidate("provider-1", "40", null)],
@@ -147,7 +148,17 @@ it("reconciles independently without inventing a persisted reconciliation run", 
   );
   const [duringSynchronization] = await AccountMatchAssessment.findMany();
   if (!duringSynchronization) throw new Error("Expected a match assessment");
-  await AccountMatchAssessment.delete(duringSynchronization.id);
+  // This PostgreSQL-specific precondition simulates accounts ingested before
+  // reconciliation existed; production writes cannot remove the audit row.
+  await db.transaction(async (transaction) => {
+    await transaction.execute(
+      sql`set local session_replication_role = replica`,
+    );
+    await transaction.execute(sql`
+      delete from reconciliation.account_match_assessments
+      where id = ${duringSynchronization.id}
+    `);
+  });
 
   await expect(
     reconcileFinancialAccounts({

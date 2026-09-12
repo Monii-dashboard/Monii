@@ -6,22 +6,27 @@ import {
   index,
   integer,
   numeric,
-  primaryKey,
   text,
   timestamp,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { accounts, accountValuationCandidates, institutions } from "./financial";
+import { defineModelTable } from "../model-table";
+import {
+  accounts,
+  accountValuationCandidates,
+  institutions,
+} from "./financial";
 import { synchronizationRuns } from "./ingestion";
 import { wealthSchema } from "./namespaces";
 
-export const accountPolicies = wealthSchema.table(
-  "account_policies",
-  {
+export const accountPolicies = defineModelTable({
+  schema: wealthSchema,
+  name: "account_policies",
+  columns: {
     accountId: uuid("account_id")
-      .primaryKey()
+      .notNull()
       .references(() => accounts.id, { onDelete: "restrict" }),
     inclusionPolicy: text("inclusion_policy").default("automatic").notNull(),
     selectedValuationMethod: text("selected_valuation_method")
@@ -34,7 +39,9 @@ export const accountPolicies = wealthSchema.table(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
+  primaryKey: ["accountId"],
+  writePolicy: "mutable-no-delete",
+  constraints: (table) => [
     check(
       "account_policies_inclusion_valid",
       sql`${table.inclusionPolicy} in ('automatic', 'include', 'exclude')`,
@@ -44,12 +51,13 @@ export const accountPolicies = wealthSchema.table(
       sql`${table.selectedValuationMethod} = 'reported'`,
     ),
   ],
-);
+});
 
-export const snapshots = wealthSchema.table(
-  "snapshots",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const snapshots = defineModelTable({
+  schema: wealthSchema,
+  name: "snapshots",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     reason: text("reason").notNull(),
     causationId: uuid("causation_id").notNull(),
     actionId: text("action_id").notNull(),
@@ -61,11 +69,17 @@ export const snapshots = wealthSchema.table(
       .default("v1")
       .notNull(),
     reportingCurrency: text("reporting_currency").default("EUR").notNull(),
-    headlineAmount: numeric("headline_amount", { precision: 24, scale: 8 }).notNull(),
-    duplicateAdjustedEstimateAmount: numeric("duplicate_adjusted_estimate_amount", {
+    headlineAmount: numeric("headline_amount", {
       precision: 24,
       scale: 8,
     }).notNull(),
+    duplicateAdjustedEstimateAmount: numeric(
+      "duplicate_adjusted_estimate_amount",
+      {
+        precision: 24,
+        scale: 8,
+      },
+    ).notNull(),
     likelyDuplicateGroupCount: integer("likely_duplicate_group_count")
       .default(0)
       .notNull(),
@@ -76,7 +90,9 @@ export const snapshots = wealthSchema.table(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "append-only",
+  constraints: (table) => [
     uniqueIndex("snapshots_causation_unique").on(table.causationId),
     uniqueIndex("snapshots_synchronization_run_unique")
       .on(table.synchronizationRunId)
@@ -99,11 +115,12 @@ export const snapshots = wealthSchema.table(
       sql`${table.contributingAccountCount} >= 0 and ${table.missingAccountCount} >= 0 and ${table.likelyDuplicateGroupCount} >= 0`,
     ),
   ],
-);
+});
 
-export const snapshotAccountDecisions = wealthSchema.table(
-  "snapshot_account_decisions",
-  {
+export const snapshotAccountDecisions = defineModelTable({
+  schema: wealthSchema,
+  name: "snapshot_account_decisions",
+  columns: {
     snapshotId: uuid("snapshot_id")
       .notNull()
       .references(() => snapshots.id, { onDelete: "restrict" }),
@@ -137,7 +154,10 @@ export const snapshotAccountDecisions = wealthSchema.table(
       withTimezone: true,
     }),
     decision: text("decision").notNull(),
-    contributedAmount: numeric("contributed_amount", { precision: 24, scale: 8 }),
+    contributedAmount: numeric("contributed_amount", {
+      precision: 24,
+      scale: 8,
+    }),
     duplicateAdjustedAmount: numeric("duplicate_adjusted_amount", {
       precision: 24,
       scale: 8,
@@ -147,8 +167,9 @@ export const snapshotAccountDecisions = wealthSchema.table(
     identityConflict: boolean("identity_conflict").default(false).notNull(),
     refreshUncertain: boolean("refresh_uncertain").default(false).notNull(),
   },
-  (table) => [
-    primaryKey({ columns: [table.snapshotId, table.accountId] }),
+  primaryKey: ["snapshotId", "accountId"],
+  writePolicy: "append-only",
+  constraints: (table) => [
     index("snapshot_account_decisions_account_idx").on(table.accountId),
     index("snapshot_account_decisions_candidate_idx").on(
       table.evaluatedValuationCandidateId,
@@ -195,4 +216,4 @@ export const snapshotAccountDecisions = wealthSchema.table(
       sql`(${table.decision} = 'included' and ${table.contributedAmount} is not null and ${table.evaluatedValuationCandidateId} is not null) or (${table.decision} <> 'included' and ${table.contributedAmount} is null)`,
     ),
   ],
-);
+});

@@ -16,6 +16,5 @@ const queries = {
 
 export class AccountIdentityClaim extends modelFor(
   accountIdentityClaims,
-  ["id"] as const,
   queries,
 ) {}

@@ -391,13 +391,42 @@ accept or pass a database client. `@monii/postgres/model` exposes only the share
 factory. The client resolver uses the active asynchronous database context when
 one exists and otherwise uses the configured process database.
 
-Each table has a small owner-package class extending the shared `modelFor` base. The base
-provides typed `create`, `find`, `findMany`, `update`, and `delete` operations,
-including support for non-`id` and composite primary keys. A concrete model does
-not repeat those methods. It may add a clearly named table-owned operation such
-as `Account.archive`, but models must remain representations of persisted rows,
-not service containers. Do not add implicit relation loading, mutable dirty
+Every Drizzle table is declared through `defineModelTable`, which constructs the
+real Drizzle table from its columns, constraints, ordered primary-key fields, and
+write policy. The primary-key tuple creates the Drizzle constraint as well as
+typing model identity, so columns must be explicitly non-null and developers do
+not also call `.primaryKey()` or repeat a composite key. PostgreSQL creates the
+corresponding unique index. Drizzle remains the sole definition of other
+indexes, checks, and foreign keys. Database integration checks compare the model
+identity and policy with migrated constraints, triggers, privileges, and table
+metadata.
+
+Each table has a small owner-package class extending `modelFor`. All models
+inherit `find`, `findMany`, and typed named queries. Their write methods are
+derived from the table policy: read-only models expose none; append-only and
+controlled-lifecycle models expose `create`; mutable-no-delete models also
+expose `update`; full CRUD must be selected explicitly before `delete` exists.
+Disallowed methods are absent from both the TypeScript API and runtime class.
+A single-field primary key gives `find` a scalar input. A composite primary key
+requires an object containing every component, while `findMany` may filter by a
+partial row. Unique indexes do not become alternate model identities.
+
+A controlled-lifecycle table can permit database updates without exposing a
+generic model update. Its state changes belong in focused commands using
+conditional SQL, with PostgreSQL enforcing valid old-to-new transitions. A
+concrete model may add a clearly named table-owned operation such as
+`Account.archive`, but models remain representations of persisted rows, not
+service containers. Do not add implicit relation loading, mutable dirty
 tracking, lifecycle hooks, or generic business workflows to the base model.
+
+PostgreSQL runs application queries under the `monii_runtime` role. Migrations
+retain the owning connection. Runtime grants are a subset of each ModelTable
+policy, while database triggers reject updates to append-only history, deletion
+from no-delete tables, truncation, and invalid lifecycle transitions even from
+the owner connection. Because the managed connection authenticates the owning
+user before assuming `monii_runtime`, these controls protect normal application
+and accidental direct writes; independently authenticated runtime credentials
+would be required for isolation from a deliberately hostile session owner.
 
 Simple equality lookups belong on the inherited model API. A reusable read that
 still concerns one table—such as the latest snapshot, current claims, or the

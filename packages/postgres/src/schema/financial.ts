@@ -9,6 +9,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import { defineModelTable } from "../model-table";
 import { financialSchema } from "./namespaces";
 
 const mutableTimestamps = {
@@ -20,17 +21,24 @@ const mutableTimestamps = {
     .notNull(),
 };
 
-export const institutions = financialSchema.table("institutions", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  name: text("name"),
-  archivedAt: timestamp("archived_at", { mode: "date", withTimezone: true }),
-  ...mutableTimestamps,
+export const institutions = defineModelTable({
+  schema: financialSchema,
+  name: "institutions",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
+    name: text("name"),
+    archivedAt: timestamp("archived_at", { mode: "date", withTimezone: true }),
+    ...mutableTimestamps,
+  },
+  primaryKey: ["id"],
+  writePolicy: "mutable-no-delete",
 });
 
-export const accounts = financialSchema.table(
-  "accounts",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const accounts = defineModelTable({
+  schema: financialSchema,
+  name: "accounts",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     institutionId: uuid("institution_id").references(() => institutions.id, {
       onDelete: "restrict",
     }),
@@ -38,10 +46,15 @@ export const accounts = financialSchema.table(
     category: text("category").notNull(),
     purpose: text("purpose").notNull(),
     managementMode: text("management_mode").default("external").notNull(),
-    archivedAt: timestamp("archived_at", { mode: "date", withTimezone: true }),
+    archivedAt: timestamp("archived_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
     ...mutableTimestamps,
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "mutable-no-delete",
+  constraints: (table) => [
     index("accounts_institution_idx").on(table.institutionId),
     check(
       "accounts_category_valid",
@@ -56,13 +69,14 @@ export const accounts = financialSchema.table(
       sql`${table.managementMode} = 'external'`,
     ),
   ],
-);
+});
 
-export const accountMerges = financialSchema.table(
-  "account_merges",
-  {
+export const accountMerges = defineModelTable({
+  schema: financialSchema,
+  name: "account_merges",
+  columns: {
     mergedAccountId: uuid("merged_account_id")
-      .primaryKey()
+      .notNull()
       .references(() => accounts.id, { onDelete: "restrict" }),
     canonicalAccountId: uuid("canonical_account_id")
       .notNull()
@@ -72,7 +86,9 @@ export const accountMerges = financialSchema.table(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
+  primaryKey: ["mergedAccountId"],
+  writePolicy: "append-only",
+  constraints: (table) => [
     index("account_merges_canonical_account_idx").on(table.canonicalAccountId),
     check(
       "account_merges_distinct_accounts",
@@ -83,12 +99,13 @@ export const accountMerges = financialSchema.table(
       sql`${table.reason} in ('confirmed_external_identity', 'operator_confirmed')`,
     ),
   ],
-);
+});
 
-export const accountValuationCandidates = financialSchema.table(
-  "account_valuation_candidates",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const accountValuationCandidates = defineModelTable({
+  schema: financialSchema,
+  name: "account_valuation_candidates",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     accountId: uuid("account_id")
       .notNull()
       .references(() => accounts.id, { onDelete: "restrict" }),
@@ -96,12 +113,17 @@ export const accountValuationCandidates = financialSchema.table(
     valuationBasis: text("valuation_basis").notNull(),
     amount: numeric("amount", { precision: 24, scale: 8 }).notNull(),
     currency: text("currency"),
-    effectiveAt: timestamp("effective_at", { mode: "date", withTimezone: true }),
+    effectiveAt: timestamp("effective_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
     recordedAt: timestamp("recorded_at", { mode: "date", withTimezone: true })
       .defaultNow()
       .notNull(),
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "append-only",
+  constraints: (table) => [
     uniqueIndex("account_valuation_candidates_id_account_unique").on(
       table.id,
       table.accountId,
@@ -130,4 +152,4 @@ export const accountValuationCandidates = financialSchema.table(
       sql`${table.currency} is null or ${table.currency} ~ '^[A-Z]{3}$'`,
     ),
   ],
-);
+});

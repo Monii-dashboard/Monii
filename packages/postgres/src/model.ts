@@ -9,10 +9,26 @@ import {
 import type { PgTable } from "drizzle-orm/pg-core";
 
 import { getDatabase } from "./client";
+import {
+  getModelTableDefinition,
+  type ModelTable,
+  type ModelTableKey,
+  type ModelTableWritePolicy,
+} from "./model-table";
+
+export {
+  defineModelTable,
+  getModelTableDefinition,
+  isModelTable,
+  type ModelTable,
+  type ModelTableDefinition,
+  type ModelTableKey,
+  type ModelTableWritePolicy,
+} from "./model-table";
 
 type Row<TTable extends PgTable> = TTable["$inferSelect"];
 type Insert<TTable extends PgTable> = TTable["$inferInsert"];
-type RowKey<TTable extends PgTable> = keyof Row<TTable> & string;
+type RowKey<TTable extends PgTable> = ModelTableKey<TTable>;
 type PrimaryKeyInput<
   TTable extends PgTable,
   TPrimaryKey extends readonly RowKey<TTable>[],
@@ -51,15 +67,13 @@ export type ModelRecord<TTable extends PgTable> = Readonly<Row<TTable>> & {
   toJSON(): Row<TTable>;
 };
 
-export type ModelClass<
+type ReadModelClass<
   TTable extends PgTable,
   TPrimaryKey extends readonly RowKey<TTable>[],
   TQueries extends ModelQueryDefinitions = Record<never, never>,
 > = {
-  new(row: Row<TTable>): ModelRecord<TTable>;
+  new (row: Row<TTable>): ModelRecord<TTable>;
   readonly table: TTable;
-  create(values: Insert<TTable>): Promise<ModelRecord<TTable>>;
-  delete(primaryKey: PrimaryKeyInput<TTable, TPrimaryKey>): Promise<boolean>;
   find(
     primaryKey: PrimaryKeyInput<TTable, TPrimaryKey>,
   ): Promise<ModelRecord<TTable> | null>;
@@ -67,11 +81,57 @@ export type ModelClass<
   query<TKey extends keyof TQueries & string>(
     name: TKey,
   ): ModelQuery<ModelQueryResult<TQueries[TKey]>>;
+};
+
+type CreateModelClass<TTable extends PgTable> = {
+  create(values: Insert<TTable>): Promise<ModelRecord<TTable>>;
+};
+
+type UpdateModelClass<
+  TTable extends PgTable,
+  TPrimaryKey extends readonly RowKey<TTable>[],
+> = {
   update(
     primaryKey: PrimaryKeyInput<TTable, TPrimaryKey>,
     values: Update<TTable, TPrimaryKey>,
   ): Promise<ModelRecord<TTable> | null>;
 };
+
+type DeleteModelClass<
+  TTable extends PgTable,
+  TPrimaryKey extends readonly RowKey<TTable>[],
+> = {
+  delete(primaryKey: PrimaryKeyInput<TTable, TPrimaryKey>): Promise<boolean>;
+};
+
+type WithCreate<
+  TTable extends PgTable,
+  TPolicy extends ModelTableWritePolicy,
+> = TPolicy extends "read-only" ? object : CreateModelClass<TTable>;
+type WithUpdate<
+  TTable extends PgTable,
+  TPrimaryKey extends readonly RowKey<TTable>[],
+  TPolicy extends ModelTableWritePolicy,
+> = TPolicy extends "full-crud" | "mutable-no-delete"
+  ? UpdateModelClass<TTable, TPrimaryKey>
+  : object;
+type WithDelete<
+  TTable extends PgTable,
+  TPrimaryKey extends readonly RowKey<TTable>[],
+  TPolicy extends ModelTableWritePolicy,
+> = TPolicy extends "full-crud"
+  ? DeleteModelClass<TTable, TPrimaryKey>
+  : object;
+
+export type ModelClass<
+  TTable extends PgTable,
+  TPrimaryKey extends readonly RowKey<TTable>[],
+  TWritePolicy extends ModelTableWritePolicy,
+  TQueries extends ModelQueryDefinitions = Record<never, never>,
+> = ReadModelClass<TTable, TPrimaryKey, TQueries> &
+  WithCreate<TTable, TWritePolicy> &
+  WithUpdate<TTable, TPrimaryKey, TWritePolicy> &
+  WithDelete<TTable, TPrimaryKey, TWritePolicy>;
 
 function conditionsFor(
   table: PgTable,
@@ -104,28 +164,31 @@ function primaryKeyValues<
     throw new Error("Composite model primary keys must be an object");
   }
   const values = primaryKey as Readonly<Record<string, unknown>>;
-  return Object.fromEntries(keys.map((key) => {
-    const value = values[key];
-    if (value === undefined || value === null) {
-      throw new Error(`Model primary key ${key} is required`);
-    }
-    return [key, value];
-  }));
+  return Object.fromEntries(
+    keys.map((key) => {
+      const value = values[key];
+      if (value === undefined || value === null) {
+        throw new Error(`Model primary key ${key} is required`);
+      }
+      return [key, value];
+    }),
+  );
 }
 
 /**
  * Creates a lightweight Active Record base class for one Drizzle table.
- * Capability-owned subclasses inherit typed CRUD and named query operations.
+ * Capability-owned subclasses inherit policy-derived writes and named queries.
  */
 export function modelFor<
   TTable extends PgTable,
   const TPrimaryKey extends readonly RowKey<TTable>[],
+  const TWritePolicy extends ModelTableWritePolicy,
   const TQueries extends ModelQueryDefinitions = Record<never, never>,
 >(
-  table: TTable,
-  primaryKey: TPrimaryKey,
+  table: ModelTable<TTable, TPrimaryKey, TWritePolicy>,
   queries = {} as TQueries,
-): ModelClass<TTable, TPrimaryKey, TQueries> {
+): ModelClass<TTable, TPrimaryKey, TWritePolicy, TQueries> {
+  const { primaryKey, writePolicy } = getModelTableDefinition(table);
   class TableModel {
     static readonly table = table;
 
@@ -136,42 +199,30 @@ export function modelFor<
       Object.assign(this, row);
     }
 
-    static async create(values: Insert<TTable>) {
-      const [row] = await getDatabase().insert(table).values(values).returning();
-      if (!row) throw new Error("Model insert did not return a row");
-      return new this(row as Row<TTable>);
-    }
-
-    static async delete(key: PrimaryKeyInput<TTable, TPrimaryKey>) {
-      const deleted = await getDatabase()
-        .delete(table)
-        .where(and(...conditionsFor(table, primaryKeyValues(key, primaryKey))))
-        .returning();
-      return deleted.length > 0;
-    }
-
     static async find(key: PrimaryKeyInput<TTable, TPrimaryKey>) {
-      const rows = await getDatabase()
+      const rows = (await getDatabase()
         .select()
         .from(table as never)
         .where(and(...conditionsFor(table, primaryKeyValues(key, primaryKey))))
-        .limit(1) as unknown as Row<TTable>[];
+        .limit(1)) as unknown as Row<TTable>[];
       const [row] = rows;
       return row ? new this(row as Row<TTable>) : null;
     }
 
     static async findMany(filters: Partial<Row<TTable>> = {}) {
-      const rows = await getDatabase()
+      const rows = (await getDatabase()
         .select()
         .from(table as never)
-        .where(and(...conditionsFor(table, filters))) as unknown as Row<TTable>[];
+        .where(
+          and(...conditionsFor(table, filters)),
+        )) as unknown as Row<TTable>[];
       return rows.map((row) => new this(row));
     }
 
     static query(name: keyof TQueries & string): ModelQuery<unknown> {
       const definition = queries[name];
       if (!definition) throw new Error(`Unknown model query ${name}`);
-      const load = async () => [...await definition.load()];
+      const load = async () => [...(await definition.load())];
       return {
         count: async () => (await load()).length,
         load,
@@ -179,22 +230,59 @@ export function modelFor<
       };
     }
 
-    static async update(
-      key: PrimaryKeyInput<TTable, TPrimaryKey>,
-      values: Update<TTable, TPrimaryKey>,
-    ) {
-      const [row] = await getDatabase()
-        .update(table)
-        .set(values as Partial<Insert<TTable>>)
-        .where(and(...conditionsFor(table, primaryKeyValues(key, primaryKey))))
-        .returning();
-      return row ? new this(row as Row<TTable>) : null;
-    }
-
     toJSON(): Row<TTable> {
       return { ...this.#row };
     }
   }
 
-  return TableModel as unknown as ModelClass<TTable, TPrimaryKey, TQueries>;
+  if (writePolicy !== "read-only") {
+    Object.defineProperty(TableModel, "create", {
+      value: async function (this: typeof TableModel, values: Insert<TTable>) {
+        const [row] = await getDatabase()
+          .insert(table)
+          .values(values)
+          .returning();
+        if (!row) throw new Error("Model insert did not return a row");
+        return new this(row as Row<TTable>);
+      },
+    });
+  }
+  if (writePolicy === "full-crud" || writePolicy === "mutable-no-delete") {
+    Object.defineProperty(TableModel, "update", {
+      value: async function (
+        this: typeof TableModel,
+        key: PrimaryKeyInput<TTable, TPrimaryKey>,
+        values: Update<TTable, TPrimaryKey>,
+      ) {
+        const [row] = await getDatabase()
+          .update(table)
+          .set(values as Partial<Insert<TTable>>)
+          .where(
+            and(...conditionsFor(table, primaryKeyValues(key, primaryKey))),
+          )
+          .returning();
+        return row ? new this(row as Row<TTable>) : null;
+      },
+    });
+  }
+  if (writePolicy === "full-crud") {
+    Object.defineProperty(TableModel, "delete", {
+      value: async function (key: PrimaryKeyInput<TTable, TPrimaryKey>) {
+        const deleted = await getDatabase()
+          .delete(table)
+          .where(
+            and(...conditionsFor(table, primaryKeyValues(key, primaryKey))),
+          )
+          .returning();
+        return deleted.length > 0;
+      },
+    });
+  }
+
+  return TableModel as unknown as ModelClass<
+    TTable,
+    TPrimaryKey,
+    TWritePolicy,
+    TQueries
+  >;
 }

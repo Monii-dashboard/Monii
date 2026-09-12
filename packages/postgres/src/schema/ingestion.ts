@@ -11,7 +11,12 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { accounts, accountValuationCandidates, institutions } from "./financial";
+import { defineModelTable } from "../model-table";
+import {
+  accounts,
+  accountValuationCandidates,
+  institutions,
+} from "./financial";
 import { ingestionSchema } from "./namespaces";
 
 const mutableTimestamps = {
@@ -23,18 +28,24 @@ const mutableTimestamps = {
     .notNull(),
 };
 
-export const sourceInstances = ingestionSchema.table(
-  "source_instances",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const sourceInstances = defineModelTable({
+  schema: ingestionSchema,
+  name: "source_instances",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     sourceKey: text("source_key").notNull(),
     adapterKey: text("adapter_key").notNull(),
     name: text("name").notNull(),
     externalSubjectId: text("external_subject_id"),
-    archivedAt: timestamp("archived_at", { mode: "date", withTimezone: true }),
+    archivedAt: timestamp("archived_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
     ...mutableTimestamps,
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "mutable-no-delete",
+  constraints: (table) => [
     uniqueIndex("source_instances_source_key_unique").on(table.sourceKey),
     uniqueIndex("source_instances_adapter_subject_unique")
       .on(table.adapterKey, table.externalSubjectId)
@@ -48,12 +59,13 @@ export const sourceInstances = ingestionSchema.table(
       sql`length(trim(${table.adapterKey})) > 0`,
     ),
   ],
-);
+});
 
-export const externalInstitutions = ingestionSchema.table(
-  "external_institutions",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const externalInstitutions = defineModelTable({
+  schema: ingestionSchema,
+  name: "external_institutions",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     sourceInstanceId: uuid("source_instance_id")
       .notNull()
       .references(() => sourceInstances.id, { onDelete: "restrict" }),
@@ -75,7 +87,9 @@ export const externalInstitutions = ingestionSchema.table(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "mutable-no-delete",
+  constraints: (table) => [
     uniqueIndex("external_institutions_source_external_unique").on(
       table.sourceInstanceId,
       table.externalId,
@@ -90,12 +104,13 @@ export const externalInstitutions = ingestionSchema.table(
       sql`length(trim(${table.externalId})) > 0`,
     ),
   ],
-);
+});
 
-export const connections = ingestionSchema.table(
-  "connections",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const connections = defineModelTable({
+  schema: ingestionSchema,
+  name: "connections",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     sourceInstanceId: uuid("source_instance_id")
       .notNull()
       .references(() => sourceInstances.id, { onDelete: "restrict" }),
@@ -103,27 +118,38 @@ export const connections = ingestionSchema.table(
       .notNull()
       .references(() => externalInstitutions.id, { onDelete: "restrict" }),
     externalId: text("external_id").notNull(),
-    archivedAt: timestamp("archived_at", { mode: "date", withTimezone: true }),
+    archivedAt: timestamp("archived_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
     ...mutableTimestamps,
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "mutable-no-delete",
+  constraints: (table) => [
     uniqueIndex("connections_source_external_unique").on(
       table.sourceInstanceId,
       table.externalId,
     ),
-    uniqueIndex("connections_id_source_unique").on(table.id, table.sourceInstanceId),
-    index("connections_external_institution_idx").on(table.externalInstitutionId),
+    uniqueIndex("connections_id_source_unique").on(
+      table.id,
+      table.sourceInstanceId,
+    ),
+    index("connections_external_institution_idx").on(
+      table.externalInstitutionId,
+    ),
     check(
       "connections_external_id_not_blank",
       sql`length(trim(${table.externalId})) > 0`,
     ),
   ],
-);
+});
 
-export const externalAccounts = ingestionSchema.table(
-  "external_accounts",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const externalAccounts = defineModelTable({
+  schema: ingestionSchema,
+  name: "external_accounts",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     accountId: uuid("account_id")
       .notNull()
       .references(() => accounts.id, { onDelete: "restrict" }),
@@ -155,7 +181,9 @@ export const externalAccounts = ingestionSchema.table(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "mutable-no-delete",
+  constraints: (table) => [
     uniqueIndex("external_accounts_source_external_unique").on(
       table.sourceInstanceId,
       table.externalId,
@@ -164,7 +192,10 @@ export const externalAccounts = ingestionSchema.table(
       table.id,
       table.sourceInstanceId,
     ),
-    uniqueIndex("external_accounts_id_account_unique").on(table.id, table.accountId),
+    uniqueIndex("external_accounts_id_account_unique").on(
+      table.id,
+      table.accountId,
+    ),
     index("external_accounts_account_idx").on(table.accountId),
     index("external_accounts_connection_idx").on(table.connectionId),
     check(
@@ -180,12 +211,13 @@ export const externalAccounts = ingestionSchema.table(
       sql`length(trim(${table.externalId})) > 0`,
     ),
   ],
-);
+});
 
-export const synchronizationRuns = ingestionSchema.table(
-  "synchronization_runs",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const synchronizationRuns = defineModelTable({
+  schema: ingestionSchema,
+  name: "synchronization_runs",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     sourceInstanceId: uuid("source_instance_id")
       .notNull()
       .references(() => sourceInstances.id, { onDelete: "restrict" }),
@@ -196,9 +228,14 @@ export const synchronizationRuns = ingestionSchema.table(
     startedAt: timestamp("started_at", { mode: "date", withTimezone: true })
       .defaultNow()
       .notNull(),
-    finishedAt: timestamp("finished_at", { mode: "date", withTimezone: true }),
+    finishedAt: timestamp("finished_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "controlled-lifecycle",
+  constraints: (table) => [
     uniqueIndex("synchronization_runs_id_source_unique").on(
       table.id,
       table.sourceInstanceId,
@@ -219,32 +256,40 @@ export const synchronizationRuns = ingestionSchema.table(
       sql`(${table.status} = 'running' and ${table.finishedAt} is null) or (${table.status} <> 'running' and ${table.finishedAt} is not null)`,
     ),
   ],
-);
+});
 
-export const synchronizationConnectionResults = ingestionSchema.table(
-  "synchronization_connection_results",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const synchronizationConnectionResults = defineModelTable({
+  schema: ingestionSchema,
+  name: "synchronization_connection_results",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     sourceInstanceId: uuid("source_instance_id").notNull(),
     synchronizationRunId: uuid("synchronization_run_id").notNull(),
     connectionId: uuid("connection_id").notNull(),
     status: text("status").notNull(),
     reportedActive: boolean("reported_active").default(true).notNull(),
     reportedState: text("reported_state"),
-    retryAfter: timestamp("retry_after", { mode: "date", withTimezone: true }),
+    retryAfter: timestamp("retry_after", {
+      mode: "date",
+      withTimezone: true,
+    }),
     sourceUpdatedAt: timestamp("source_updated_at", {
       mode: "date",
       withTimezone: true,
     }),
     errorKind: text("error_kind"),
     errorCode: text("error_code"),
-    successfulAccountCount: integer("successful_account_count").default(0).notNull(),
+    successfulAccountCount: integer("successful_account_count")
+      .default(0)
+      .notNull(),
     failedAccountCount: integer("failed_account_count").default(0).notNull(),
     finishedAt: timestamp("finished_at", { mode: "date", withTimezone: true })
       .defaultNow()
       .notNull(),
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "append-only",
+  constraints: (table) => [
     uniqueIndex("synchronization_connection_results_run_connection_unique").on(
       table.synchronizationRunId,
       table.connectionId,
@@ -277,12 +322,13 @@ export const synchronizationConnectionResults = ingestionSchema.table(
       sql`${table.successfulAccountCount} >= 0 and ${table.failedAccountCount} >= 0`,
     ),
   ],
-);
+});
 
-export const externalAccountObservations = ingestionSchema.table(
-  "external_account_observations",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const externalAccountObservations = defineModelTable({
+  schema: ingestionSchema,
+  name: "external_account_observations",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     sourceInstanceId: uuid("source_instance_id").notNull(),
     synchronizationRunId: uuid("synchronization_run_id").notNull(),
     externalAccountId: uuid("external_account_id").notNull(),
@@ -299,7 +345,9 @@ export const externalAccountObservations = ingestionSchema.table(
     reportedLifecycle: text("reported_lifecycle").notNull(),
     reportedCurrency: text("reported_currency"),
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "append-only",
+  constraints: (table) => [
     uniqueIndex("external_account_observations_run_account_unique").on(
       table.synchronizationRunId,
       table.externalAccountId,
@@ -338,19 +386,24 @@ export const externalAccountObservations = ingestionSchema.table(
       sql`${table.reportedLifecycle} in ('active', 'disabled', 'deleted', 'unknown')`,
     ),
   ],
-);
+});
 
-export const reportedAccountValuations = ingestionSchema.table(
-  "reported_account_valuations",
-  {
-    valuationCandidateId: uuid("valuation_candidate_id").primaryKey(),
-    externalAccountObservationId: uuid("external_account_observation_id").notNull(),
+export const reportedAccountValuations = defineModelTable({
+  schema: ingestionSchema,
+  name: "reported_account_valuations",
+  columns: {
+    valuationCandidateId: uuid("valuation_candidate_id").notNull(),
+    externalAccountObservationId: uuid(
+      "external_account_observation_id",
+    ).notNull(),
     accountId: uuid("account_id")
       .notNull()
       .references(() => accounts.id, { onDelete: "restrict" }),
     valuationBasis: text("valuation_basis").notNull(),
   },
-  (table) => [
+  primaryKey: ["valuationCandidateId"],
+  writePolicy: "append-only",
+  constraints: (table) => [
     uniqueIndex("reported_account_valuations_observation_basis_unique").on(
       table.externalAccountObservationId,
       table.valuationBasis,
@@ -366,12 +419,13 @@ export const reportedAccountValuations = ingestionSchema.table(
       name: "reported_valuations_observation_fk",
     }).onDelete("restrict"),
   ],
-);
+});
 
-export const synchronizationAccountResults = ingestionSchema.table(
-  "synchronization_account_results",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const synchronizationAccountResults = defineModelTable({
+  schema: ingestionSchema,
+  name: "synchronization_account_results",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     sourceInstanceId: uuid("source_instance_id").notNull(),
     synchronizationRunId: uuid("synchronization_run_id").notNull(),
     externalAccountId: uuid("external_account_id").notNull(),
@@ -383,7 +437,9 @@ export const synchronizationAccountResults = ingestionSchema.table(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "append-only",
+  constraints: (table) => [
     uniqueIndex("synchronization_account_results_run_account_unique").on(
       table.synchronizationRunId,
       table.externalAccountId,
@@ -421,12 +477,13 @@ export const synchronizationAccountResults = ingestionSchema.table(
       sql`(${table.status} = 'succeeded' and ${table.externalAccountObservationId} is not null) or (${table.status} <> 'succeeded' and ${table.externalAccountObservationId} is null)`,
     ),
   ],
-);
+});
 
-export const accountIdentityClaims = ingestionSchema.table(
-  "account_identity_claims",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const accountIdentityClaims = defineModelTable({
+  schema: ingestionSchema,
+  name: "account_identity_claims",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     externalAccountId: uuid("external_account_id").notNull(),
     claimType: text("claim_type").notNull(),
     keyVersion: text("key_version").notNull(),
@@ -436,7 +493,9 @@ export const accountIdentityClaims = ingestionSchema.table(
     lastObservedRunId: uuid("last_observed_run_id").notNull(),
     ...mutableTimestamps,
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "mutable-no-delete",
+  constraints: (table) => [
     uniqueIndex("account_identity_claims_value_unique").on(
       table.externalAccountId,
       table.claimType,
@@ -471,4 +530,4 @@ export const accountIdentityClaims = ingestionSchema.table(
       sql`${table.claimType} in ('iban', 'account_number', 'reported_name')`,
     ),
   ],
-);
+});

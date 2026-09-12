@@ -5,3 +5,7 @@ import { getIntegrationContext } from "./context";
 export function getIntegrationDatabase(): Database {
   return getIntegrationContext().postgres.db;
 }
+
+export function getIntegrationRuntimeDatabase(): Database {
+  return getIntegrationContext().postgres.runtimeDb;
+}

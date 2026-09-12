@@ -30,6 +30,5 @@ const queries = {
 
 export class SynchronizationRun extends modelFor(
   synchronizationRuns,
-  ["id"] as const,
   queries,
 ) {}

@@ -10,13 +10,15 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import { defineModelTable } from "../model-table";
 import { externalAccounts, synchronizationRuns } from "./ingestion";
 import { reconciliationSchema } from "./namespaces";
 
-export const accountMatchAssessments = reconciliationSchema.table(
-  "account_match_assessments",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const accountMatchAssessments = defineModelTable({
+  schema: reconciliationSchema,
+  name: "account_match_assessments",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     leftExternalAccountId: uuid("left_external_account_id").notNull(),
     rightExternalAccountId: uuid("right_external_account_id").notNull(),
     classification: text("classification").notNull(),
@@ -39,7 +41,9 @@ export const accountMatchAssessments = reconciliationSchema.table(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "mutable-no-delete",
+  constraints: (table) => [
     uniqueIndex("account_match_assessments_pair_unique").on(
       table.leftExternalAccountId,
       table.rightExternalAccountId,
@@ -76,4 +80,4 @@ export const accountMatchAssessments = reconciliationSchema.table(
       sql`${table.classification} in ('confirmed_duplicate', 'likely_duplicate', 'dismissed')`,
     ),
   ],
-);
+});

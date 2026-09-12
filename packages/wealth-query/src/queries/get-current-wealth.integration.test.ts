@@ -1,8 +1,14 @@
 import { synchronizeFinancialSource } from "@monii/financial-refresh";
-import type { ExternalFinancialSource } from "@monii/ingestion";
+import {
+  finalizeSynchronizationRun,
+  type ExternalFinancialSource,
+} from "@monii/ingestion";
 import { SourceInstance, SynchronizationRun } from "@monii/ingestion/models";
 import { createWealthSnapshot } from "@monii/wealth-calculation";
-import { fakeExternalAccount, fakeExternalConnection } from "@testkit/packages/ingestion";
+import {
+  fakeExternalAccount,
+  fakeExternalConnection,
+} from "@testkit/packages/ingestion";
 import { expect, it } from "@testkit/integration";
 import { getIntegrationDatabase } from "@testkit/postgres";
 import { sql } from "drizzle-orm";
@@ -11,8 +17,9 @@ import { getCurrentWealth } from "./get-current-wealth";
 
 function source(
   listAccounts: ExternalFinancialSource["listAccounts"],
-  listConnections: ExternalFinancialSource["listConnections"] =
-    async () => [fakeExternalConnection()],
+  listConnections: ExternalFinancialSource["listConnections"] = async () => [
+    fakeExternalConnection(),
+  ],
 ): ExternalFinancialSource {
   return {
     getExternalSubjectId: async () => "subject-1",
@@ -61,10 +68,7 @@ it("does not expose a snapshot for a running synchronization", async () => {
     recordedAt: null,
   });
 
-  await SynchronizationRun.update(run.id, {
-    finishedAt: new Date(),
-    status: "succeeded",
-  });
+  await finalizeSynchronizationRun(run.id, "succeeded");
   await createWealthSnapshot({
     actionId: "running",
     causationId: run.id,
@@ -125,10 +129,15 @@ it("keeps the last usable value when an account refresh fails", async () => {
   await synchronize(
     source(async () => ({
       accounts: [],
-      failures: [{
-        externalId: "test-account",
-        failure: { code: "temporary_account_error", kind: "provider_account" },
-      }],
+      failures: [
+        {
+          externalId: "test-account",
+          failure: {
+            code: "temporary_account_error",
+            kind: "provider_account",
+          },
+        },
+      ],
       isComplete: true,
       reportedTotal: 1,
     })),
@@ -139,9 +148,13 @@ it("keeps the last usable value when an account refresh fails", async () => {
     headlineAmount: "42.00000000",
     isComplete: false,
     latestSynchronizationStatus: "partial",
-    institutions: [{
-      accounts: [{ contributedAmount: "42.00000000", refreshUncertain: true }],
-    }],
+    institutions: [
+      {
+        accounts: [
+          { contributedAmount: "42.00000000", refreshUncertain: true },
+        ],
+      },
+    ],
   });
   const results = await db.execute<{ status: string }>(sql`
     select status
@@ -170,10 +183,12 @@ it("keeps account state when an entire connection refresh fails", async () => {
       async () => {
         throw new Error("Account listing must not run");
       },
-      async () => [fakeExternalConnection({
-        active: false,
-        sourceErrorCode: "provider_outage",
-      })],
+      async () => [
+        fakeExternalConnection({
+          active: false,
+          sourceErrorCode: "provider_outage",
+        }),
+      ],
     ),
     "connection-failure",
   );
@@ -182,9 +197,13 @@ it("keeps account state when an entire connection refresh fails", async () => {
     headlineAmount: "42.50000000",
     isComplete: false,
     latestSynchronizationStatus: "failed",
-    institutions: [{
-      accounts: [{ contributedAmount: "42.50000000", refreshUncertain: false }],
-    }],
+    institutions: [
+      {
+        accounts: [
+          { contributedAmount: "42.50000000", refreshUncertain: false },
+        ],
+      },
+    ],
   });
   const [counts] = await db.execute<{ observation_count: number }>(sql`
     select count(*)::int observation_count

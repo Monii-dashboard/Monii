@@ -3,5 +3,4 @@ import { reportedAccountValuations } from "@monii/postgres/schema/ingestion";
 
 export class ReportedAccountValuation extends modelFor(
   reportedAccountValuations,
-  ["valuationCandidateId"] as const,
 ) {}

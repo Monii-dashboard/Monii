@@ -292,7 +292,7 @@ not create pass-through package layers in advance.
 
 The migration history was intentionally replaced because existing databases were
 declared disposable for this refactor. The current baseline is under `drizzle/`
-and creates only the three application schemas above.
+and creates the four application schemas above.
 
 Use Specific for the real local environment:
 

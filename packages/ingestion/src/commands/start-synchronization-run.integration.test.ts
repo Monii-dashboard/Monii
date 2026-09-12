@@ -54,16 +54,27 @@ it("allows a replacement after a run is marked failed", async () => {
 it("marks a run older than two hours abandoned before replacing it", async () => {
   const db = getIntegrationDatabase();
   const reports: FinancialOperationalReport[] = [];
-  const reporter = { report: (record: FinancialOperationalReport) => reports.push(record) };
+  const reporter = {
+    report: (record: FinancialOperationalReport) => reports.push(record),
+  };
   const first = await startSynchronizationRun(run("abandoned"), reporter);
   if (first.status !== "started") throw new Error("Expected run to start");
-  await db.execute(sql`
-    update ingestion.synchronization_runs
-    set started_at = now() - interval '3 hours'
-    where id = ${first.runId}
-  `);
+  // Aging immutable start metadata is a PostgreSQL-specific test precondition.
+  await db.transaction(async (transaction) => {
+    await transaction.execute(
+      sql`set local session_replication_role = replica`,
+    );
+    await transaction.execute(sql`
+      update ingestion.synchronization_runs
+      set started_at = now() - interval '3 hours'
+      where id = ${first.runId}
+    `);
+  });
 
-  const replacement = await startSynchronizationRun(run("replacement"), reporter);
+  const replacement = await startSynchronizationRun(
+    run("replacement"),
+    reporter,
+  );
   if (replacement.status !== "started") {
     throw new Error("Expected a replacement run to start");
   }
