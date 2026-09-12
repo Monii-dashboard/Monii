@@ -5,7 +5,7 @@ import {
   accountValuationCandidates,
   institutions,
 } from "./schema/financial";
-import { synchronizationRuns } from "./schema/ingestion";
+import { sourceInstances, synchronizationRuns } from "./schema/ingestion";
 import {
   accountPolicies,
   snapshotAccountDecisions,
@@ -28,6 +28,8 @@ class Institution extends modelFor(institutions) {}
 
 class SnapshotAccountDecision extends modelFor(snapshotAccountDecisions) {}
 
+class SourceInstance extends modelFor(sourceInstances) {}
+
 class SynchronizationRun extends modelFor(synchronizationRuns) {}
 
 class WealthSnapshot extends modelFor(snapshots) {}
@@ -35,6 +37,8 @@ class WealthSnapshot extends modelFor(snapshots) {}
 it("exposes only create and update writes for a mutable no-delete model", async () => {
   expectTypeOf(Account).toHaveProperty("create");
   expectTypeOf(Account).toHaveProperty("update");
+  expectTypeOf(Account.update).parameter(1).not.toHaveProperty("createdAt");
+  expectTypeOf(Account.update).parameter(1).not.toHaveProperty("id");
   expectTypeOf(Account).not.toHaveProperty("delete");
   expect("create" in Account).toBe(true);
   expect("update" in Account).toBe(true);
@@ -64,6 +68,9 @@ it("exposes only create and update writes for a mutable no-delete model", async 
 
   const updated = await Account.update(account.id, { name: "Daily account" });
   expect(updated).toMatchObject({ name: "Daily account" });
+  await expect(
+    Account.update(account.id, { createdAt: new Date() } as never),
+  ).rejects.toThrow("Model field createdAt is immutable");
   const archivedAt = new Date("2026-09-11T08:00:00.000Z");
   await expect(Account.archive(account.id, archivedAt)).resolves.toMatchObject({
     archivedAt,
@@ -91,20 +98,50 @@ it("uses a configured non-id primary key without redefining inherited methods", 
   ).resolves.toMatchObject({ inclusionPolicy: "exclude" });
 });
 
-it("exposes create but no mutable methods for append-only and lifecycle models", () => {
+it("derives update availability directly from each table write policy", async () => {
   expectTypeOf(AccountValuationCandidate).toHaveProperty("create");
   expectTypeOf(AccountValuationCandidate).not.toHaveProperty("update");
   expectTypeOf(AccountValuationCandidate).not.toHaveProperty("delete");
   expectTypeOf(SynchronizationRun).toHaveProperty("create");
-  expectTypeOf(SynchronizationRun).not.toHaveProperty("update");
+  expectTypeOf(SynchronizationRun).toHaveProperty("update");
+  expectTypeOf(SynchronizationRun.update)
+    .parameter(1)
+    .not.toHaveProperty("sourceInstanceId");
+  expectTypeOf(SynchronizationRun.update)
+    .parameter(1)
+    .not.toHaveProperty("actionId");
+  expectTypeOf(SynchronizationRun.update)
+    .parameter(1)
+    .not.toHaveProperty("startedAt");
   expectTypeOf(SynchronizationRun).not.toHaveProperty("delete");
 
   expect("create" in AccountValuationCandidate).toBe(true);
   expect("update" in AccountValuationCandidate).toBe(false);
   expect("delete" in AccountValuationCandidate).toBe(false);
   expect("create" in SynchronizationRun).toBe(true);
-  expect("update" in SynchronizationRun).toBe(false);
+  expect("update" in SynchronizationRun).toBe(true);
   expect("delete" in SynchronizationRun).toBe(false);
+
+  const source = await SourceInstance.create({
+    adapterKey: "model-test",
+    name: "Model test source",
+    sourceKey: "model-test-source",
+  });
+  const run = await SynchronizationRun.create({
+    actionId: "model-test-run",
+    sourceInstanceId: source.id,
+  });
+  const finishedAt = new Date("2026-09-12T10:00:00.000Z");
+
+  await expect(
+    SynchronizationRun.update(run.id, {
+      finishedAt,
+      status: "succeeded",
+    }),
+  ).resolves.toMatchObject({ finishedAt, status: "succeeded" });
+  await expect(
+    SynchronizationRun.update(run.id, { actionId: "changed" } as never),
+  ).rejects.toThrow("Model field actionId is immutable");
 });
 
 it("requires every composite primary-key field when finding one record", async () => {

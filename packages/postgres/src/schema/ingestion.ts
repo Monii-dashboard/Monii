@@ -45,6 +45,7 @@ export const sourceInstances = defineModelTable({
   },
   primaryKey: ["id"],
   writePolicy: "mutable-no-delete",
+  immutableFields: ["createdAt"],
   constraints: (table) => [
     uniqueIndex("source_instances_source_key_unique").on(table.sourceKey),
     uniqueIndex("source_instances_adapter_subject_unique")
@@ -89,6 +90,7 @@ export const externalInstitutions = defineModelTable({
   },
   primaryKey: ["id"],
   writePolicy: "mutable-no-delete",
+  immutableFields: ["firstObservedAt"],
   constraints: (table) => [
     uniqueIndex("external_institutions_source_external_unique").on(
       table.sourceInstanceId,
@@ -126,6 +128,7 @@ export const connections = defineModelTable({
   },
   primaryKey: ["id"],
   writePolicy: "mutable-no-delete",
+  immutableFields: ["createdAt"],
   constraints: (table) => [
     uniqueIndex("connections_source_external_unique").on(
       table.sourceInstanceId,
@@ -183,6 +186,7 @@ export const externalAccounts = defineModelTable({
   },
   primaryKey: ["id"],
   writePolicy: "mutable-no-delete",
+  immutableFields: ["firstObservedAt"],
   constraints: (table) => [
     uniqueIndex("external_accounts_source_external_unique").on(
       table.sourceInstanceId,
@@ -234,7 +238,8 @@ export const synchronizationRuns = defineModelTable({
     }),
   },
   primaryKey: ["id"],
-  writePolicy: "controlled-lifecycle",
+  writePolicy: "mutable-no-delete",
+  immutableFields: ["sourceInstanceId", "actionId", "startedAt"],
   constraints: (table) => [
     uniqueIndex("synchronization_runs_id_source_unique").on(
       table.id,
@@ -495,6 +500,7 @@ export const accountIdentityClaims = defineModelTable({
   },
   primaryKey: ["id"],
   writePolicy: "mutable-no-delete",
+  immutableFields: ["createdAt"],
   constraints: (table) => [
     uniqueIndex("account_identity_claims_value_unique").on(
       table.externalAccountId,

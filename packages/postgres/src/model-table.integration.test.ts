@@ -10,6 +10,10 @@ import {
   type ModelTable,
   type ModelTableWritePolicy,
 } from "./model-table";
+import {
+  describeModelTablePolicy,
+  modelTablePolicyComment,
+} from "./model-table-policy";
 import * as schema from "./schema";
 import { accounts, accountValuationCandidates } from "./schema/financial";
 import { sourceInstances, synchronizationRuns } from "./schema/ingestion";
@@ -23,14 +27,17 @@ function modelTables(): ModelTable[] {
   return drizzleTables as ModelTable[];
 }
 
-function expectedTrigger(policy: ModelTableWritePolicy): string | undefined {
-  if (policy === "append-only" || policy === "read-only") {
-    return "monii_append_only_guard";
+function rejectedEvents(policy: ModelTableWritePolicy): string[] {
+  switch (policy) {
+    case "read-only":
+      return ["INSERT", "UPDATE", "DELETE", "TRUNCATE"];
+    case "append-only":
+      return ["UPDATE", "DELETE", "TRUNCATE"];
+    case "mutable-no-delete":
+      return ["DELETE", "TRUNCATE"];
+    case "full-crud":
+      return ["TRUNCATE"];
   }
-  if (policy === "controlled-lifecycle" || policy === "mutable-no-delete") {
-    return "monii_no_delete_guard";
-  }
-  return undefined;
 }
 
 it("registers every Drizzle table with its primary key and write policy", () => {
@@ -64,21 +71,55 @@ it("installs matching primary keys, guards, and runtime privileges", async () =>
   `);
   expect(identity).toMatchObject({ currentRole: "monii_runtime" });
   expect(identity?.sessionUser).not.toBe("monii_runtime");
+  const [runtimeRole] = await admin.execute<{
+    canBypassRls: boolean;
+    canCreateDatabase: boolean;
+    canCreateRole: boolean;
+    canLogin: boolean;
+    inherits: boolean;
+    isReplicationRole: boolean;
+    isSuperuser: boolean;
+  }>(sql`
+    select
+      rolbypassrls as "canBypassRls",
+      rolcreatedb as "canCreateDatabase",
+      rolcreaterole as "canCreateRole",
+      rolcanlogin as "canLogin",
+      rolinherit as inherits,
+      rolreplication as "isReplicationRole",
+      rolsuper as "isSuperuser"
+    from pg_roles
+    where rolname = 'monii_runtime'
+  `);
+  expect(runtimeRole).toEqual({
+    canBypassRls: false,
+    canCreateDatabase: false,
+    canCreateRole: false,
+    canLogin: false,
+    inherits: false,
+    isReplicationRole: false,
+    isSuperuser: false,
+  });
 
   const triggers = await admin.execute<{
+    definition: string;
     name: string;
     trigger: string;
   }>(sql`
     select
       n.nspname || '.' || c.relname as name,
-      t.tgname as trigger
+      t.tgname as trigger,
+      pg_get_triggerdef(t.oid) as definition
     from pg_trigger t
     join pg_class c on c.oid = t.tgrelid
     join pg_namespace n on n.oid = c.relnamespace
     where not t.tgisinternal
   `);
-  const triggerNames = new Set(
-    triggers.map(({ name, trigger }) => `${name}:${trigger}`),
+  const triggersByName = new Map(
+    triggers.map(({ definition, name, trigger }) => [
+      `${name}:${trigger}`,
+      definition,
+    ]),
   );
   const databasePrimaryKeys = await admin.execute<{
     columns: string[];
@@ -104,7 +145,8 @@ it("installs matching primary keys, guards, and runtime privileges", async () =>
 
   for (const table of modelTables()) {
     const drizzle = getTableConfig(table);
-    const { primaryKey, writePolicy } = getModelTableDefinition(table);
+    const { immutableFields, primaryKey, writePolicy } =
+      getModelTableDefinition(table);
     const qualifiedName = `${drizzle.schema}.${drizzle.name}`;
     const drizzleColumns = getTableColumns(table) as Record<
       string,
@@ -135,23 +177,39 @@ it("installs matching primary keys, guards, and runtime privileges", async () =>
       canSelect: true,
       canTruncate: false,
       canUpdate:
-        writePolicy === "controlled-lifecycle" ||
-        writePolicy === "full-crud" ||
-        writePolicy === "mutable-no-delete",
-      policyComment: `monii:model-table:${writePolicy}`,
+        writePolicy === "full-crud" || writePolicy === "mutable-no-delete",
+      policyComment: modelTablePolicyComment(describeModelTablePolicy(table)),
     });
 
-    const guard = expectedTrigger(writePolicy);
-    if (guard) {
-      expect(triggerNames.has(`${qualifiedName}:${guard}`), qualifiedName).toBe(
-        true,
+    const writeGuard = triggersByName.get(
+      `${qualifiedName}:monii_model_table_write_guard`,
+    );
+    expect(writeGuard, qualifiedName).toBeDefined();
+    for (const event of rejectedEvents(writePolicy)) {
+      expect(writeGuard, `${qualifiedName}:${event}`).toContain(event);
+    }
+    const updateCapable =
+      writePolicy === "full-crud" || writePolicy === "mutable-no-delete";
+    expect(
+      triggersByName.has(`${qualifiedName}:monii_model_table_immutable_guard`),
+      qualifiedName,
+    ).toBe(updateCapable);
+    if (updateCapable) {
+      const immutableColumns = immutableFields.map(
+        (field) => drizzleColumns[field]?.name,
       );
+      expect(
+        triggersByName.get(
+          `${qualifiedName}:monii_model_table_immutable_guard`,
+        ),
+        qualifiedName,
+      ).toContain(JSON.stringify(immutableColumns));
     }
   }
   expect(
-    triggerNames.has(
-      "ingestion.synchronization_runs:monii_synchronization_run_transition_guard",
-    ),
+    triggersByName
+      .get("ingestion.synchronization_runs:monii_model_table_immutable_guard")
+      ?.includes(`'["id","source_instance_id","action_id","started_at"]'`),
   ).toBe(true);
 });
 
@@ -222,7 +280,7 @@ it("allows updates but rejects deletion for mutable no-delete records", async ()
   ).rejects.toMatchObject({ cause: { code: "55000" } });
 });
 
-it("allows only running-to-terminal synchronization lifecycle transitions", async () => {
+it("allows synchronization updates but rejects immutable-field changes", async () => {
   const runtime = getDatabase();
   const [source] = await runtime
     .insert(sourceInstances)
@@ -252,7 +310,7 @@ it("allows only running-to-terminal synchronization lifecycle transitions", asyn
   await expect(
     runtime
       .update(synchronizationRuns)
-      .set({ finishedAt: new Date(), status: "failed" })
+      .set({ actionId: "changed" })
       .where(eq(synchronizationRuns.id, run.id)),
   ).rejects.toMatchObject({ cause: { code: "55000" } });
 });

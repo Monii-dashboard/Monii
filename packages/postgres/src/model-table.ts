@@ -19,15 +19,18 @@ export type ModelTableKey<TTable extends PgTable> = keyof TableRow<TTable> &
 
 export type ModelTableWritePolicy =
   | "append-only"
-  | "controlled-lifecycle"
   | "full-crud"
   | "mutable-no-delete"
   | "read-only";
 
+type UpdateCapableWritePolicy = "full-crud" | "mutable-no-delete";
+
 export type ModelTableDefinition<
   TPrimaryKey extends readonly string[],
   TWritePolicy extends ModelTableWritePolicy,
+  TImmutableFields extends readonly string[],
 > = Readonly<{
+  immutableFields: readonly (TPrimaryKey[number] | TImmutableFields[number])[];
   primaryKey: TPrimaryKey;
   writePolicy: TWritePolicy;
 }>;
@@ -38,10 +41,12 @@ export type ModelTable<
   TTable extends PgTable = PgTable,
   TPrimaryKey extends readonly string[] = readonly string[],
   TWritePolicy extends ModelTableWritePolicy = ModelTableWritePolicy,
+  TImmutableFields extends readonly string[] = readonly string[],
 > = TTable & {
   readonly [modelTableDefinition]: ModelTableDefinition<
     TPrimaryKey,
-    TWritePolicy
+    TWritePolicy,
+    TImmutableFields
   >;
 };
 
@@ -65,6 +70,16 @@ type DefinedTable<
   dialect: "pg";
 }>;
 
+type UpdateConfig<
+  TColumns extends Record<string, PgColumnBuilderBase>,
+  TWritePolicy extends ModelTableWritePolicy,
+  TImmutableFields extends readonly (keyof TColumns & string)[],
+> = TWritePolicy extends UpdateCapableWritePolicy
+  ? Readonly<{
+      immutableFields: TImmutableFields;
+    }>
+  : Readonly<{ immutableFields?: never }>;
+
 export type DefineModelTableConfig<
   TSchema extends string,
   TName extends string,
@@ -74,6 +89,7 @@ export type DefineModelTableConfig<
     ...PrimaryKeyColumn<TColumns>[],
   ],
   TWritePolicy extends ModelTableWritePolicy,
+  TImmutableFields extends readonly (keyof TColumns & string)[],
 > = Readonly<{
   schema: PgSchema<TSchema>;
   name: TName;
@@ -83,7 +99,8 @@ export type DefineModelTableConfig<
   constraints?: (
     table: BuildExtraConfigColumns<TName, TColumns, "pg">,
   ) => PgTableExtraConfigValue[];
-}>;
+}> &
+  UpdateConfig<TColumns, TWritePolicy, TImmutableFields>;
 
 function actualPrimaryKeyFields(table: PgTable): string[] {
   const tableConfig = getTableConfig(table);
@@ -147,19 +164,64 @@ export function defineModelTable<
     ...PrimaryKeyColumn<TColumns>[],
   ],
   const TWritePolicy extends ModelTableWritePolicy,
+  const TImmutableFields extends readonly (keyof TColumns & string)[],
 >(
   definition: DefineModelTableConfig<
     TSchema,
     TName,
     TColumns,
     TPrimaryKey,
-    TWritePolicy
+    TWritePolicy,
+    TImmutableFields
   >,
 ): ModelTable<
   DefinedTable<TSchema, TName, TColumns>,
   TPrimaryKey,
-  TWritePolicy
+  TWritePolicy,
+  TImmutableFields
 > {
+  const updateCapable =
+    definition.writePolicy === "full-crud" ||
+    definition.writePolicy === "mutable-no-delete";
+  if (updateCapable && !("immutableFields" in definition)) {
+    throw new Error(
+      "An update-capable ModelTable requires immutableFields, even when empty",
+    );
+  }
+  if (
+    !updateCapable &&
+    "immutableFields" in definition
+  ) {
+    throw new Error(
+      "Only an update-capable ModelTable may configure immutableFields",
+    );
+  }
+  const declaredImmutableFields = definition.immutableFields ?? [];
+  if (
+    new Set(declaredImmutableFields).size !== declaredImmutableFields.length
+  ) {
+    throw new Error("ModelTable immutable fields must be distinct");
+  }
+  const unknownImmutableField = declaredImmutableFields.find(
+    (field) => !(field in definition.columns),
+  );
+  if (unknownImmutableField) {
+    throw new Error(
+      `ModelTable immutable field ${unknownImmutableField} does not exist`,
+    );
+  }
+  const repeatedPrimaryKey = declaredImmutableFields.find((field) =>
+    (definition.primaryKey as readonly string[]).includes(field),
+  );
+  if (repeatedPrimaryKey) {
+    throw new Error(
+      `ModelTable primary key ${repeatedPrimaryKey} is already immutable`,
+    );
+  }
+  const effectiveImmutableFields = [
+    ...definition.primaryKey,
+    ...declaredImmutableFields,
+  ];
   const { columns, constraints, name, schema } = definition;
   const table = schema.table(name, columns, (configuredColumns) => [
     primaryKey({
@@ -178,6 +240,7 @@ export function defineModelTable<
     configurable: false,
     enumerable: false,
     value: Object.freeze({
+      immutableFields: Object.freeze(effectiveImmutableFields),
       primaryKey: Object.freeze([...definition.primaryKey]),
       writePolicy: definition.writePolicy,
     }),
@@ -186,7 +249,8 @@ export function defineModelTable<
   return table as ModelTable<
     DefinedTable<TSchema, TName, TColumns>,
     TPrimaryKey,
-    TWritePolicy
+    TWritePolicy,
+    TImmutableFields
   >;
 }
 
@@ -200,8 +264,9 @@ export function getModelTableDefinition<
   TTable extends PgTable,
   TPrimaryKey extends readonly string[],
   TWritePolicy extends ModelTableWritePolicy,
+  TImmutableFields extends readonly string[],
 >(
-  table: ModelTable<TTable, TPrimaryKey, TWritePolicy>,
-): ModelTableDefinition<TPrimaryKey, TWritePolicy> {
+  table: ModelTable<TTable, TPrimaryKey, TWritePolicy, TImmutableFields>,
+): ModelTableDefinition<TPrimaryKey, TWritePolicy, TImmutableFields> {
   return table[modelTableDefinition];
 }

@@ -12,6 +12,7 @@
     "apps/*/test-support/**/*.ts",
     "packages/*/test/**/*.ts",
     "packages/*/test-support/**/*.ts",
+    "packages/*/scripts/**/*.ts",
     "tests/**/*.ts",
     "vitest.config.mts"
   ],

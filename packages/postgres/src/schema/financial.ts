@@ -32,6 +32,7 @@ export const institutions = defineModelTable({
   },
   primaryKey: ["id"],
   writePolicy: "mutable-no-delete",
+  immutableFields: ["createdAt"],
 });
 
 export const accounts = defineModelTable({
@@ -54,6 +55,7 @@ export const accounts = defineModelTable({
   },
   primaryKey: ["id"],
   writePolicy: "mutable-no-delete",
+  immutableFields: ["createdAt"],
   constraints: (table) => [
     index("accounts_institution_idx").on(table.institutionId),
     check(

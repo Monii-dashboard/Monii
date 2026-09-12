@@ -38,7 +38,10 @@ type PrimaryKeyInput<
 type Update<
   TTable extends PgTable,
   TPrimaryKey extends readonly RowKey<TTable>[],
-> = Partial<Omit<Insert<TTable>, TPrimaryKey[number]>>;
+  TImmutableFields extends readonly RowKey<TTable>[],
+> = Partial<
+  Omit<Insert<TTable>, TPrimaryKey[number] | TImmutableFields[number]>
+>;
 
 export type ModelQueryDefinition<TResult> = Readonly<{
   load: () => Promise<readonly TResult[]>;
@@ -90,10 +93,11 @@ type CreateModelClass<TTable extends PgTable> = {
 type UpdateModelClass<
   TTable extends PgTable,
   TPrimaryKey extends readonly RowKey<TTable>[],
+  TImmutableFields extends readonly RowKey<TTable>[],
 > = {
   update(
     primaryKey: PrimaryKeyInput<TTable, TPrimaryKey>,
-    values: Update<TTable, TPrimaryKey>,
+    values: Update<TTable, TPrimaryKey, TImmutableFields>,
   ): Promise<ModelRecord<TTable> | null>;
 };
 
@@ -111,9 +115,10 @@ type WithCreate<
 type WithUpdate<
   TTable extends PgTable,
   TPrimaryKey extends readonly RowKey<TTable>[],
+  TImmutableFields extends readonly RowKey<TTable>[],
   TPolicy extends ModelTableWritePolicy,
 > = TPolicy extends "full-crud" | "mutable-no-delete"
-  ? UpdateModelClass<TTable, TPrimaryKey>
+  ? UpdateModelClass<TTable, TPrimaryKey, TImmutableFields>
   : object;
 type WithDelete<
   TTable extends PgTable,
@@ -127,10 +132,11 @@ export type ModelClass<
   TTable extends PgTable,
   TPrimaryKey extends readonly RowKey<TTable>[],
   TWritePolicy extends ModelTableWritePolicy,
+  TImmutableFields extends readonly RowKey<TTable>[],
   TQueries extends ModelQueryDefinitions = Record<never, never>,
 > = ReadModelClass<TTable, TPrimaryKey, TQueries> &
   WithCreate<TTable, TWritePolicy> &
-  WithUpdate<TTable, TPrimaryKey, TWritePolicy> &
+  WithUpdate<TTable, TPrimaryKey, TImmutableFields, TWritePolicy> &
   WithDelete<TTable, TPrimaryKey, TWritePolicy>;
 
 function conditionsFor(
@@ -183,12 +189,20 @@ export function modelFor<
   TTable extends PgTable,
   const TPrimaryKey extends readonly RowKey<TTable>[],
   const TWritePolicy extends ModelTableWritePolicy,
+  const TImmutableFields extends readonly RowKey<TTable>[],
   const TQueries extends ModelQueryDefinitions = Record<never, never>,
 >(
-  table: ModelTable<TTable, TPrimaryKey, TWritePolicy>,
+  table: ModelTable<TTable, TPrimaryKey, TWritePolicy, TImmutableFields>,
   queries = {} as TQueries,
-): ModelClass<TTable, TPrimaryKey, TWritePolicy, TQueries> {
-  const { primaryKey, writePolicy } = getModelTableDefinition(table);
+): ModelClass<
+  TTable,
+  TPrimaryKey,
+  TWritePolicy,
+  TImmutableFields,
+  TQueries
+> {
+  const { immutableFields, primaryKey, writePolicy } =
+    getModelTableDefinition(table);
   class TableModel {
     static readonly table = table;
 
@@ -252,8 +266,14 @@ export function modelFor<
       value: async function (
         this: typeof TableModel,
         key: PrimaryKeyInput<TTable, TPrimaryKey>,
-        values: Update<TTable, TPrimaryKey>,
+        values: Update<TTable, TPrimaryKey, TImmutableFields>,
       ) {
+        const immutableField = immutableFields.find((field) =>
+          Object.hasOwn(values, field),
+        );
+        if (immutableField) {
+          throw new Error(`Model field ${immutableField} is immutable`);
+        }
         const [row] = await getDatabase()
           .update(table)
           .set(values as Partial<Insert<TTable>>)
@@ -283,6 +303,7 @@ export function modelFor<
     TTable,
     TPrimaryKey,
     TWritePolicy,
+    TImmutableFields,
     TQueries
   >;
 }

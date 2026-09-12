@@ -941,10 +941,10 @@ hard-deleted. Application API conventions did not prevent direct SQL from
 rewriting historical financial facts.
 
 **Decision:** every Drizzle table is constructed by ModelTable from one explicit
-primary-key tuple and write policy. Models derive their runtime and TypeScript
-methods from that policy. PostgreSQL applies a restricted runtime role plus
-owner-level triggers for append-only, no-delete, truncate, and
-controlled-lifecycle enforcement.
+primary-key tuple, write policy, and immutable-field declaration. Models omit
+immutable fields from typed updates. A deterministic Drizzle custom-migration
+generator applies a restricted runtime role plus owner-level triggers for
+append-only, no-delete, truncate, and immutable-field enforcement.
 
 **Acceptance criteria:**
 
@@ -952,31 +952,35 @@ controlled-lifecycle enforcement.
       Drizzle primary-key constraint from the same tuple used by model identity.
 - [x] Single-column `find` inputs remain scalar and composite primary keys
       require an object containing every key component.
-- [x] Read-only, append-only, controlled-lifecycle, mutable-no-delete, and
-      explicitly selected full-CRUD policies produce the intended typed and
-      runtime model methods.
+- [x] Read-only, append-only, mutable-no-delete, and explicitly selected
+      full-CRUD policies produce the intended typed and runtime model methods.
+- [x] Immutable and primary-key fields are absent from typed update inputs and
+      rejected by both model runtime checks and PostgreSQL triggers.
 - [x] Migrated table comments, triggers, and `monii_runtime` privileges match
       every ModelTable policy.
+- [x] Repository checks reject ModelTable policy changes that do not have a
+      matching generated custom migration.
+- [x] PostgreSQL upgrade tests prove that moving between write policies and
+      expanding immutable fields replaces grants and triggers correctly.
 - [x] PostgreSQL tests prove allowed writes and reject append-only mutation,
-      deletion, truncation, and invalid synchronization-run transitions through
-      both runtime and owning connections where applicable.
+      deletion, truncation, and immutable-field changes through both runtime and
+      owning connections where applicable.
 - [x] Integration commands execute with the restricted runtime role while
       PostgreSQL-specific setup and inspection retain an isolated owning test
       connection.
 
 **Fixed (2026-09-12):** `defineModelTable` now constructs each real Drizzle table
 and its primary-key constraint from the identity tuple, while binding its write
-policy. `modelFor` consumes that contract without repeated primary-key arguments
-and installs only permitted operations. A custom migration
-creates runtime grants, self-describing table comments, mutation guards, and the
-synchronization transition guard. Unit tests cover policy-derived model shapes
-and schema-key validation; PostgreSQL integration tests cover complete table
-registration, grants, triggers, direct mutation rejection, lifecycle changes,
-and composite-key lookup. Verification commands are recorded with the completed
-change: `pnpm typecheck`, `pnpm lint`, `pnpm test:unit` (122 tests),
-`pnpm test:repository` (49 tests), `pnpm test:integration` (51 tests in 24
-files), `pnpm build`, a clean Specific `pnpm db:push`, and direct `specific
-psql` inspection of all ModelTable primary keys, policies, grants, and triggers.
+policy, immutable fields, and model-update exposure. `modelFor` consumes that
+contract without repeated primary-key arguments and installs only permitted
+operations. `pnpm db:generate` composes Drizzle schema generation with a
+deterministic custom policy migration generator. Generated SQL hardens the runtime role,
+revokes old privileges before granting the exact policy, fingerprints each
+table, and installs write and immutable-field guards. Unit tests cover every
+policy SQL shape, policy-derived model APIs, immutable update inputs, and
+schema-key validation; repository checks own migration drift; PostgreSQL
+integration tests exercise every policy through runtime and owning connections
+and inspect the complete catalog state.
 
 ## Recommended implementation order
 

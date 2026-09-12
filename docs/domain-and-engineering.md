@@ -392,10 +392,11 @@ factory. The client resolver uses the active asynchronous database context when
 one exists and otherwise uses the configured process database.
 
 Every Drizzle table is declared through `defineModelTable`, which constructs the
-real Drizzle table from its columns, constraints, ordered primary-key fields, and
-write policy. The primary-key tuple creates the Drizzle constraint as well as
-typing model identity, so columns must be explicitly non-null and developers do
-not also call `.primaryKey()` or repeat a composite key. PostgreSQL creates the
+real Drizzle table from its columns, constraints, ordered primary-key fields,
+write policy, and immutable fields. The primary-key tuple creates the Drizzle
+constraint as well as typing model identity, so columns must be explicitly
+non-null and developers do not also call `.primaryKey()` or repeat a composite
+key. Primary keys are automatically immutable. PostgreSQL creates the
 corresponding unique index. Drizzle remains the sole definition of other
 indexes, checks, and foreign keys. Database integration checks compare the model
 identity and policy with migrated constraints, triggers, privileges, and table
@@ -403,30 +404,52 @@ metadata.
 
 Each table has a small owner-package class extending `modelFor`. All models
 inherit `find`, `findMany`, and typed named queries. Their write methods are
-derived from the table policy: read-only models expose none; append-only and
-controlled-lifecycle models expose `create`; mutable-no-delete models also
-expose `update`; full CRUD must be selected explicitly before `delete` exists.
-Disallowed methods are absent from both the TypeScript API and runtime class.
+derived from the table policy: read-only models expose none; append-only models
+expose `create`; mutable-no-delete models also expose `update`; full CRUD must
+be selected explicitly before `delete` exists. Disallowed methods are absent
+from both the TypeScript API and runtime class.
 A single-field primary key gives `find` a scalar input. A composite primary key
 requires an object containing every component, while `findMany` may filter by a
 partial row. Unique indexes do not become alternate model identities.
 
-A controlled-lifecycle table can permit database updates without exposing a
-generic model update. Its state changes belong in focused commands using
-conditional SQL, with PostgreSQL enforcing valid old-to-new transitions. A
+Every update-capable ModelTable explicitly declares `immutableFields`. Those
+fields and the primary key are omitted from the typed model update input,
+rejected by the runtime model implementation, and protected against direct SQL
+by a generated PostgreSQL OLD-versus-NEW trigger. The implementation rejects an
+immutable input instead of silently ignoring it. State transitions and other
+domain-specific mutations belong in focused commands using conditional SQL and
+ordinary Drizzle checks. Generic model updates do not implement a state
+machine; application commands remain responsible for transition semantics. A
 concrete model may add a clearly named table-owned operation such as
 `Account.archive`, but models remain representations of persisted rows, not
 service containers. Do not add implicit relation loading, mutable dirty
 tracking, lifecycle hooks, or generic business workflows to the base model.
 
 PostgreSQL runs application queries under the `monii_runtime` role. Migrations
-retain the owning connection. Runtime grants are a subset of each ModelTable
-policy, while database triggers reject updates to append-only history, deletion
-from no-delete tables, truncation, and invalid lifecycle transitions even from
-the owner connection. Because the managed connection authenticates the owning
-user before assuming `monii_runtime`, these controls protect normal application
-and accidental direct writes; independently authenticated runtime credentials
-would be required for isolation from a deliberately hostile session owner.
+retain the owning connection. `pnpm db:generate` runs Drizzle's structural
+generator and then emits a Drizzle custom migration whenever the normalized
+ModelTable policy hash changes. That migration removes prior runtime grants
+before applying the exact least-privilege set, hardens the runtime role, records
+a policy fingerprint on every table, and installs statement-level write guards
+plus immutable-field guards. Repository checks reject a changed ModelTable
+policy without its generated migration. Integration tests compare declarations
+with PostgreSQL primary keys, role attributes, grants, comments, and triggers.
+Each generated policy migration describes the complete current state: it first
+revokes the runtime role's table privileges and drops managed guards, then
+recreates the exact grants and triggers. Moving between policies or adding and
+removing immutable fields is therefore an ordinary forward migration rather
+than a manual cleanup step.
+
+These table-wide permissions intentionally use PostgreSQL grants and triggers,
+not row-level security. RLS belongs to rules where visibility or mutation
+differs by row. The triggers reject append-only mutation, deletion, truncation,
+and immutable-field changes even through the owner connection. Because
+the managed connection authenticates the owning user before assuming
+`monii_runtime`, the role separation protects normal application and accidental
+direct writes; independently authenticated runtime credentials are still
+required for isolation from a deliberately hostile session owner. A superuser
+or owner deliberately altering or disabling guards remains an administrative
+trust boundary.
 
 Simple equality lookups belong on the inherited model API. A reusable read that
 still concerns one table—such as the latest snapshot, current claims, or the

@@ -1,9 +1,15 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Linter } from "eslint";
 import { afterEach, expect, test } from "vitest";
+import {
+  createModelTablePolicySnapshot,
+  modelTablePolicyHash,
+  renderModelTablePolicyMigration,
+} from "../../packages/postgres/src/model-table-policy.ts";
+import * as postgresSchema from "../../packages/postgres/src/schema/index.ts";
 import { discoverWorkspace, validateWorkspace, workspaceLintConfig } from "../../tooling/workspace-policy.mjs";
 
 const roots = [];
@@ -37,6 +43,41 @@ function lint(root, code, filename = "packages/accounts/src/example.js") {
 
 test("accepts the current repository workspace graph", () => {
   validateWorkspace(discoverWorkspace(fileURLToPath(new URL("../../", import.meta.url))));
+});
+
+test("keeps generated database policies synchronized with ModelTables", () => {
+  const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
+  const generatedPolicies = readdirSync(path.join(repositoryRoot, "drizzle"))
+    .filter((name) => /^\d+_.+\.sql$/.test(name))
+    .sort()
+    .reverse()
+    .map((name) => {
+      const sql = readFileSync(path.join(repositoryRoot, "drizzle", name), "utf8");
+      return {
+        hash: sql.match(/^-- monii-model-table-policy-sha256:([a-f0-9]{64})$/m)?.[1],
+        sql,
+      };
+    })
+    .filter(({ hash }) => hash !== undefined);
+  const snapshot = createModelTablePolicySnapshot(postgresSchema);
+
+  expect(generatedPolicies[0]?.hash).toBe(modelTablePolicyHash(snapshot));
+  expect(generatedPolicies[0]?.sql).toBe(renderModelTablePolicyMigration(snapshot));
+});
+
+test("keeps every Drizzle journal entry mapped to exactly one migration file", () => {
+  const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
+  const migrationsDirectory = path.join(repositoryRoot, "drizzle");
+  const journal = JSON.parse(
+    readFileSync(path.join(migrationsDirectory, "meta/_journal.json"), "utf8"),
+  );
+  const migrationFiles = readdirSync(migrationsDirectory).filter((name) =>
+    /^\d+_.+\.sql$/.test(name),
+  );
+
+  expect(migrationFiles.sort()).toEqual(
+    journal.entries.map(({ tag }) => `${tag}.sql`).sort(),
+  );
 });
 
 test("keeps concrete models behind capability-scoped exports", () => {

@@ -3,9 +3,10 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
+import { runtimeRoleName } from "./model-table-policy";
 import * as schema from "./schema";
 
-export const runtimeDatabaseRole = "monii_runtime";
+export const runtimeDatabaseRole = runtimeRoleName;
 
 export function createDatabase(
   databaseUrl: string,

@@ -41,6 +41,7 @@ export const accountPolicies = defineModelTable({
   },
   primaryKey: ["accountId"],
   writePolicy: "mutable-no-delete",
+  immutableFields: ["createdAt"],
   constraints: (table) => [
     check(
       "account_policies_inclusion_valid",
