@@ -4,17 +4,22 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./models": "./src/models/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@monii/accounts": "workspace:*",
+    "@monii/account-reconciliation": "workspace:*",
+    "@monii/ingestion": "workspace:*",
     "@monii/postgres": "workspace:*",
+    "@monii/runtime": "workspace:*",
     "drizzle-orm": "0.45.2"
   },
   "devDependencies": {
+    "@types/node": "^20",
     "typescript": "^5"
   },
   "monii": {

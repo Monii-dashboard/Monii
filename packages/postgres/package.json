@@ -5,8 +5,11 @@
   "type": "module",
   "exports": {
     "./client": "./src/client.ts",
-    "./models": "./src/models/index.ts",
-    "./schema": "./src/schema/index.ts",
+    "./model": "./src/model.ts",
+    "./schema/financial": "./src/schema/financial.ts",
+    "./schema/ingestion": "./src/schema/ingestion.ts",
+    "./schema/reconciliation": "./src/schema/reconciliation.ts",
+    "./schema/wealth": "./src/schema/wealth.ts",
     "./transaction": "./src/transaction.ts"
   },
   "scripts": {

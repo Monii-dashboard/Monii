@@ -2,7 +2,7 @@ import {
   Account,
   AccountValuationCandidate,
   Institution,
-} from "@monii/postgres/models";
+} from "@monii/accounts/models";
 
 type NewAccount = Parameters<typeof Account.create>[0];
 type NewInstitution = Parameters<typeof Institution.create>[0];

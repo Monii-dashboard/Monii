@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { SynchronizationResult } from "@monii/ingestion";
 import { getOperationContext } from "@monii/runtime/context";
-import { synchronizeSourceInstance } from "@monii/ingestion";
+import { synchronizeFinancialSource } from "@monii/financial-refresh";
 import { closeDatabase } from "@monii/postgres/client";
 import { readPowensConfig } from "@monii/powens";
 import { run } from "@oclif/core";
@@ -9,7 +9,9 @@ import { run } from "@oclif/core";
 import Sync from "./commands/sync";
 import { runCli } from "./cli";
 
-vi.mock("@monii/ingestion", () => ({ synchronizeSourceInstance: vi.fn() }));
+vi.mock("@monii/financial-refresh", () => ({
+  synchronizeFinancialSource: vi.fn(),
+}));
 vi.mock("@monii/postgres/client", () => ({ closeDatabase: vi.fn() }));
 vi.mock("@monii/powens", () => ({
   readPowensConfig: vi.fn(() => ({})),
@@ -59,14 +61,14 @@ function outcome(status: SynchronizationResult["status"]): SynchronizationResult
 test.each([
   ["succeeded", 0], ["skipped_already_running", 0], ["partial", 1], ["failed", 1],
 ] as const)("maps %s synchronization to exit code %i", async (status, exit) => {
-  vi.mocked(synchronizeSourceInstance).mockResolvedValueOnce(outcome(status));
+  vi.mocked(synchronizeFinancialSource).mockResolvedValueOnce(outcome(status));
 
   expect(await runCli(["--", "sync"])).toBe(exit);
   expect(close).toHaveBeenCalledOnce();
 });
 
 test("preserves operation context and redacts provider fields from structured reports", async () => {
-  vi.mocked(synchronizeSourceInstance).mockImplementationOnce(async ({ actionId, reporter }) => {
+  vi.mocked(synchronizeFinancialSource).mockImplementationOnce(async ({ actionId, reporter }) => {
     expect(actionId).toBe(getOperationContext().action_id);
     reporter?.report({
       event: "ingestion.connection.failed",
@@ -99,7 +101,7 @@ test.each([
   { error: new Error("secret provider payload"), kind: "Error object" },
   { error: "secret provider payload", kind: "string" },
 ])("safely reports a thrown $kind in the original context", async ({ error }) => {
-  vi.mocked(synchronizeSourceInstance).mockRejectedValueOnce(error);
+  vi.mocked(synchronizeFinancialSource).mockRejectedValueOnce(error);
   expect(await runCli(["sync"])).toBe(1);
   expect(close).toHaveBeenCalledOnce();
   expect(records.at(-1)).toMatchObject({
@@ -116,7 +118,7 @@ test("closes the database when source configuration fails", async () => {
   vi.mocked(readPowensConfig).mockImplementationOnce(fail);
   expect(await runCli(["sync"])).toBe(1);
   expect(close).toHaveBeenCalledOnce();
-  expect(synchronizeSourceInstance).not.toHaveBeenCalled();
+  expect(synchronizeFinancialSource).not.toHaveBeenCalled();
   expect(records.at(-1)).toMatchObject({ event: "ingestion.command.crashed", action_id: records[0].action_id });
 });
 
@@ -124,8 +126,8 @@ test.each([
   { failed: false, outcome: "successful synchronization" },
   { failed: true, outcome: "failed synchronization" },
 ])("awaits cleanup after $outcome", async ({ failed }) => {
-  if (failed) vi.mocked(synchronizeSourceInstance).mockRejectedValueOnce(new Error("sync failed"));
-  else vi.mocked(synchronizeSourceInstance).mockResolvedValueOnce(outcome("succeeded"));
+  if (failed) vi.mocked(synchronizeFinancialSource).mockRejectedValueOnce(new Error("sync failed"));
+  else vi.mocked(synchronizeFinancialSource).mockResolvedValueOnce(outcome("succeeded"));
   let release!: () => void;
   const cleanup = new Promise<void>((resolve) => { release = resolve; });
   close.mockReturnValueOnce(cleanup);
@@ -138,7 +140,7 @@ test.each([
 });
 
 test("reports cleanup failure in the same operation", async () => {
-  vi.mocked(synchronizeSourceInstance).mockResolvedValueOnce(outcome("succeeded"));
+  vi.mocked(synchronizeFinancialSource).mockResolvedValueOnce(outcome("succeeded"));
   close.mockRejectedValueOnce(new Error("secret database details"));
   expect(await runCli(["sync"])).toBe(1);
   expect(records.at(-1)).toMatchObject({ event: "ingestion.command.crashed", action_id: records[0].action_id });

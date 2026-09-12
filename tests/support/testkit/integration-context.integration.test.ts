@@ -1,5 +1,5 @@
 import { getDatabase } from "@monii/postgres/client";
-import { Institution } from "@monii/postgres/models";
+import { Institution } from "@monii/accounts/models";
 import { beforeEach, expect, it } from "@testkit/integration";
 import { getIntegrationDatabase } from "@testkit/postgres";
 

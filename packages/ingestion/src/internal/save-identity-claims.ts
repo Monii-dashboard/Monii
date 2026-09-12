@@ -1,6 +1,6 @@
-import type { AccountIdentityEvidence } from "../account-identity";
+import type { AccountIdentityEvidence } from "@monii/accounts";
 import { getDatabase } from "@monii/postgres/client";
-import { accountIdentityClaims } from "@monii/postgres/schema";
+import { accountIdentityClaims } from "@monii/postgres/schema/ingestion";
 import { and, eq, ne } from "drizzle-orm";
 
 export async function saveIdentityClaims(

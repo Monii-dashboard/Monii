@@ -1,10 +1,11 @@
 import {
   Account,
-  AccountPolicy,
+} from "@monii/accounts/models";
+import {
   ExternalAccount,
   ExternalAccountObservation,
   SynchronizationAccountResult,
-} from "@monii/postgres/models";
+} from "../models";
 
 import type { NormalizedExternalAccount } from "../external-financial-source";
 import type { FinancialOperationalReport } from "../reporting";
@@ -34,7 +35,6 @@ export async function saveSuccessfulAccount(
       name: account.reportedName,
       purpose: account.purpose,
     });
-    await AccountPolicy.create({ accountId: canonicalAccount.id });
     externalAccount = await ExternalAccount.create({
       accountId: canonicalAccount.id,
       connectionId: context.connectionId,

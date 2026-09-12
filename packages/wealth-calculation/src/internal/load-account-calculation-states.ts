@@ -8,22 +8,22 @@ import {
 } from "@monii/accounts";
 import { getDatabase } from "@monii/postgres/client";
 import {
-  AccountMatchAssessment,
   AccountMerge,
-  ExternalAccount,
-} from "@monii/postgres/models";
+} from "@monii/accounts/models";
+import { AccountMatchAssessment } from "@monii/account-reconciliation/models";
+import { ExternalAccount } from "@monii/ingestion/models";
 import {
   accounts,
   accountValuationCandidates,
   institutions,
-} from "@monii/postgres/schema";
+} from "@monii/postgres/schema/financial";
 import {
   synchronizationAccountResults,
   synchronizationRuns,
-} from "@monii/postgres/schema";
+} from "@monii/postgres/schema/ingestion";
 import {
   accountPolicies,
-} from "@monii/postgres/schema";
+} from "@monii/postgres/schema/wealth";
 import { desc, eq, sql } from "drizzle-orm";
 
 import type { AccountInclusionPolicy } from "../account-policy";
@@ -58,9 +58,21 @@ export async function loadAccountCalculationStates(): Promise<
     .leftJoin(accountPolicies, eq(accounts.id, accountPolicies.accountId));
   const merges = await AccountMerge.findMany();
   const groupedIds = new Map<string, string[]>();
+  const inclusionPolicyByRoot = new Map<string, AccountInclusionPolicy>();
   for (const row of accountRows) {
     const root = resolveCanonicalAccountId(row.account.id, merges);
     groupedIds.set(root, [...(groupedIds.get(root) ?? []), row.account.id]);
+    const policy = (row.policy?.inclusionPolicy ??
+      "automatic") as AccountInclusionPolicy;
+    const previous = inclusionPolicyByRoot.get(root) ?? "automatic";
+    inclusionPolicyByRoot.set(
+      root,
+      policy === "exclude" || previous === "exclude"
+        ? "exclude"
+        : policy === "include" || previous === "include"
+          ? "include"
+          : "automatic",
+    );
   }
   const externalRows = await ExternalAccount.findMany();
   const rankedValuations = db
@@ -197,8 +209,7 @@ export async function loadAccountCalculationStates(): Promise<
       estimatedValue,
       externalLifecycle: lifecycle as ExternalAccountLifecycle,
       identityConflict: conflictAccounts.has(root),
-      inclusionPolicy: (row.policy?.inclusionPolicy ??
-        "automatic") as AccountInclusionPolicy,
+      inclusionPolicy: inclusionPolicyByRoot.get(root) ?? "automatic",
       institutionId: row.account.institutionId,
       institutionName: row.institutionName,
       latestDataRecordedAt,

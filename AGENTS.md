@@ -45,9 +45,12 @@ costly or hard to reverse.
 - Reuse types when meaning and invariants match. Separate them only for real
   validation, serialization, ownership, lifecycle, or domain differences.
 - Prefer explicit local code, small public APIs, and composition.
-- For PostgreSQL persistence, use the inherited table models from
-  `@monii/postgres/models` for CRUD and named, type-safe, single-table queries.
-  Register reusable single-table reads beside their model and call them through
+- For PostgreSQL persistence, define concrete table models in the capability
+  that owns the table and expose them only through that package's scoped
+  `./models` export, such as `@monii/accounts/models`. Extend the shared
+  `modelFor` infrastructure from `@monii/postgres/model`; PostgreSQL owns the
+  mechanism and schemas, not a global catalogue of domain models. Register
+  reusable single-table reads beside their owner model and call them through
   `Model.query("query_name").load()`, `.loadOne()`, or `.count()`; the literal
   name determines the result type. Keep genuinely feature-specific SQL, joins,
   and cross-table projections in the owning capability's internal query logic,

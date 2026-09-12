@@ -1,7 +1,7 @@
 import {
   ExternalAccount,
   SynchronizationAccountResult,
-} from "@monii/postgres/models";
+} from "../models";
 
 import type { SynchronizationFailure } from "../external-financial-source";
 

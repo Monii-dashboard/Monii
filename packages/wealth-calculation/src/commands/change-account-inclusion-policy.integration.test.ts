@@ -1,7 +1,5 @@
-import {
-  synchronizeSourceInstance,
-  type ExternalFinancialSource,
-} from "@monii/ingestion";
+import { synchronizeFinancialSource } from "@monii/financial-refresh";
+import type { ExternalFinancialSource } from "@monii/ingestion";
 import { getCurrentWealth } from "@monii/wealth-query";
 import { fakeExternalAccount, fakeExternalConnection } from "@testkit/packages/ingestion";
 import { expect, it } from "@testkit/integration";
@@ -21,7 +19,7 @@ async function arrangeIncludedAccount(amount: string): Promise<string> {
     }),
     listConnections: async () => [fakeExternalConnection()],
   };
-  await synchronizeSourceInstance({
+  await synchronizeFinancialSource({
     actionId: "included-account",
     adapterKey: "test",
     source,

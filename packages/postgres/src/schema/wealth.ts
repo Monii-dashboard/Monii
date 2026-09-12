@@ -84,11 +84,11 @@ export const snapshots = wealthSchema.table(
     index("snapshots_recorded_idx").on(table.recordedAt),
     check(
       "snapshots_reason_valid",
-      sql`${table.reason} in ('synchronization', 'account_policy_changed')`,
+      sql`${table.reason} in ('synchronization', 'account_policy_changed', 'account_reconciliation')`,
     ),
     check(
       "snapshots_reason_shape_valid",
-      sql`(${table.reason} = 'synchronization' and ${table.synchronizationRunId} is not null) or (${table.reason} = 'account_policy_changed' and ${table.synchronizationRunId} is null)`,
+      sql`(${table.reason} = 'synchronization' and ${table.synchronizationRunId} is not null) or (${table.reason} in ('account_policy_changed', 'account_reconciliation') and ${table.synchronizationRunId} is null)`,
     ),
     check(
       "snapshots_reporting_currency_valid",

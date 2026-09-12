@@ -31,19 +31,26 @@ Monii is organized as a small, source-first pnpm workspace:
 - `packages/runtime` owns Node-backed operation context, logging, and future
   process-wide observability capabilities used across backend code.
 - `packages/accounts` owns canonical account, institution, merge-alias, and
-  valuation-candidate language. It is portable.
-- `packages/ingestion` owns provider-neutral source inputs, conservative
-  external-account identity policy, and public and internal synchronization
-  commands. Pure policy remains isolated from its Node persistence composition.
+  valuation-candidate language, Models, and account commands. Its pure domain
+  modules stay infrastructure-free even though its scoped Models make the
+  package Node-capable.
+- `packages/ingestion` owns provider-neutral source inputs, external references,
+  observations, synchronization Models, and focused synchronization commands.
+- `packages/account-reconciliation` owns identity assessment policy, durable
+  match assessments, and the independent account-reconciliation command. It
+  may be invoked after ingestion or by another operator/workflow at any time.
+- `packages/financial-refresh` owns the cross-capability workflow that performs
+  external synchronization, reconciliation, and wealth snapshot publication.
+  It interprets reconciliation outcomes; reconciliation has no persisted run ID.
 - `packages/wealth-calculation` owns inclusion and valuation-selection policy,
   exact aggregate calculation, immutable decision output, and wealth commands.
 - `packages/wealth-query` owns the current-wealth query and presentation
   projection. It remains independent from worker orchestration.
 - `packages/powens` owns Powens transport, configuration, DTOs, and normalization.
-- `packages/postgres` owns Drizzle schemas, row models, database context,
-  transaction mechanics, and reusable single-table queries registered by name
-  on their owning model. Capability packages own their purpose-specific
-  commands and multi-table queries.
+- `packages/postgres` owns Drizzle schemas, the shared Model factory, database
+  context, and transaction mechanics. Capability packages own and scope-export
+  their concrete Models, named single-table queries, commands, and multi-table
+  query logic.
 - `packages/graphql` owns the GraphQL transport and resolver composition.
 - Unit and integration tests live beside their owning package or app behavior,
   either in `src` or a focused `test` directory. Root `tests` currently owns
@@ -291,7 +298,8 @@ Synchronization isolates failures by source, connection, and identifiable
 account item. A failure must preserve prior valid data, expose useful failure
 state, and allow unaffected data to remain readable. A complete listing may
 mark a known account as not seen; a truncated listing may not infer absence.
-Run finalization, identity reconciliation, and snapshot creation are atomic,
+The financial-refresh workflow makes run finalization, identity reconciliation,
+and snapshot creation atomic,
 and overlapping runs for the same source are rejected. Retries and error categorization
 should be introduced in proportion to observed needs rather than designed
 speculatively.
@@ -324,7 +332,8 @@ time-bounded integration facility rather than a shadow domain model.
 
 V1 retains immutable normalized account observations and valuation candidates
 rather than overwriting the only known value. It records a wealth snapshot after
-each synchronization and account-policy change. Each decision freezes the
+each synchronization, account-policy change, and independent reconciliation that
+changes identity state. Each decision freezes the
 account and institution labels, classification, selected candidate metadata,
 contribution, exclusion reason, duplicate role, and uncertainty known then.
 Reads therefore need no join to mutable account or ingestion tables. Backdated
@@ -376,12 +385,13 @@ accounting before they are needed.
 ### PostgreSQL models and transactions
 
 Monii has one PostgreSQL database. Persistence-aware Node code accesses it
-through lightweight table models in `@monii/postgres/models`; normal callers do
-not accept or pass a database client. The client resolver uses the active
-asynchronous database context when one exists and otherwise uses the configured
-process database.
+through lightweight table models owned by each capability and exposed from
+scoped entry points such as `@monii/accounts/models`; normal callers do not
+accept or pass a database client. `@monii/postgres/model` exposes only the shared
+factory. The client resolver uses the active asynchronous database context when
+one exists and otherwise uses the configured process database.
 
-Each table has a small class extending the shared `modelFor` base. The base
+Each table has a small owner-package class extending the shared `modelFor` base. The base
 provides typed `create`, `find`, `findMany`, `update`, and `delete` operations,
 including support for non-`id` and composite primary keys. A concrete model does
 not repeat those methods. It may add a clearly named table-owned operation such

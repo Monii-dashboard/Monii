@@ -1,9 +1,9 @@
 import {
-  SnapshotAccountDecision,
   SynchronizationRun,
-  WealthSnapshot,
-} from "@monii/postgres/models";
+} from "@monii/ingestion/models";
 import { afterCommit, transaction } from "@monii/postgres/transaction";
+
+import { SnapshotAccountDecision, WealthSnapshot } from "../models";
 
 import { calculateWealthSnapshot } from "../calculate-wealth-snapshot";
 import type { WealthReporter } from "../reporting";

@@ -354,6 +354,7 @@ and [Playwright Test introduction](https://playwright.dev/docs/test-intro).
 | TST-015 | P2 | Open | Align testing documentation, scripts, globs, and directory claims with reality. | TST-002, TST-003 |
 | TST-016 | P0 | Fixed | Establish a modular integration testkit with an implicit isolated database and owner-local support. | TST-001, TST-003, TST-008 |
 | TST-017 | P0 | Fixed | Replace single-implementation repositories and contracts with inherited models, named queries, and operation-owned integration tests. | TST-008, TST-016 |
+| TST-018 | P0 | Fixed | Enforce capability-owned Models and separate ingestion, reconciliation, and financial-refresh boundaries. | TST-017 |
 
 ### TST-001 — Testcontainers-only PostgreSQL isolation
 
@@ -861,10 +862,10 @@ the current contracts for duplicate model, query, and operation tests.
 - [x] The complete unit, integration, repository, type, and lint checks pass
       after the migration.
 
-**Fixed (2026-09-12):** PostgreSQL now owns only schema, inherited row Models,
-client lifecycle, and async-scoped transaction mechanics. Ingestion and wealth
-packages own focused public commands, private commands, custom query logic, and
-pure domain policy. No production or test repository interface, factory,
+**Fixed (2026-09-12):** PostgreSQL now owns schema, the inherited Model factory,
+client lifecycle, and async-scoped transaction mechanics. Capability packages
+own concrete Models, focused public commands, private commands, custom query
+logic, and pure domain policy. No production or test repository interface, factory,
 implementation, contract, or binding remains. The CLI and GraphQL surfaces call
 commands and queries directly without database injection. Repository-contract
 claims were moved once to operation-owned PostgreSQL integration tests, the
@@ -876,6 +877,58 @@ instead of starting two redundant containers. Verified with `pnpm typecheck`,
 `pnpm lint`, `pnpm test:unit` (120 tests), `pnpm test:repository` (47 tests), and
 `pnpm test:integration` (42 tests in 20 files). The aggregate `pnpm test` also
 passes all 209 tests in 35 files with the integration Testcontainers enabled.
+
+### TST-018 — Capability-owned Models and financial workflow boundaries
+
+**Problem:** concrete domain Models were exposed from one global PostgreSQL
+catalogue, while ingestion also owned identity assessment, account merging,
+wealth snapshot publication, and the top-level refresh workflow. That made a
+provider-data capability the accidental home of independent business behavior
+and encouraged unrelated dependencies to converge in one command tree.
+
+**Decision:** PostgreSQL exposes only schemas, database/transaction context, and
+the shared Model factory. Each capability defines and scope-exports its own
+concrete Models. Account reconciliation is independently callable and persists
+only durable assessments and account aliases, not a synthetic reconciliation
+run. Financial refresh owns the composition of ingestion, reconciliation, and
+snapshot publication.
+
+**Acceptance criteria:**
+
+- [x] Concrete Models live in their owning capability and are available only
+      from an explicit `./models` package export.
+- [x] PostgreSQL no longer exposes a global concrete-Model catalogue.
+- [x] Ingestion commands record source facts and synchronization state without
+      importing reconciliation or wealth-calculation.
+- [x] Account reconciliation has its own package, schema, pure policy, Model,
+      and public command with optional synchronization provenance.
+- [x] Financial refresh owns atomic synchronization completion and can trigger
+      reconciliation independently, publishing a snapshot only when it changes
+      identity state.
+- [x] Account merging is an accounts-owned command and reconciliation does not
+      read or mutate wealth policy tables.
+- [x] Integration tests are split beside synchronization, reconciliation,
+      Model-query, and cross-capability workflow ownership without duplicating
+      lower-level claims.
+- [x] Repository checks enforce the scoped Model factory/export boundary.
+- [x] Migrations, typechecking, lint, unit, repository, and integration tests
+      pass.
+
+**Fixed (2026-09-12):** concrete Models now live behind the scoped `./models`
+exports of accounts, ingestion, account-reconciliation, and wealth-calculation.
+PostgreSQL exports only the generic Model factory and schema, client, and
+transaction infrastructure. Identity policy and durable match state moved out
+of ingestion into account-reconciliation; account merging moved behind an
+accounts command; and financial-refresh now owns synchronization composition
+plus the independent reconciliation-and-snapshot workflow. The migration moves
+match assessments into a reconciliation schema and makes synchronization
+provenance optional without adding a reconciliation-run table. Focused
+integration files now own inherited account merging, named-query, workflow
+atomicity, identity transition, independent reconciliation, and
+ingestion-observation claims. Verified with
+`pnpm typecheck`, `pnpm lint`, `pnpm test:unit` (120 tests),
+`pnpm test:repository` (49 tests), and `pnpm test:integration` (44 tests in 23
+files) against isolated PostgreSQL Testcontainers.
 
 ## Recommended implementation order
 
@@ -889,9 +942,10 @@ Fix the foundation before moving files in bulk:
 5. TST-016: provide the modular integration foundation for app-level tests.
 6. TST-017: use Models, commands, and queries without duplicate persistence
    contracts.
-7. TST-005 and TST-006: add real browser component and E2E coverage.
-8. TST-009 and TST-010: deepen provider and GraphQL boundaries.
-9. TST-011 through TST-015: make omissions visible, reduce support-code debt,
+7. TST-018: keep concrete Models and workflows inside capability boundaries.
+8. TST-005 and TST-006: add real browser component and E2E coverage.
+9. TST-009 and TST-010: deepen provider and GraphQL boundaries.
+10. TST-011 through TST-015: make omissions visible, reduce support-code debt,
    and align CI and documentation.
 
 The order is deliberately incremental. Each issue should leave the suite

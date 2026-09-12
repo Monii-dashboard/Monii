@@ -1,11 +1,10 @@
 import { randomUUID } from "node:crypto";
 
-import { getDatabase } from "@monii/postgres/client";
-import { accountPolicies, accounts } from "@monii/postgres/schema";
+import { Account } from "@monii/accounts/models";
 import { afterCommit, transaction } from "@monii/postgres/transaction";
-import { and, eq, sql } from "drizzle-orm";
 
 import type { AccountInclusionPolicy } from "../account-policy";
+import { AccountPolicy } from "../models";
 import type { WealthOperationalReport, WealthReporter } from "../reporting";
 import { createWealthSnapshot } from "./create-wealth-snapshot";
 
@@ -20,17 +19,8 @@ export async function changeAccountInclusionPolicy(
   reporter?: WealthReporter,
 ): Promise<boolean> {
   return transaction(async () => {
-    const updated = await getDatabase()
-      .update(accountPolicies)
-      .set({ inclusionPolicy: input.inclusionPolicy, updatedAt: new Date() })
-      .where(
-        and(
-          eq(accountPolicies.accountId, input.accountId),
-          sql`exists (select 1 from ${accounts} where ${accounts.id} = ${input.accountId} and ${accounts.archivedAt} is null)`,
-        ),
-      )
-      .returning({ accountId: accountPolicies.accountId });
-    if (!updated.length) {
+    const account = await Account.find(input.accountId);
+    if (!account || account.archivedAt) {
       const report: WealthOperationalReport = {
         event: "wealth.account_policy.rejected",
         fields: {
@@ -43,6 +33,19 @@ export async function changeAccountInclusionPolicy(
       };
       afterCommit(() => reporter?.report(report));
       return false;
+    }
+
+    const policy = await AccountPolicy.find(input.accountId);
+    if (policy) {
+      await AccountPolicy.update(input.accountId, {
+        inclusionPolicy: input.inclusionPolicy,
+        updatedAt: new Date(),
+      });
+    } else {
+      await AccountPolicy.create({
+        accountId: input.accountId,
+        inclusionPolicy: input.inclusionPolicy,
+      });
     }
 
     const snapshotId = await createWealthSnapshot(

@@ -1,1 +1,4 @@
-export type WealthSnapshotReason = "account_policy_changed" | "synchronization";
+export type WealthSnapshotReason =
+  | "account_policy_changed"
+  | "account_reconciliation"
+  | "synchronization";

@@ -1,11 +1,11 @@
 import { getCurrentWealth } from "@monii/wealth-query";
+import { synchronizeFinancialSource } from "@monii/financial-refresh";
 import { fakeExternalAccount, fakeExternalConnection } from "@testkit/packages/ingestion";
 import { expect, it } from "@testkit/integration";
 import { getIntegrationDatabase } from "@testkit/postgres";
 import { sql } from "drizzle-orm";
 
 import type { ExternalFinancialSource } from "../external-financial-source";
-import { synchronizeSourceInstance } from "./synchronize-source-instance";
 
 const observedAt = new Date("2026-08-31T10:00:00Z");
 
@@ -14,7 +14,7 @@ it("records not-seen only after a complete listing while retaining the last valu
   const synchronize = (
     listAccounts: ExternalFinancialSource["listAccounts"],
     actionId: string,
-  ) => synchronizeSourceInstance({
+  ) => synchronizeFinancialSource({
     actionId,
     adapterKey: "test",
     source: {

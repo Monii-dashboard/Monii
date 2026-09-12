@@ -23,3 +23,9 @@ export type {
 } from "./account-valuation";
 export type { AccountCreated, AccountsMerged, FinancialDomainEvent } from "./events";
 export type { CanonicalInstitution } from "./institution";
+export type { AccountIdentityEvidence } from "./account-identity";
+export {
+  mergeAccounts,
+  type MergeAccountsInput,
+  type MergeAccountsOutcome,
+} from "./commands/merge-accounts";

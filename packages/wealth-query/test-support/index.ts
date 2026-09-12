@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import {
   SnapshotAccountDecision,
   WealthSnapshot,
-} from "@monii/postgres/models";
+} from "@monii/wealth-calculation/models";
 
 type NewSnapshot = Parameters<typeof WealthSnapshot.create>[0];
 type NewSnapshotAccountDecision = Parameters<

@@ -1,4 +1,4 @@
-import { SynchronizationRun } from "@monii/postgres/models";
+import { SynchronizationRun } from "../models";
 
 export async function sourceInstanceIdForRun(runId: string): Promise<string> {
   const run = await SynchronizationRun.find(runId);

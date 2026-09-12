@@ -1,9 +1,9 @@
 import type { AccountCategory } from "@monii/accounts";
+import { SynchronizationRun } from "@monii/ingestion/models";
 import {
   SnapshotAccountDecision,
-  SynchronizationRun,
   WealthSnapshot,
-} from "@monii/postgres/models";
+} from "@monii/wealth-calculation/models";
 
 import type {
   CurrentWealthState,

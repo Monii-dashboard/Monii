@@ -1,7 +1,6 @@
-import {
-  AccountValuationCandidate,
-  ReportedAccountValuation,
-} from "@monii/postgres/models";
+import { AccountValuationCandidate } from "@monii/accounts/models";
+
+import { ReportedAccountValuation } from "../models";
 
 export async function saveReportedValuation(input: Readonly<{
   accountId: string;

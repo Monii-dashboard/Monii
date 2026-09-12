@@ -1,4 +1,4 @@
-import { synchronizeSourceInstance } from "@monii/ingestion";
+import { synchronizeFinancialSource } from "@monii/financial-refresh";
 import type { FinancialOperationalReport } from "@monii/ingestion";
 import { getOperationContext } from "@monii/runtime/context";
 import { log } from "@monii/runtime/log";
@@ -28,7 +28,7 @@ export async function sync() {
       },
     };
 
-    return await synchronizeSourceInstance({
+    return await synchronizeFinancialSource({
       actionId: getOperationContext().action_id,
       adapterKey: "powens",
       reporter,

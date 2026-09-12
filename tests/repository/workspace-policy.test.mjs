@@ -13,7 +13,11 @@ function add(root, name, platform = "portable", dependencies = {}, group = "pack
   mkdirSync(directory, { recursive: true });
   writeFileSync(path.join(directory, "package.json"), JSON.stringify({
     name: `@monii/${name}`, monii: { platform }, dependencies,
-    exports: { ".": "./src/index.ts", "./public": "./src/public.ts" },
+    exports: {
+      ".": "./src/index.ts",
+      "./model": "./src/model.ts",
+      "./public": "./src/public.ts",
+    },
   }));
 }
 function workspace() {
@@ -33,6 +37,25 @@ function lint(root, code, filename = "packages/accounts/src/example.js") {
 
 test("accepts the current repository workspace graph", () => {
   validateWorkspace(discoverWorkspace(fileURLToPath(new URL("../../", import.meta.url))));
+});
+
+test("keeps concrete models behind capability-scoped exports", () => {
+  const packages = discoverWorkspace(fileURLToPath(new URL("../../", import.meta.url)));
+  const byName = new Map(packages.map((pkg) => [pkg.name, pkg]));
+  expect(byName.get("@monii/postgres").exports).toMatchObject({
+    "./model": "./src/model.ts",
+  });
+  expect(byName.get("@monii/postgres").exports).not.toHaveProperty("./models");
+  for (const name of [
+    "@monii/accounts",
+    "@monii/account-reconciliation",
+    "@monii/ingestion",
+    "@monii/wealth-calculation",
+  ]) {
+    expect(byName.get(name).exports).toMatchObject({
+      "./models": "./src/models/index.ts",
+    });
+  }
 });
 
 test("allows local code and compatible declared dependencies", () => {
@@ -180,6 +203,21 @@ test.each(["dependencies", "devDependencies", "peerDependencies", "optionalDepen
 test("rejects an undeclared workspace import", () => {
   const root = workspace();
   expect(lint(root, 'import "@monii/runtime/public";', "packages/postgres/src/index.js")).toHaveLength(1);
+});
+
+test("allows the shared model factory only in capability model definitions", () => {
+  const root = workspace();
+  add(root, "ledger", "node", { "@monii/postgres": "workspace:*" });
+  expect(lint(
+    root,
+    'import { modelFor } from "@monii/postgres/model";',
+    "packages/ledger/src/models/entry.js",
+  )).toEqual([]);
+  expect(lint(
+    root,
+    'import { modelFor } from "@monii/postgres/model";',
+    "packages/ledger/src/commands/create-entry.js",
+  )).toHaveLength(1);
 });
 
 test("rejects a dependency on an unknown workspace package", () => {

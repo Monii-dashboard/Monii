@@ -1,18 +1,18 @@
 import { getCurrentWealth } from "@monii/wealth-query";
+import { synchronizeFinancialSource } from "@monii/financial-refresh";
 import { fakeExternalAccount, fakeExternalConnection } from "@testkit/packages/ingestion";
 import { expect, it } from "@testkit/integration";
 import { getIntegrationDatabase } from "@testkit/postgres";
 import { sql } from "drizzle-orm";
 
 import type { ExternalFinancialSource } from "../external-financial-source";
-import { synchronizeSourceInstance } from "./synchronize-source-instance";
 
 const observedAt = new Date("2026-08-31T10:00:00Z");
 
 it("excludes newly disabled and deleted accounts while retaining their observations", async () => {
   const db = getIntegrationDatabase();
   const synchronize = (accounts: Awaited<ReturnType<ExternalFinancialSource["listAccounts"]>>["accounts"], actionId: string) =>
-    synchronizeSourceInstance({
+    synchronizeFinancialSource({
       actionId,
       adapterKey: "test",
       source: {

@@ -1,11 +1,6 @@
-import {
-  synchronizeSourceInstance,
-  type ExternalFinancialSource,
-} from "@monii/ingestion";
-import {
-  SourceInstance,
-  SynchronizationRun,
-} from "@monii/postgres/models";
+import { synchronizeFinancialSource } from "@monii/financial-refresh";
+import type { ExternalFinancialSource } from "@monii/ingestion";
+import { SourceInstance, SynchronizationRun } from "@monii/ingestion/models";
 import { createWealthSnapshot } from "@monii/wealth-calculation";
 import { fakeExternalAccount, fakeExternalConnection } from "@testkit/packages/ingestion";
 import { expect, it } from "@testkit/integration";
@@ -30,7 +25,7 @@ async function synchronize(
   financialSource: ExternalFinancialSource,
   prefix: string,
 ) {
-  await synchronizeSourceInstance({
+  await synchronizeFinancialSource({
     actionId: prefix,
     adapterKey: "test",
     source: financialSource,

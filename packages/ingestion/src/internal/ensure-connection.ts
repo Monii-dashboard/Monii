@@ -1,9 +1,9 @@
+import { Institution } from "@monii/accounts/models";
 import {
   Connection,
   ExternalInstitution,
   SynchronizationRun,
-} from "@monii/postgres/models";
-import { Institution } from "@monii/postgres/models";
+} from "../models";
 
 import type { NormalizedExternalConnection } from "../external-financial-source";
 
