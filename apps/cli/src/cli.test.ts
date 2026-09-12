@@ -2,8 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { SynchronizationResult } from "@monii/ingestion";
 import { getOperationContext } from "@monii/runtime/context";
 import { synchronizeSourceInstance } from "@monii/ingestion";
-import { createDatabase } from "@monii/postgres/client";
-import { createPostgresSynchronizationRepository } from "@monii/postgres/ingestion";
+import { closeDatabase } from "@monii/postgres/client";
 import { readPowensConfig } from "@monii/powens";
 import { run } from "@oclif/core";
 
@@ -11,34 +10,30 @@ import Sync from "./commands/sync";
 import { runCli } from "./cli";
 
 vi.mock("@monii/ingestion", () => ({ synchronizeSourceInstance: vi.fn() }));
-vi.mock("@monii/postgres/client", () => ({ createDatabase: vi.fn() }));
+vi.mock("@monii/postgres/client", () => ({ closeDatabase: vi.fn() }));
 vi.mock("@monii/powens", () => ({
   readPowensConfig: vi.fn(() => ({})),
   createPowensClient: vi.fn(() => ({})),
   createPowensFinancialSource: vi.fn(() => ({})),
-}));
-vi.mock("@monii/postgres/ingestion", () => ({
-  createPostgresSynchronizationRepository: vi.fn(() => ({})),
 }));
 vi.mock("@oclif/core", async (importOriginal) => ({
   ...await importOriginal<typeof import("@oclif/core")>(),
   run: vi.fn(),
 }));
 
-const close = vi.fn(async () => {});
+const close = vi.mocked(closeDatabase);
 let records: Record<string, unknown>[];
 let errors: ReturnType<typeof vi.spyOn>;
 const originalExitCode = process.exitCode;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  close.mockResolvedValue(undefined);
   records = [];
-  vi.stubEnv("DATABASE_URL", "postgres://fixture");
   vi.spyOn(console, "log").mockImplementation((value: string) => {
     records.push(JSON.parse(value));
   });
   errors = vi.spyOn(console, "error").mockImplementation(() => {});
-  vi.mocked(createDatabase).mockReturnValue({ db: {} as ReturnType<typeof createDatabase>["db"], close });
   // Use the real command lifecycle and parser with mocked financial boundaries.
   // Subprocess tests independently exercise native command discovery.
   vi.mocked(run).mockImplementation(async (args) => {
@@ -116,10 +111,9 @@ test.each([
   expect(errors).not.toHaveBeenCalled();
 });
 
-test.each(["config", "repository"])("closes the database when %s initialization fails", async (boundary) => {
+test("closes the database when source configuration fails", async () => {
   const fail = () => { throw new Error("secret setup details"); };
-  if (boundary === "config") vi.mocked(readPowensConfig).mockImplementationOnce(fail);
-  else vi.mocked(createPostgresSynchronizationRepository).mockImplementationOnce(fail);
+  vi.mocked(readPowensConfig).mockImplementationOnce(fail);
   expect(await runCli(["sync"])).toBe(1);
   expect(close).toHaveBeenCalledOnce();
   expect(synchronizeSourceInstance).not.toHaveBeenCalled();
@@ -150,28 +144,9 @@ test("reports cleanup failure in the same operation", async () => {
   expect(records.at(-1)).toMatchObject({ event: "ingestion.command.crashed", action_id: records[0].action_id });
 });
 
-test("missing database configuration fails before initialization", async () => {
-  vi.stubEnv("DATABASE_URL", "");
-  expect(await runCli(["sync"])).toBe(1);
-  expect(createDatabase).not.toHaveBeenCalled();
-  expect(close).not.toHaveBeenCalled();
-  expect(records[0]).toMatchObject({ event: "ingestion.command.crashed", surface: "cli" });
-});
-
-test("reports a database initialization failure without attempting cleanup", async () => {
-  vi.mocked(createDatabase).mockImplementationOnce(() => {
-    throw new Error("secret database details");
-  });
-  expect(await runCli(["sync"])).toBe(1);
-  expect(close).not.toHaveBeenCalled();
-  expect(synchronizeSourceInstance).not.toHaveBeenCalled();
-  expect(records[0]).toMatchObject({ event: "ingestion.command.crashed", surface: "cli" });
-  expect(JSON.stringify(records)).not.toContain("secret database details");
-});
-
 test("invalid arguments never initialize financial dependencies", async () => {
   expect(await runCli(["sync", "--unknown"])).not.toBe(0);
-  expect(createDatabase).not.toHaveBeenCalled();
+  expect(close).not.toHaveBeenCalled();
   expect(readPowensConfig).not.toHaveBeenCalled();
   expect(records).toEqual([]);
   expect(errors).toHaveBeenCalled();

@@ -24,6 +24,29 @@ type Update<
   TPrimaryKey extends readonly RowKey<TTable>[],
 > = Partial<Omit<Insert<TTable>, TPrimaryKey[number]>>;
 
+export type ModelQueryDefinition<TResult> = Readonly<{
+  load: () => Promise<readonly TResult[]>;
+}>;
+
+type ModelQueryDefinitions = Readonly<
+  Record<string, ModelQueryDefinition<unknown>>
+>;
+
+type ModelQueryResult<TDefinition> =
+  TDefinition extends ModelQueryDefinition<infer TResult> ? TResult : never;
+
+export type ModelQuery<TResult> = Readonly<{
+  count: () => Promise<number>;
+  load: () => Promise<TResult[]>;
+  loadOne: () => Promise<TResult | null>;
+}>;
+
+export function defineModelQuery<TResult>(
+  load: () => Promise<readonly TResult[]>,
+): ModelQueryDefinition<TResult> {
+  return { load };
+}
+
 export type ModelRecord<TTable extends PgTable> = Readonly<Row<TTable>> & {
   toJSON(): Row<TTable>;
 };
@@ -31,6 +54,7 @@ export type ModelRecord<TTable extends PgTable> = Readonly<Row<TTable>> & {
 export type ModelClass<
   TTable extends PgTable,
   TPrimaryKey extends readonly RowKey<TTable>[],
+  TQueries extends ModelQueryDefinitions = Record<never, never>,
 > = {
   new(row: Row<TTable>): ModelRecord<TTable>;
   readonly table: TTable;
@@ -40,6 +64,9 @@ export type ModelClass<
     primaryKey: PrimaryKeyInput<TTable, TPrimaryKey>,
   ): Promise<ModelRecord<TTable> | null>;
   findMany(filters?: Partial<Row<TTable>>): Promise<ModelRecord<TTable>[]>;
+  query<TKey extends keyof TQueries & string>(
+    name: TKey,
+  ): ModelQuery<ModelQueryResult<TQueries[TKey]>>;
   update(
     primaryKey: PrimaryKeyInput<TTable, TPrimaryKey>,
     values: Update<TTable, TPrimaryKey>,
@@ -93,7 +120,12 @@ function primaryKeyValues<
 export function modelFor<
   TTable extends PgTable,
   const TPrimaryKey extends readonly RowKey<TTable>[],
->(table: TTable, primaryKey: TPrimaryKey): ModelClass<TTable, TPrimaryKey> {
+  const TQueries extends ModelQueryDefinitions = Record<never, never>,
+>(
+  table: TTable,
+  primaryKey: TPrimaryKey,
+  queries = {} as TQueries,
+): ModelClass<TTable, TPrimaryKey, TQueries> {
   class TableModel {
     static readonly table = table;
 
@@ -136,6 +168,17 @@ export function modelFor<
       return rows.map((row) => new this(row));
     }
 
+    static query(name: keyof TQueries & string): ModelQuery<unknown> {
+      const definition = queries[name];
+      if (!definition) throw new Error(`Unknown model query ${name}`);
+      const load = async () => [...await definition.load()];
+      return {
+        count: async () => (await load()).length,
+        load,
+        loadOne: async () => (await load())[0] ?? null,
+      };
+    }
+
     static async update(
       key: PrimaryKeyInput<TTable, TPrimaryKey>,
       values: Update<TTable, TPrimaryKey>,
@@ -153,5 +196,5 @@ export function modelFor<
     }
   }
 
-  return TableModel as unknown as ModelClass<TTable, TPrimaryKey>;
+  return TableModel as unknown as ModelClass<TTable, TPrimaryKey, TQueries>;
 }

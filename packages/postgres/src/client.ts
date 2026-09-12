@@ -28,6 +28,12 @@ export function getDatabase() {
   return database.db;
 }
 
+export async function closeDatabase(): Promise<void> {
+  const configuredDatabase = database;
+  database = undefined;
+  await configuredDatabase?.close();
+}
+
 export type Database = ReturnType<typeof createDatabase>["db"];
 export type DatabaseTransaction = Parameters<
   Parameters<Database["transaction"]>[0]

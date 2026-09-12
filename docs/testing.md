@@ -122,7 +122,6 @@ packages/
   accounts/src/**/*.integration.test.ts
   accounts/test-support/             narrow account state helpers
   ingestion/src/**/*.test.ts
-  ingestion/test/*.contract.ts       transitional repository coverage only
   ingestion/test-support/            small source-input fakes with overrides
   wealth-calculation/src/**/*.test.ts
   wealth-query/src/**/*.test.ts
@@ -169,7 +168,7 @@ Examples:
 | Weak claim | Accurate replacement or required proof |
 | --- | --- |
 | `functionally disables the link` | For static markup: `renders a pending link as aria-disabled and removes it from the tab order`. Add a browser interaction test before claiming navigation is prevented. |
-| `serves persisted current wealth` with a fake repository | `serializes the current-wealth projection returned by the repository`, or use the real PostgreSQL adapter. |
+| `serves persisted current wealth` with a stubbed response | `serializes the supplied current-wealth projection`, or use the real PostgreSQL command/query path. |
 | `prevents overlapping synchronization runs` with sequential calls | Run two starts concurrently and assert that only one obtains the lease. |
 | `explains every excluded account` | Enumerate every supported exclusion reason or narrow the name to the cases in the table. |
 
@@ -207,27 +206,29 @@ or evidence those APIs cannot express, such as aging a lease, forcing a
 constraint failure, or inspecting atomic rollback. Keep that SQL local and do
 not let table layout become the domain contract.
 
-Mocks and stubs remain useful for pure orchestration and unavailable external
-systems. They should be local, minimal, and limited to the interaction under
-test. A mock returning a repository-shaped value does not prove persistence.
+Mocks and stubs remain useful for unavailable external systems and narrow
+transport behavior. They should be local, minimal, and limited to the
+interaction under test. A mocked persistence function does not prove durable
+behavior; use the real command/query path with PostgreSQL instead.
 
 ### Persistence behavior without contract duplication
 
 Monii has one PostgreSQL implementation. A repository interface plus a reusable
 contract plus a PostgreSQL binding therefore adds three places to understand a
 single behavior without currently protecting implementation interchangeability.
-New persistence work should instead use table models for CRUD, named query
-modules for custom SQL, and explicit application operations for multi-table
-workflows. Test the observable behavior once beside the model, query, or
-operation that owns it, using the real isolated PostgreSQL database.
+New persistence work should instead use table models for CRUD and typed named
+single-table queries, capability-owned query logic for joins or genuinely
+feature-specific projections, and explicit application operations for
+multi-table workflows. A model registers each reusable query under a literal
+name; `Model.query("query_name").load()`, `.loadOne()`, and `.count()` preserve
+that query's inferred result type. Test the observable behavior once beside the
+model, query, or operation that owns it, using the real isolated PostgreSQL
+database.
 
-The existing repository contracts remain temporary regression coverage while
-the repositories are migrated. They must not be deleted merely because the new
-model base exists. For each migrated operation, move its relevant behavioral
-claim into an owner-local integration test, keep PostgreSQL-specific locking,
-rollback, migration, and constraint cases beside the responsible code, then
-remove the superseded contract example and binding. The end state has neither a
-second copy of the claim nor a reusable harness for only one implementation.
+Persistence behavior now lives in one owner-local integration test beside its
+model, query, or command. PostgreSQL-specific locking, rollback, migration, and
+constraint cases stay beside the responsible code. There is no reusable harness
+or second copy of a claim for the sole database implementation.
 
 If Monii later gains a genuine second implementation of the same interface, a
 shared contract can again be appropriate. That decision should be based on the
@@ -243,9 +244,9 @@ applies the committed migrations; afterward, it disposes lazy test resources
 and the database in `finally` cleanup.
 
 The active database is propagated through asynchronous context. Production
-models, named queries, and transitional repository factories use that active
-database while retaining their normal configured-database fallback outside
-tests. Tests therefore do not receive or thread a `postgres` fixture parameter.
+models, queries, and commands use that active database while retaining their
+normal configured-database fallback outside tests. Tests therefore do not
+receive or thread a `postgres` fixture parameter.
 `@testkit/postgres` exposes the active database only when direct storage setup
 or inspection is genuinely required.
 
@@ -271,8 +272,8 @@ do not hide a use case behind a broad `buildWealthScenario`-style method.
 
 `@testkit/*` and owner `test-support` modules are test-only architecture. Lint
 permits them only from integration files or other isolated test-support
-modules. Production files, unit tests, and portable contract suites cannot
-import them. Package manifests must not export `test-support`, and manifests
+modules. Production files and unit tests cannot import them. Package manifests
+must not export `test-support`, and manifests
 must not acquire testkit dependencies: the virtual aliases avoid production
 workspace edges and cycles.
 
@@ -352,7 +353,7 @@ and [Playwright Test introduction](https://playwright.dev/docs/test-intro).
 | TST-014 | P2 | Fixed | Eliminate noisy expected-error output and nondeterministic global state. | TST-003 |
 | TST-015 | P2 | Open | Align testing documentation, scripts, globs, and directory claims with reality. | TST-002, TST-003 |
 | TST-016 | P0 | Fixed | Establish a modular integration testkit with an implicit isolated database and owner-local support. | TST-001, TST-003, TST-008 |
-| TST-017 | P0 | In progress | Replace single-implementation repositories and contracts with inherited models, named queries, and operation-owned integration tests. | TST-008, TST-016 |
+| TST-017 | P0 | Fixed | Replace single-implementation repositories and contracts with inherited models, named queries, and operation-owned integration tests. | TST-008, TST-016 |
 
 ### TST-001 — Testcontainers-only PostgreSQL isolation
 
@@ -617,10 +618,10 @@ Verified with `pnpm test:integration` (57 tests in 18 files),
 `pnpm test:unit` (127 tests), `pnpm test:repository`, `pnpm typecheck`, and
 `pnpm lint`.
 
-This remains the historical record of why the current contract coverage exists.
+This remains the historical record of why contract coverage was introduced.
 The later single-database model decision in TST-017 supersedes contracts as the
-target architecture; their behavioral claims remain valuable migration coverage
-until each repository operation has a single owner-local replacement.
+target architecture. TST-017 moved their behavioral claims to one owner-local
+test per operation and then removed the contracts and bindings.
 
 ### TST-009 — Powens boundary decomposition
 
@@ -655,9 +656,9 @@ case even though operations exist.
 **Acceptance criteria:**
 
 - [x] A test executes the production dashboard document against the production
-      GraphQL schema/server composition with a controlled repository.
-- [x] A PostgreSQL-backed test is added only where it proves behavior not already
-      covered by the resolver and repository contracts.
+      GraphQL schema/server composition with persisted state.
+- [x] Query edge cases stay in the query-owned integration test rather than
+      being repeated through GraphQL.
 - [x] Synthetic schema and generated artifacts are retained only for a distinct,
       stated contract.
 - [ ] `hook-contract.ts` becomes an explicit type test or is removed.
@@ -667,10 +668,10 @@ case even though operations exist.
 
 **Progress (2026-09-11):** a colocated web integration test executes the actual
 generated dashboard document through the production in-process GraphQL server
-and PostgreSQL repository composition. Its small owner-local setup helpers
+and PostgreSQL command/query composition. Its small owner-local setup helpers
 create controlled persisted state. This test proves the app-specific wiring,
 document serialization, and transport response together; it does not repeat the
-repository contract's edge-case matrix. The remaining synthetic-contract and
+query integration test's edge-case matrix. The remaining synthetic-contract and
 configuration cleanup keeps this issue open. The old broad GraphQL integration
 file is split: production server serialization belongs to `packages/graphql`,
 while the synthetic schema and generated documents now belong solely to the
@@ -804,7 +805,7 @@ eventually load every app and grow business-specific convenience methods.
 - [x] Owner-local state helpers demonstrate valid, granular inserts with typed
       overrides while the test composes the complex scenario.
 - [x] Lint and workspace validation isolate testkit and test-support from
-      production, unit tests, portable contracts, and package exports.
+      production, unit tests, and package exports.
 
 **Fixed (2026-09-11):** `@testkit/integration` now establishes the per-test
 database and asynchronous integration context. The PostgreSQL client resolves
@@ -831,9 +832,11 @@ path look like several interchangeable implementations and encourages duplicate
 test ownership.
 
 **Decision:** use one lightweight class per table, inheriting typed CRUD from a
-shared model base that resolves the active database implicitly. Put custom SQL
-in named query modules and wrap multi-table workflows in explicit application
-operations using an async-context transaction helper. Migrate contract claims
+shared model base that resolves the active database implicitly. Register
+reusable single-table SQL as typed named queries on the owning model; keep joins
+and feature-specific projections in their capability. Wrap multi-table
+workflows in explicit application operations using an async-context transaction
+helper. Migrate contract claims
 to one integration test beside the behavior that owns each claim; do not trade
 the current contracts for duplicate model, query, and operation tests.
 
@@ -849,22 +852,30 @@ the current contracts for duplicate model, query, and operation tests.
       post-commit behavior against isolated PostgreSQL.
 - [x] Owner-local state helpers begin using models rather than direct testkit
       database access.
-- [ ] Purpose-specific PostgreSQL reads are moved to named query modules.
-- [ ] Multi-table repository writes are moved to explicit application
+- [x] Reusable single-table reads are typed named queries on their owning model;
+      joins and purpose-specific projections remain with their capability.
+- [x] Multi-table repository writes are moved to explicit application
       operations using the transaction wrapper.
-- [ ] Existing repository interfaces, factories, implementations, contracts,
+- [x] Existing repository interfaces, factories, implementations, contracts,
       and bindings are removed after their behavior has one replacement owner.
-- [ ] The complete unit, integration, repository, type, and lint checks pass
+- [x] The complete unit, integration, repository, type, and lint checks pass
       after the migration.
 
-**In progress (2026-09-11):** the inherited model base, concrete table models,
-implicit database/transaction context, nested savepoints, and `afterCommit`
-foundation are implemented. Account and wealth-query integration state helpers
-exercise that public model path. Existing repositories and contracts remain
-deliberately intact: this branch establishes the reviewable foundation without
-silently discarding their behavioral coverage. The next migration should take
-one cohesive repository operation at a time and update this checklist as its
-old abstraction and overlap disappear.
+**Fixed (2026-09-12):** PostgreSQL now owns only schema, inherited row Models,
+client lifecycle, and async-scoped transaction mechanics. Ingestion and wealth
+packages own focused public commands, private commands, custom query logic, and
+pure domain policy. No production or test repository interface, factory,
+implementation, contract, or binding remains. The CLI and GraphQL surfaces call
+commands and queries directly without database injection. Repository-contract
+claims were moved once to operation-owned PostgreSQL integration tests, the
+mocked synchronization repository unit suite was removed, and the duplicate
+mocked GraphQL projection test was removed in favor of the persisted dashboard
+boundary. CLI argument variants were consolidated without dropping any inputs,
+and the database-isolation regression now reuses its lifecycle-provided database
+instead of starting two redundant containers. Verified with `pnpm typecheck`,
+`pnpm lint`, `pnpm test:unit` (120 tests), `pnpm test:repository` (47 tests), and
+`pnpm test:integration` (42 tests in 20 files). The aggregate `pnpm test` also
+passes all 209 tests in 35 files with the integration Testcontainers enabled.
 
 ## Recommended implementation order
 
@@ -876,8 +887,8 @@ Fix the foundation before moving files in bulk:
    assertions in the same focused batches.
 4. TST-007 and TST-008: lock down financial policy and persistence contracts.
 5. TST-016: provide the modular integration foundation for app-level tests.
-6. TST-017: migrate repositories and contracts incrementally without losing
-   behavioral coverage.
+6. TST-017: use Models, commands, and queries without duplicate persistence
+   contracts.
 7. TST-005 and TST-006: add real browser component and E2E coverage.
 8. TST-009 and TST-010: deepen provider and GraphQL boundaries.
 9. TST-011 through TST-015: make omissions visible, reduce support-code debt,

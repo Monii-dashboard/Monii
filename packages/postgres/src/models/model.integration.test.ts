@@ -1,8 +1,11 @@
-import { expect, it, vi } from "@testkit/integration";
+import { expect, expectTypeOf, it, vi } from "@testkit/integration";
 
 import { afterCommit, isInTransaction, transaction } from "../transaction";
-import { Account, Institution } from "./financial";
-import { AccountPolicy } from "./wealth";
+import { Account } from "./account";
+import { AccountPolicy } from "./account-policy";
+import { Institution } from "./institution";
+import { SourceInstance } from "./source-instance";
+import { SynchronizationRun } from "./synchronization-run";
 
 it("inherits create, find, findMany, update, and delete for an id model", async () => {
   const institution = await Institution.create({ name: "Northbank" });
@@ -53,6 +56,58 @@ it("uses a configured non-id primary key without redefining inherited methods", 
     AccountPolicy.update(account.id, { inclusionPolicy: "exclude" }),
   ).resolves.toMatchObject({ inclusionPolicy: "exclude" });
   await expect(AccountPolicy.delete(account.id)).resolves.toBe(true);
+});
+
+it("loads typed named queries from the model that owns the table", async () => {
+  const source = await SourceInstance.create({
+    adapterKey: "test",
+    name: "Typed query source",
+    sourceKey: "typed-query-source",
+  });
+  const successfulFinishedAt = new Date("2026-09-10T08:30:00.000Z");
+  await SynchronizationRun.create({
+    actionId: "older-success",
+    finishedAt: successfulFinishedAt,
+    sourceInstanceId: source.id,
+    startedAt: new Date("2026-09-10T08:00:00.000Z"),
+    status: "succeeded",
+  });
+  await SynchronizationRun.create({
+    actionId: "newer-failure",
+    finishedAt: new Date("2026-09-11T08:30:00.000Z"),
+    sourceInstanceId: source.id,
+    startedAt: new Date("2026-09-11T08:00:00.000Z"),
+    status: "failed",
+  });
+
+  const latestStatus = await SynchronizationRun.query(
+    "latest_status",
+  ).loadOne();
+  const lastSuccessfulCompletion = await SynchronizationRun.query(
+    "last_successful_completion",
+  ).loadOne();
+
+  expectTypeOf(latestStatus).toEqualTypeOf<{ status: string } | null>();
+  expectTypeOf(lastSuccessfulCompletion).toEqualTypeOf<{
+    finishedAt: Date | null;
+  } | null>();
+  expect(latestStatus).toEqual({ status: "failed" });
+  expect(lastSuccessfulCompletion).toEqual({
+    finishedAt: successfulFinishedAt,
+  });
+  await expect(
+    SynchronizationRun.query("latest_status").load(),
+  ).resolves.toEqual([{ status: "failed" }]);
+  await expect(
+    SynchronizationRun.query("latest_status").count(),
+  ).resolves.toBe(1);
+
+  if (false) {
+    // @ts-expect-error Query names are restricted to the model's registry.
+    SynchronizationRun.query("unknown_query");
+    // @ts-expect-error Each query name exposes only its selected result fields.
+    void latestStatus?.finishedAt;
+  }
 });
 
 it("rolls back model calls through the active async transaction", async () => {

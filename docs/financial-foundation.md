@@ -187,7 +187,7 @@ Specific cron / operator CLI
   -> immutable snapshot and account decisions
 
 Web/API consumer
-  -> wealth query port
+  -> current-wealth query
   -> newest immutable snapshot
   -> current-wealth presentation
 ```
@@ -208,19 +208,18 @@ last candidate while freezing uncertainty into the new snapshot.
 apps/cli
   -> @monii/ingestion
   -> @monii/powens
-  -> @monii/postgres
 
 apps/web/api
   -> @monii/graphql
-  -> @monii/postgres (wealth-query repository composition)
 
-@monii/accounts <- @monii/ingestion
-@monii/accounts <- @monii/wealth-calculation
-@monii/accounts <- @monii/wealth-query
+@monii/ingestion -> @monii/wealth-calculation -> @monii/postgres
+@monii/ingestion -> @monii/postgres
+@monii/wealth-query -> @monii/postgres
 
 @monii/graphql -> @monii/wealth-query
 
-@monii/postgres implements ingestion, calculation, and query ports
+@monii/accounts <- ingestion, wealth-calculation, and wealth-query
+@monii/postgres owns schemas, row Models, named single-table queries, and transaction context
 @monii/powens implements the external financial source port
 ```
 
@@ -228,18 +227,27 @@ Important files are named after their responsibility:
 
 - `packages/accounts/src/account-valuation.ts`: common candidate language.
 - `packages/ingestion/src/external-financial-source.ts`: normalization contract.
-- `packages/ingestion/src/synchronize-source-instance.ts`: worker orchestration.
+- `packages/ingestion/src/commands/synchronize-source-instance.ts`: public
+  worker orchestration.
+- `packages/ingestion/src/internal/commands/`: focused persistence-aware
+  synchronization operations.
+- `packages/ingestion/src/internal/account-identity/`: private identity-state
+  loading, match reconciliation, and confirmed-merge responsibilities.
 - `packages/wealth-calculation/src/calculate-wealth-snapshot.ts`: pure policy.
-- `packages/wealth-query/src/current-wealth.ts`: consumer projection.
+- `packages/wealth-calculation/src/commands/`: public wealth write operations.
+- `packages/wealth-query/src/queries/get-current-wealth.ts`: persisted read.
+- `packages/wealth-query/src/current-wealth.ts`: pure consumer projection.
 - `packages/postgres/src/schema/{financial,ingestion,wealth}.ts`: table ownership.
-- `packages/postgres/src/repositories/financial-persistence.ts`: internal atomic
-  persistence composition. Its public ingestion, calculation, and query factories
-  return narrow ports, so workers and consumers cannot call each other's methods.
+- `packages/postgres/src/models/`: inherited table CRUD and typed named
+  single-table queries.
+- `packages/postgres/src/transaction.ts`: explicit atomic boundaries with an
+  async-scoped transaction client.
 - `packages/powens/src/source.ts`: provider-to-ingestion normalization.
 - `packages/graphql/src/`: API transport only.
 
-Portable packages exchange explicit data and typed events. Current handlers are
-synchronous function calls; no persisted outbox or event-bus infrastructure exists.
+Capability packages exchange explicit data and typed events. Current handlers
+are synchronous function calls; no persisted outbox or event-bus infrastructure
+exists.
 
 ## Future manual and ledger extension
 

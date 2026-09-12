@@ -1,4 +1,5 @@
-export { buildCurrentWealthView, getCurrentWealth } from "./current-wealth";
+export { buildCurrentWealthView } from "./current-wealth";
+export { getCurrentWealth } from "./queries/get-current-wealth";
 export type {
   CurrentAccountWealth,
   CurrentInstitutionWealth,
@@ -10,5 +11,4 @@ export type {
   StoredDuplicateAdjustmentRole,
   StoredWealthSnapshot,
   WealthHealth,
-  WealthQueryRepository,
 } from "./current-wealth";

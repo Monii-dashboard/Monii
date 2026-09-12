@@ -5,20 +5,14 @@
   "type": "module",
   "exports": {
     "./client": "./src/client.ts",
-    "./ingestion": "./src/repositories/ingestion.ts",
     "./models": "./src/models/index.ts",
     "./schema": "./src/schema/index.ts",
-    "./transaction": "./src/transaction.ts",
-    "./wealth": "./src/repositories/wealth.ts"
+    "./transaction": "./src/transaction.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@monii/accounts": "workspace:*",
-    "@monii/ingestion": "workspace:*",
-    "@monii/wealth-calculation": "workspace:*",
-    "@monii/wealth-query": "workspace:*",
     "drizzle-orm": "0.45.2",
     "postgres": "3.4.9"
   },

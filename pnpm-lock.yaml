@@ -282,6 +282,15 @@ importers:
       '@monii/accounts':
         specifier: workspace:*
         version: link:../accounts
+      '@monii/postgres':
+        specifier: workspace:*
+        version: link:../postgres
+      '@monii/wealth-calculation':
+        specifier: workspace:*
+        version: link:../wealth-calculation
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(postgres@3.4.9)
     devDependencies:
       typescript:
         specifier: ^5
@@ -289,18 +298,6 @@ importers:
 
   packages/postgres:
     dependencies:
-      '@monii/accounts':
-        specifier: workspace:*
-        version: link:../accounts
-      '@monii/ingestion':
-        specifier: workspace:*
-        version: link:../ingestion
-      '@monii/wealth-calculation':
-        specifier: workspace:*
-        version: link:../wealth-calculation
-      '@monii/wealth-query':
-        specifier: workspace:*
-        version: link:../wealth-query
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(postgres@3.4.9)
@@ -348,6 +345,12 @@ importers:
       '@monii/accounts':
         specifier: workspace:*
         version: link:../accounts
+      '@monii/postgres':
+        specifier: workspace:*
+        version: link:../postgres
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(postgres@3.4.9)
     devDependencies:
       typescript:
         specifier: ^5
@@ -358,6 +361,12 @@ importers:
       '@monii/accounts':
         specifier: workspace:*
         version: link:../accounts
+      '@monii/postgres':
+        specifier: workspace:*
+        version: link:../postgres
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(postgres@3.4.9)
     devDependencies:
       typescript:
         specifier: ^5

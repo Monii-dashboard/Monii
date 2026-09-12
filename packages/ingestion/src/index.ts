@@ -20,12 +20,13 @@ export type {
 export {
   synchronizationFailureFrom,
   synchronizeSourceInstance,
-} from "./synchronize-source-instance";
+} from "./commands/synchronize-source-instance";
 export type {
   ConnectionPersistenceResult,
-  FinancialOperationalReport,
-  SynchronizationReporter,
-  SynchronizationRepository,
   SynchronizationResult,
   SynchronizationStatus,
-} from "./synchronize-source-instance";
+} from "./types";
+export type {
+  FinancialOperationalReport,
+  SynchronizationReporter,
+} from "./reporting";

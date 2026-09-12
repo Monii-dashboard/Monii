@@ -2,8 +2,7 @@ import { synchronizeSourceInstance } from "@monii/ingestion";
 import type { FinancialOperationalReport } from "@monii/ingestion";
 import { getOperationContext } from "@monii/runtime/context";
 import { log } from "@monii/runtime/log";
-import { createDatabase } from "@monii/postgres/client";
-import { createPostgresSynchronizationRepository } from "@monii/postgres/ingestion";
+import { closeDatabase } from "@monii/postgres/client";
 import {
   createPowensClient,
   createPowensFinancialSource,
@@ -11,14 +10,6 @@ import {
 } from "@monii/powens";
 
 export async function sync() {
-  const databaseUrl = process.env.DATABASE_URL;
-
-  if (!databaseUrl) {
-    throw new Error("DATABASE_URL is not configured");
-  }
-
-  const database = createDatabase(databaseUrl);
-
   try {
     const powensConfig = readPowensConfig();
     const powens = createPowensClient(powensConfig);
@@ -40,13 +31,12 @@ export async function sync() {
     return await synchronizeSourceInstance({
       actionId: getOperationContext().action_id,
       adapterKey: "powens",
-      repository: createPostgresSynchronizationRepository(database.db, reporter),
       reporter,
       source: createPowensFinancialSource(powens, powensConfig, reporter),
       sourceKey: "powens-default",
       sourceName: "Powens",
     });
   } finally {
-    await database.close();
+    await closeDatabase();
   }
 }

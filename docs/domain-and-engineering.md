@@ -33,18 +33,17 @@ Monii is organized as a small, source-first pnpm workspace:
 - `packages/accounts` owns canonical account, institution, merge-alias, and
   valuation-candidate language. It is portable.
 - `packages/ingestion` owns provider-neutral source inputs, conservative
-  external-account identity policy, synchronization orchestration, and its
-  persistence port. It is portable.
+  external-account identity policy, and public and internal synchronization
+  commands. Pure policy remains isolated from its Node persistence composition.
 - `packages/wealth-calculation` owns inclusion and valuation-selection policy,
-  exact aggregate calculation, immutable decision output, and write use cases.
-  It is portable.
-- `packages/wealth-query` owns the current-wealth read contract and presentation
-  projection. It is portable and independent from worker orchestration.
+  exact aggregate calculation, immutable decision output, and wealth commands.
+- `packages/wealth-query` owns the current-wealth query and presentation
+  projection. It remains independent from worker orchestration.
 - `packages/powens` owns Powens transport, configuration, DTOs, and normalization.
 - `packages/postgres` owns Drizzle schemas, row models, database context,
-  transactions, and PostgreSQL-specific queries. Its existing repository
-  implementations are transitional while callers move to the model/query
-  design below.
+  transaction mechanics, and reusable single-table queries registered by name
+  on their owning model. Capability packages own their purpose-specific
+  commands and multi-table queries.
 - `packages/graphql` owns the GraphQL transport and resolver composition.
 - Unit and integration tests live beside their owning package or app behavior,
   either in `src` or a focused `test` directory. Root `tests` currently owns
@@ -68,25 +67,25 @@ acceptable. Apps must not import another app's internals.
 Every workspace manifest declares `monii.platform` as `portable` or `node`.
 Portable packages may depend only on portable workspace packages and cannot use
 Node APIs, environment access, or concrete backend/framework adapters. Node
-packages may depend on portable or Node packages. Accounts, ingestion,
-wealth-calculation, and wealth-query are portable; PostgreSQL, Powens, GraphQL,
-runtime, and the app composition roots are Node. Web frontend code cannot import
-Node adapters outside HTTP route bootstraps.
+packages may depend on portable or Node packages. Accounts is portable;
+ingestion, wealth-calculation, wealth-query, PostgreSQL, Powens, GraphQL,
+runtime, and the app composition roots are Node. Pure domain modules inside a
+Node package still avoid Node and persistence imports. Web frontend code cannot
+import Node packages outside HTTP route bootstraps.
 
 Portable ownership applies to production APIs and manifest dependencies. A
-recognized `.integration.test.ts` file inside a portable package may compose
-Node adapters through the repository's virtual `@testkit/*` imports, and the
-package may own isolated helpers under `test-support`. These are test-only
-composition roots: lint rejects their use from production, unit tests, and
-portable contract suites, and workspace validation rejects manifests that
-export `test-support`. This exception must not create a production dependency
-edge or weaken the portable package's public boundary.
+recognized `.integration.test.ts` file may compose test capabilities through
+the repository's virtual `@testkit/*` imports, and its package may own isolated
+helpers under `test-support`. These are test-only composition roots: lint
+rejects their use from production and unit tests, and workspace validation
+rejects manifests that export `test-support`. This exception must not create a
+production dependency edge or weaken package public boundaries.
 
-The workspace graph must be acyclic. Portable capabilities cannot import their
-Node implementations; app composition roots assemble them. Runtime remains
-independent of other workspace packages. Third-party compatibility remains an
-explicit dependency-review responsibility: workspace metadata does not certify
-external libraries.
+The workspace graph must be acyclic. Capability commands may depend on
+PostgreSQL models; PostgreSQL must not depend back on those capabilities.
+Runtime remains independent of other workspace packages. Third-party
+compatibility remains an explicit dependency-review responsibility: workspace
+metadata does not certify external libraries.
 
 Shared packages expose explicit package entry points and ship TypeScript source
 directly. Cross-package production imports must use these public exports rather
@@ -370,7 +369,7 @@ accounting before they are needed.
   requirement supports a change.
 - Define services, databases, schedules, workflows, secrets, and development
   environments with Specific.
-- Emit typed domain events from portable capabilities, but invoke handlers
+- Emit typed domain events from capability packages, but invoke handlers
   synchronously and explicitly for now. A persisted outbox or external event bus
   is justified only when delivery, retry, or independent deployment requires it.
 
@@ -390,28 +389,43 @@ as `Account.archive`, but models must remain representations of persisted rows,
 not service containers. Do not add implicit relation loading, mutable dirty
 tracking, lifecycle hooks, or generic business workflows to the base model.
 
-Simple equality lookups belong on the inherited model API. Joins, aggregates,
-locking reads, and other purpose-specific SQL belong in named PostgreSQL query
-modules. A workflow that changes several tables belongs in an explicit
-application operation and composes model methods and focused queries. Portable
-packages continue to own pure rules and domain language; they do not import the
-Node-only models.
+Simple equality lookups belong on the inherited model API. A reusable read that
+still concerns one table—such as the latest snapshot, current claims, or the
+latest synchronization status—is registered under a snake-case literal name in
+that table's model file. Callers use `Model.query("query_name").load()`,
+`.loadOne()`, or `.count()`. The registry preserves the result inferred from
+each Drizzle selection, so a query name exposes only its actual projected
+fields and an unknown name fails typechecking. Do not replace an ordinary
+`find` or `findMany` equality lookup with a named query.
 
-Use `transaction(async () => { ... })` to make a multi-table operation atomic.
+Joins, cross-table projections, window-function reads, locking reads, and SQL
+whose meaning exists only inside one workflow belong in internal logic owned by
+the capability that needs them. A workflow belongs in one public or internal
+command and composes model methods and focused queries. Pure domain modules
+continue to own rules and domain language without importing models.
+
+Use `transaction(async () => { ... })` only when an operation owns an atomic
+consistency boundary. A read, a single atomic SQL statement, or independent
+writes do not acquire a transaction merely because they are inside a command.
 The transaction helper installs its Drizzle transaction in asynchronous context,
 so every model and query called below it automatically uses the same client.
 The transaction boundary itself must remain explicit at the operation level;
 asynchronous context removes client plumbing, not ownership of atomicity. Nested
-transactions use database savepoints. Register logging or another effect that
-must describe committed state with `afterCommit` and await all work started
-inside the transaction.
+commands participate automatically, and a nested command that independently
+requires atomicity uses a database savepoint. Register logging or another effect
+that must describe committed state with `afterCommit` and await all work started
+inside the transaction. Keep external API calls outside database transactions.
+
+The `commands` directory contains one externally callable operation per file.
+Package-private commands live under `internal/commands`; other private helpers
+are grouped under a named internal responsibility rather than a flat junk
+drawer. Commands may call public or internal commands. The package entry point
+exports only its supported commands, queries, domain functions, and public
+types; internal modules are never exported or deep-imported by another package.
 
 Do not add a repository, persistence interface, or reusable repository-contract
-suite for a table when PostgreSQL is the only implementation. Existing
-repositories and their contracts preserve important behavior during migration;
-replace them incrementally with models, named queries, and operation-level
-integration tests before deleting them. Add an interface later only for a real
-external boundary or demonstrated second implementation.
+suite for a table when PostgreSQL is the only implementation. Add an interface
+only for a real external boundary or demonstrated second implementation.
 
 ## Application API boundary
 
@@ -428,10 +442,10 @@ explicit `generated` directory and checked for staleness. Powens and future
 provider payloads must still be normalized before they reach GraphQL-facing
 application logic.
 
-The web route is the composition root for current-wealth reads: it supplies the
-PostgreSQL wealth-query repository to the GraphQL transport. The resolver uses
-the portable `wealth-query` projection, and the dashboard consumes only the
-generated GraphQL operation rather than database or provider types.
+The GraphQL resolver calls the `wealth-query` package's public query, which
+loads the current snapshot through the active PostgreSQL context. The dashboard
+consumes only the generated GraphQL operation rather than database or provider
+types.
 
 This decision does not introduce multiple GraphQL services, federation,
 subscriptions, or provider-facing GraphQL APIs. Add those only for a concrete
