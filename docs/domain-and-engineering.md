@@ -420,7 +420,10 @@ immutable input instead of silently ignoring it. State transitions and other
 domain-specific mutations belong in focused commands using conditional SQL and
 ordinary Drizzle checks. Generic model updates do not implement a state
 machine; application commands remain responsible for transition semantics. A
-concrete model may add a clearly named table-owned operation such as
+mutable table's stable lookup keys, external identities, canonical mappings,
+and first-observed provenance are immutable; latest-observation and lifecycle
+state may remain mutable when their owning commands require it. A concrete
+model may add a clearly named table-owned operation such as
 `Account.archive`, but models remain representations of persisted rows, not
 service containers. Do not add implicit relation loading, mutable dirty
 tracking, lifecycle hooks, or generic business workflows to the base model.
@@ -432,8 +435,14 @@ ModelTable policy hash changes. That migration removes prior runtime grants
 before applying the exact least-privilege set, hardens the runtime role, records
 a policy fingerprint on every table, and installs statement-level write guards
 plus immutable-field guards. Repository checks reject a changed ModelTable
-policy without its generated migration. Integration tests compare declarations
+policy without its generated migration. A separate `pnpm db:check:schema`
+command runs ordinary Drizzle generation against a disposable copy of the
+migration history and rejects ungenerated changes to columns, indexes, checks,
+foreign keys, defaults, or nullability. Integration tests compare declarations
 with PostgreSQL primary keys, role attributes, grants, comments, and triggers.
+After migration, `pnpm db:check:catalog` performs the same policy comparison
+against a configured PostgreSQL database so manually altered grants, comments,
+primary keys, or managed triggers fail deployment verification.
 Each generated policy migration describes the complete current state: it first
 revokes the runtime role's table privileges and drops managed guards, then
 recreates the exact grants and triggers. Moving between policies or adding and

@@ -5,7 +5,7 @@ import {
   numeric,
   text,
   timestamp,
-  uniqueIndex,
+  unique,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -126,11 +126,11 @@ export const accountValuationCandidates = defineModelTable({
   primaryKey: ["id"],
   writePolicy: "append-only",
   constraints: (table) => [
-    uniqueIndex("account_valuation_candidates_id_account_unique").on(
+    unique("account_valuation_candidates_id_account_unique").on(
       table.id,
       table.accountId,
     ),
-    uniqueIndex("account_valuation_candidates_id_basis_unique").on(
+    unique("account_valuation_candidates_id_basis_unique").on(
       table.id,
       table.valuationBasis,
     ),

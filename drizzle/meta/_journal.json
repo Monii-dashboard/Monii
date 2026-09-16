@@ -5,29 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1788817254948,
-      "tag": "0000_financial_foundation",
+      "when": 1789239490719,
+      "tag": "0000_initial_schema",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1789175748470,
-      "tag": "0001_capability_model_boundaries",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1789225216314,
-      "tag": "0002_model_table_policies",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1789233146229,
-      "tag": "0003_model_table_policies",
+      "when": 1789239491431,
+      "tag": "0001_model_table_policies",
       "breakpoints": true
     }
   ]

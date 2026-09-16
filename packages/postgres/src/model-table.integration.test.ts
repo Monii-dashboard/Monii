@@ -16,7 +16,62 @@ import {
 } from "./model-table-policy";
 import * as schema from "./schema";
 import { accounts, accountValuationCandidates } from "./schema/financial";
-import { sourceInstances, synchronizationRuns } from "./schema/ingestion";
+import {
+  externalAccounts,
+  sourceInstances,
+  synchronizationRuns,
+} from "./schema/ingestion";
+
+const expectedImmutableFields = new Map<string, readonly string[]>([
+  ["financial.accounts", ["id", "createdAt"]],
+  ["financial.institutions", ["id", "createdAt"]],
+  [
+    "ingestion.account_identity_claims",
+    [
+      "id",
+      "externalAccountId",
+      "claimType",
+      "keyVersion",
+      "fingerprint",
+      "firstObservedRunId",
+      "createdAt",
+    ],
+  ],
+  [
+    "ingestion.connections",
+    ["id", "sourceInstanceId", "externalId", "createdAt"],
+  ],
+  [
+    "ingestion.external_accounts",
+    ["id", "accountId", "sourceInstanceId", "externalId", "firstObservedAt"],
+  ],
+  [
+    "ingestion.external_institutions",
+    [
+      "id",
+      "sourceInstanceId",
+      "institutionId",
+      "externalId",
+      "firstObservedAt",
+    ],
+  ],
+  ["ingestion.source_instances", ["id", "sourceKey", "createdAt"]],
+  [
+    "ingestion.synchronization_runs",
+    ["id", "sourceInstanceId", "actionId", "startedAt"],
+  ],
+  [
+    "reconciliation.account_match_assessments",
+    [
+      "id",
+      "leftExternalAccountId",
+      "rightExternalAccountId",
+      "firstDetectedSynchronizationRunId",
+      "createdAt",
+    ],
+  ],
+  ["wealth.account_policies", ["accountId", "createdAt"]],
+]);
 
 function modelTables(): ModelTable[] {
   const drizzleTables = Object.values(schema).filter((value) =>
@@ -190,6 +245,11 @@ it("installs matching primary keys, guards, and runtime privileges", async () =>
     }
     const updateCapable =
       writePolicy === "full-crud" || writePolicy === "mutable-no-delete";
+    if (updateCapable) {
+      expect(immutableFields, qualifiedName).toEqual(
+        expectedImmutableFields.get(qualifiedName),
+      );
+    }
     expect(
       triggersByName.has(`${qualifiedName}:monii_model_table_immutable_guard`),
       qualifiedName,
@@ -210,6 +270,13 @@ it("installs matching primary keys, guards, and runtime privileges", async () =>
     triggersByName
       .get("ingestion.synchronization_runs:monii_model_table_immutable_guard")
       ?.includes(`'["id","source_instance_id","action_id","started_at"]'`),
+  ).toBe(true);
+  expect(
+    triggersByName
+      .get("ingestion.external_accounts:monii_model_table_immutable_guard")
+      ?.includes(
+        `'["id","account_id","source_instance_id","external_id","first_observed_at"]'`,
+      ),
   ).toBe(true);
 });
 
@@ -312,5 +379,64 @@ it("allows synchronization updates but rejects immutable-field changes", async (
       .update(synchronizationRuns)
       .set({ actionId: "changed" })
       .where(eq(synchronizationRuns.id, run.id)),
+  ).rejects.toMatchObject({ cause: { code: "55000" } });
+});
+
+it("allows external-account observations but rejects identity reparenting", async () => {
+  const admin = getIntegrationDatabase();
+  const runtime = getDatabase();
+  const [account, otherAccount] = await runtime
+    .insert(accounts)
+    .values([
+      { category: "cash", purpose: "personal" },
+      { category: "cash", purpose: "personal" },
+    ])
+    .returning();
+  if (!account || !otherAccount) throw new Error("Expected accounts");
+  const [source, otherSource] = await runtime
+    .insert(sourceInstances)
+    .values([
+      {
+        adapterKey: "identity-test",
+        name: "Identity test source",
+        sourceKey: "identity-test-source",
+      },
+      {
+        adapterKey: "identity-test",
+        name: "Other identity test source",
+        sourceKey: "other-identity-test-source",
+      },
+    ])
+    .returning();
+  if (!source || !otherSource) throw new Error("Expected sources");
+  const [externalAccount] = await runtime
+    .insert(externalAccounts)
+    .values({
+      accountId: account.id,
+      externalId: "external-account",
+      normalizedTypeSupport: "supported",
+      sourceInstanceId: source.id,
+    })
+    .returning();
+  if (!externalAccount) throw new Error("Expected external account");
+
+  await expect(
+    runtime
+      .update(externalAccounts)
+      .set({ reportedName: "Observed name" })
+      .where(eq(externalAccounts.id, externalAccount.id))
+      .returning({ reportedName: externalAccounts.reportedName }),
+  ).resolves.toEqual([{ reportedName: "Observed name" }]);
+  await expect(
+    runtime
+      .update(externalAccounts)
+      .set({ accountId: otherAccount.id })
+      .where(eq(externalAccounts.id, externalAccount.id)),
+  ).rejects.toMatchObject({ cause: { code: "55000" } });
+  await expect(
+    admin
+      .update(externalAccounts)
+      .set({ sourceInstanceId: otherSource.id })
+      .where(eq(externalAccounts.id, externalAccount.id)),
   ).rejects.toMatchObject({ cause: { code: "55000" } });
 });

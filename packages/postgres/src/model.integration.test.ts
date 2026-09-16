@@ -5,7 +5,11 @@ import {
   accountValuationCandidates,
   institutions,
 } from "./schema/financial";
-import { sourceInstances, synchronizationRuns } from "./schema/ingestion";
+import {
+  externalAccounts,
+  sourceInstances,
+  synchronizationRuns,
+} from "./schema/ingestion";
 import {
   accountPolicies,
   snapshotAccountDecisions,
@@ -27,6 +31,8 @@ class AccountValuationCandidate extends modelFor(accountValuationCandidates) {}
 class Institution extends modelFor(institutions) {}
 
 class SnapshotAccountDecision extends modelFor(snapshotAccountDecisions) {}
+
+class ExternalAccount extends modelFor(externalAccounts) {}
 
 class SourceInstance extends modelFor(sourceInstances) {}
 
@@ -142,6 +148,27 @@ it("derives update availability directly from each table write policy", async ()
   await expect(
     SynchronizationRun.update(run.id, { actionId: "changed" } as never),
   ).rejects.toThrow("Model field actionId is immutable");
+});
+
+it("excludes stable external-account identity from model updates", async () => {
+  expectTypeOf(ExternalAccount.update).parameter(1).not.toHaveProperty(
+    "accountId",
+  );
+  expectTypeOf(ExternalAccount.update).parameter(1).not.toHaveProperty(
+    "sourceInstanceId",
+  );
+  expectTypeOf(ExternalAccount.update).parameter(1).not.toHaveProperty(
+    "externalId",
+  );
+  expectTypeOf(ExternalAccount.update).parameter(1).toHaveProperty(
+    "reportedName",
+  );
+
+  await expect(
+    ExternalAccount.update("00000000-0000-0000-0000-000000000001", {
+      accountId: "00000000-0000-0000-0000-000000000002",
+    } as never),
+  ).rejects.toThrow("Model field accountId is immutable");
 });
 
 it("requires every composite primary-key field when finding one record", async () => {

@@ -113,7 +113,9 @@ export function createModelTablePolicySnapshot(
   return { version: modelTablePolicyVersion, tables };
 }
 
-function runtimePrivileges(policy: ModelTableWritePolicy): string[] {
+export function modelTableRuntimePrivileges(
+  policy: ModelTableWritePolicy,
+): string[] {
   const privileges = ["SELECT"];
   if (policy !== "read-only") privileges.push("INSERT");
   if (policy === "full-crud" || policy === "mutable-no-delete") {
@@ -123,7 +125,9 @@ function runtimePrivileges(policy: ModelTableWritePolicy): string[] {
   return privileges;
 }
 
-function rejectedEvents(policy: ModelTableWritePolicy): string[] {
+export function rejectedModelTableEvents(
+  policy: ModelTableWritePolicy,
+): string[] {
   switch (policy) {
     case "read-only":
       return ["INSERT", "UPDATE", "DELETE", "TRUNCATE"];
@@ -138,7 +142,7 @@ function rejectedEvents(policy: ModelTableWritePolicy): string[] {
 
 function renderPolicyTable(table: ModelTablePolicyTable): string[] {
   const qualified = qualifiedIdentifier(table);
-  const privileges = runtimePrivileges(table.writePolicy).join(", ");
+  const privileges = modelTableRuntimePrivileges(table.writePolicy).join(", ");
   const statements = [
     `REVOKE ALL PRIVILEGES ON TABLE ${qualified} FROM ${quoteIdentifier(runtimeRoleName)};`,
     `GRANT ${privileges} ON TABLE ${qualified} TO ${quoteIdentifier(runtimeRoleName)};`,
@@ -149,7 +153,7 @@ function renderPolicyTable(table: ModelTablePolicyTable): string[] {
     `DROP TRIGGER IF EXISTS monii_model_table_write_guard ON ${qualified};`,
     `DROP TRIGGER IF EXISTS monii_model_table_lifecycle_guard ON ${qualified};`,
     `DROP TRIGGER IF EXISTS monii_model_table_immutable_guard ON ${qualified};`,
-    `CREATE TRIGGER monii_model_table_write_guard\nBEFORE ${rejectedEvents(
+    `CREATE TRIGGER monii_model_table_write_guard\nBEFORE ${rejectedModelTableEvents(
       table.writePolicy,
     ).join(
       " OR ",

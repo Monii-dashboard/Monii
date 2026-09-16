@@ -5,6 +5,7 @@ import { integer, pgSchema, text } from "drizzle-orm/pg-core";
 
 import { getDatabase } from "./client";
 import { defineModelTable } from "./model-table";
+import { verifyModelTablePolicyCatalog } from "./model-table-policy-catalog";
 import {
   createModelTablePolicySnapshot,
   renderModelTablePolicyMigration,
@@ -168,6 +169,27 @@ it("enforces every ModelTable policy against runtime and owner writes", async ()
   await expect(
     admin.execute(sql`truncate model_policy_runtime_test.full_crud`),
   ).rejects.toMatchObject({ cause: { code: "55000" } });
+});
+
+it("detects live PostgreSQL policy-catalog drift", async () => {
+  await installTestPolicies();
+  const admin = getIntegrationDatabase();
+  const snapshot = createModelTablePolicySnapshot(policyTables);
+
+  await expect(
+    verifyModelTablePolicyCatalog(admin, snapshot),
+  ).resolves.toEqual([]);
+
+  await admin.execute(sql`
+    drop trigger monii_model_table_immutable_guard
+    on model_policy_runtime_test.mutable_no_delete
+  `);
+
+  await expect(
+    verifyModelTablePolicyCatalog(admin, snapshot),
+  ).resolves.toContain(
+    'model_policy_runtime_test.mutable_no_delete immutable-field guard does not match ["id","immutable_value"]',
+  );
 });
 
 it("reconciles policy and immutable-field changes as full database state", async () => {

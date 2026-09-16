@@ -43,7 +43,12 @@ export const accountMatchAssessments = defineModelTable({
   },
   primaryKey: ["id"],
   writePolicy: "mutable-no-delete",
-  immutableFields: ["createdAt"],
+  immutableFields: [
+    "leftExternalAccountId",
+    "rightExternalAccountId",
+    "firstDetectedSynchronizationRunId",
+    "createdAt",
+  ],
   constraints: (table) => [
     uniqueIndex("account_match_assessments_pair_unique").on(
       table.leftExternalAccountId,

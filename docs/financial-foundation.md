@@ -126,6 +126,13 @@ produce `not_seen`; a truncated listing cannot infer absence. The financial
 refresh workflow commits run finalization, identity reconciliation, and snapshot
 creation atomically. Only one non-abandoned run can be active per source instance.
 
+Repeated provenance identifiers are relational constraints, not independent
+hints. Composite foreign keys require connections and external accounts to
+belong to the stated source, observations and results to agree on their source,
+run, external account, and canonical account, and reported valuations to agree
+with both their observation and candidate. Optional relationships skip their
+tuple constraint only when the optional identifier is null.
+
 ### Identity evidence
 
 - `account_identity_claims` stores current and historical versioned HMAC
@@ -174,6 +181,11 @@ One self-contained row per account evaluated in a snapshot. It freezes:
 - contribution or precise exclusion decision;
 - duplicate group and adjustment role; and
 - identity and refresh uncertainty.
+
+An evaluated candidate may belong either to the decision's account or to one of
+its immutable merged aliases. The candidate reference preserves that origin;
+the decision account identifies the canonical account whose contribution was
+calculated.
 
 Current wealth reads only the newest snapshot and these decisions. It does not
 join mutable canonical or ingestion metadata. Renaming an account or importing a
@@ -293,6 +305,15 @@ not create pass-through package layers in advance.
 The migration history was intentionally replaced because existing databases were
 declared disposable for this refactor. The current baseline is under `drizzle/`
 and creates the four application schemas above.
+
+When intentionally replacing the history again, remove the SQL migrations and
+snapshots but recreate `drizzle/meta/_journal.json` with version `7`, dialect
+`postgresql`, and an empty `entries` array before running `pnpm db:generate`.
+Drizzle Kit requires that empty journal to bootstrap a new history. Named
+`pgSchema` objects must remain exported from the schema entry point so the
+baseline emits `CREATE SCHEMA`; tuples targeted by composite foreign keys must
+be declared as table-level `UNIQUE` constraints so they exist before Drizzle's
+later `ALTER TABLE ... ADD CONSTRAINT` statements.
 
 Use Specific for the real local environment:
 

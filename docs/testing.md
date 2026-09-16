@@ -960,6 +960,10 @@ append-only, no-delete, truncate, and immutable-field enforcement.
       every ModelTable policy.
 - [x] Repository checks reject ModelTable policy changes that do not have a
       matching generated custom migration.
+- [x] A separate repository check rejects ordinary Drizzle schema changes that
+      do not have a matching structural migration.
+- [x] A live catalog command detects migrated ModelTable policy drift in a
+      configured PostgreSQL database.
 - [x] PostgreSQL upgrade tests prove that moving between write policies and
       expanding immutable fields replaces grants and triggers correctly.
 - [x] PostgreSQL tests prove allowed writes and reject append-only mutation,
@@ -971,9 +975,9 @@ append-only, no-delete, truncate, and immutable-field enforcement.
 
 **Fixed (2026-09-12):** `defineModelTable` now constructs each real Drizzle table
 and its primary-key constraint from the identity tuple, while binding its write
-policy, immutable fields, and model-update exposure. `modelFor` consumes that
-contract without repeated primary-key arguments and installs only permitted
-operations. `pnpm db:generate` composes Drizzle schema generation with a
+policy and immutable fields. `modelFor` consumes that contract without repeated
+primary-key arguments and installs only permitted operations. `pnpm db:generate`
+composes Drizzle schema generation with a
 deterministic custom policy migration generator. Generated SQL hardens the runtime role,
 revokes old privileges before granting the exact policy, fingerprints each
 table, and installs write and immutable-field guards. Unit tests cover every

@@ -58,7 +58,7 @@ service "web" {
   }
 
   pre_deploy {
-    command = "pnpm run db:migrate"
+    command = "pnpm run db:migrate && pnpm run db:check:catalog"
   }
 }
 

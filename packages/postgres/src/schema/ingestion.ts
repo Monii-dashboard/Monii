@@ -7,6 +7,7 @@ import {
   integer,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -45,7 +46,7 @@ export const sourceInstances = defineModelTable({
   },
   primaryKey: ["id"],
   writePolicy: "mutable-no-delete",
-  immutableFields: ["createdAt"],
+  immutableFields: ["sourceKey", "createdAt"],
   constraints: (table) => [
     uniqueIndex("source_instances_source_key_unique").on(table.sourceKey),
     uniqueIndex("source_instances_adapter_subject_unique")
@@ -90,13 +91,18 @@ export const externalInstitutions = defineModelTable({
   },
   primaryKey: ["id"],
   writePolicy: "mutable-no-delete",
-  immutableFields: ["firstObservedAt"],
+  immutableFields: [
+    "sourceInstanceId",
+    "institutionId",
+    "externalId",
+    "firstObservedAt",
+  ],
   constraints: (table) => [
     uniqueIndex("external_institutions_source_external_unique").on(
       table.sourceInstanceId,
       table.externalId,
     ),
-    uniqueIndex("external_institutions_id_source_unique").on(
+    unique("external_institutions_id_source_unique").on(
       table.id,
       table.sourceInstanceId,
     ),
@@ -116,9 +122,7 @@ export const connections = defineModelTable({
     sourceInstanceId: uuid("source_instance_id")
       .notNull()
       .references(() => sourceInstances.id, { onDelete: "restrict" }),
-    externalInstitutionId: uuid("external_institution_id")
-      .notNull()
-      .references(() => externalInstitutions.id, { onDelete: "restrict" }),
+    externalInstitutionId: uuid("external_institution_id").notNull(),
     externalId: text("external_id").notNull(),
     archivedAt: timestamp("archived_at", {
       mode: "date",
@@ -128,19 +132,27 @@ export const connections = defineModelTable({
   },
   primaryKey: ["id"],
   writePolicy: "mutable-no-delete",
-  immutableFields: ["createdAt"],
+  immutableFields: ["sourceInstanceId", "externalId", "createdAt"],
   constraints: (table) => [
     uniqueIndex("connections_source_external_unique").on(
       table.sourceInstanceId,
       table.externalId,
     ),
-    uniqueIndex("connections_id_source_unique").on(
+    unique("connections_id_source_unique").on(
       table.id,
       table.sourceInstanceId,
     ),
     index("connections_external_institution_idx").on(
       table.externalInstitutionId,
     ),
+    foreignKey({
+      columns: [table.externalInstitutionId, table.sourceInstanceId],
+      foreignColumns: [
+        externalInstitutions.id,
+        externalInstitutions.sourceInstanceId,
+      ],
+      name: "connections_external_institution_source_fk",
+    }).onDelete("restrict"),
     check(
       "connections_external_id_not_blank",
       sql`length(trim(${table.externalId})) > 0`,
@@ -159,9 +171,7 @@ export const externalAccounts = defineModelTable({
     sourceInstanceId: uuid("source_instance_id")
       .notNull()
       .references(() => sourceInstances.id, { onDelete: "restrict" }),
-    connectionId: uuid("connection_id").references(() => connections.id, {
-      onDelete: "restrict",
-    }),
+    connectionId: uuid("connection_id"),
     externalId: text("external_id").notNull(),
     reportedName: text("reported_name"),
     reportedType: text("reported_type"),
@@ -186,22 +196,32 @@ export const externalAccounts = defineModelTable({
   },
   primaryKey: ["id"],
   writePolicy: "mutable-no-delete",
-  immutableFields: ["firstObservedAt"],
+  immutableFields: [
+    "accountId",
+    "sourceInstanceId",
+    "externalId",
+    "firstObservedAt",
+  ],
   constraints: (table) => [
     uniqueIndex("external_accounts_source_external_unique").on(
       table.sourceInstanceId,
       table.externalId,
     ),
-    uniqueIndex("external_accounts_id_source_unique").on(
+    unique("external_accounts_id_source_unique").on(
       table.id,
       table.sourceInstanceId,
     ),
-    uniqueIndex("external_accounts_id_account_unique").on(
+    unique("external_accounts_id_account_unique").on(
       table.id,
       table.accountId,
     ),
     index("external_accounts_account_idx").on(table.accountId),
     index("external_accounts_connection_idx").on(table.connectionId),
+    foreignKey({
+      columns: [table.connectionId, table.sourceInstanceId],
+      foreignColumns: [connections.id, connections.sourceInstanceId],
+      name: "external_accounts_connection_source_fk",
+    }).onDelete("restrict"),
     check(
       "external_accounts_lifecycle_valid",
       sql`${table.lifecycle} in ('active', 'disabled', 'deleted', 'unknown')`,
@@ -241,7 +261,7 @@ export const synchronizationRuns = defineModelTable({
   writePolicy: "mutable-no-delete",
   immutableFields: ["sourceInstanceId", "actionId", "startedAt"],
   constraints: (table) => [
-    uniqueIndex("synchronization_runs_id_source_unique").on(
+    unique("synchronization_runs_id_source_unique").on(
       table.id,
       table.sourceInstanceId,
     ),
@@ -304,19 +324,17 @@ export const synchronizationConnectionResults = defineModelTable({
       table.finishedAt,
     ),
     foreignKey({
-      columns: [table.sourceInstanceId],
-      foreignColumns: [sourceInstances.id],
-      name: "sync_connection_results_source_fk",
+      columns: [table.synchronizationRunId, table.sourceInstanceId],
+      foreignColumns: [
+        synchronizationRuns.id,
+        synchronizationRuns.sourceInstanceId,
+      ],
+      name: "sync_connection_results_run_source_fk",
     }).onDelete("restrict"),
     foreignKey({
-      columns: [table.synchronizationRunId],
-      foreignColumns: [synchronizationRuns.id],
-      name: "sync_connection_results_run_fk",
-    }).onDelete("restrict"),
-    foreignKey({
-      columns: [table.connectionId],
-      foreignColumns: [connections.id],
-      name: "sync_connection_results_connection_fk",
+      columns: [table.connectionId, table.sourceInstanceId],
+      foreignColumns: [connections.id, connections.sourceInstanceId],
+      name: "sync_connection_results_connection_source_fk",
     }).onDelete("restrict"),
     check(
       "synchronization_connection_results_status_valid",
@@ -337,9 +355,7 @@ export const externalAccountObservations = defineModelTable({
     sourceInstanceId: uuid("source_instance_id").notNull(),
     synchronizationRunId: uuid("synchronization_run_id").notNull(),
     externalAccountId: uuid("external_account_id").notNull(),
-    accountId: uuid("account_id")
-      .notNull()
-      .references(() => accounts.id, { onDelete: "restrict" }),
+    accountId: uuid("account_id").notNull(),
     observedAt: timestamp("observed_at", { mode: "date", withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -357,13 +373,13 @@ export const externalAccountObservations = defineModelTable({
       table.synchronizationRunId,
       table.externalAccountId,
     ),
-    uniqueIndex("external_account_observations_provenance_unique").on(
+    unique("external_account_observations_provenance_unique").on(
       table.id,
       table.synchronizationRunId,
       table.externalAccountId,
       table.sourceInstanceId,
     ),
-    uniqueIndex("external_account_observations_id_account_unique").on(
+    unique("external_account_observations_id_account_unique").on(
       table.id,
       table.accountId,
     ),
@@ -372,19 +388,22 @@ export const externalAccountObservations = defineModelTable({
       table.observedAt,
     ),
     foreignKey({
-      columns: [table.sourceInstanceId],
-      foreignColumns: [sourceInstances.id],
-      name: "external_account_observations_source_fk",
+      columns: [table.synchronizationRunId, table.sourceInstanceId],
+      foreignColumns: [
+        synchronizationRuns.id,
+        synchronizationRuns.sourceInstanceId,
+      ],
+      name: "external_account_observations_run_source_fk",
     }).onDelete("restrict"),
     foreignKey({
-      columns: [table.synchronizationRunId],
-      foreignColumns: [synchronizationRuns.id],
-      name: "external_account_observations_run_fk",
+      columns: [table.externalAccountId, table.sourceInstanceId],
+      foreignColumns: [externalAccounts.id, externalAccounts.sourceInstanceId],
+      name: "external_account_observations_account_source_fk",
     }).onDelete("restrict"),
     foreignKey({
-      columns: [table.externalAccountId],
-      foreignColumns: [externalAccounts.id],
-      name: "external_account_observations_external_account_fk",
+      columns: [table.externalAccountId, table.accountId],
+      foreignColumns: [externalAccounts.id, externalAccounts.accountId],
+      name: "external_account_observations_account_identity_fk",
     }).onDelete("restrict"),
     check(
       "external_account_observations_lifecycle_valid",
@@ -401,9 +420,7 @@ export const reportedAccountValuations = defineModelTable({
     externalAccountObservationId: uuid(
       "external_account_observation_id",
     ).notNull(),
-    accountId: uuid("account_id")
-      .notNull()
-      .references(() => accounts.id, { onDelete: "restrict" }),
+    accountId: uuid("account_id").notNull(),
     valuationBasis: text("valuation_basis").notNull(),
   },
   primaryKey: ["valuationCandidateId"],
@@ -414,14 +431,28 @@ export const reportedAccountValuations = defineModelTable({
       table.valuationBasis,
     ),
     foreignKey({
-      columns: [table.valuationCandidateId],
-      foreignColumns: [accountValuationCandidates.id],
-      name: "reported_valuations_candidate_fk",
+      columns: [table.valuationCandidateId, table.accountId],
+      foreignColumns: [
+        accountValuationCandidates.id,
+        accountValuationCandidates.accountId,
+      ],
+      name: "reported_valuations_candidate_account_fk",
     }).onDelete("restrict"),
     foreignKey({
-      columns: [table.externalAccountObservationId],
-      foreignColumns: [externalAccountObservations.id],
-      name: "reported_valuations_observation_fk",
+      columns: [table.valuationCandidateId, table.valuationBasis],
+      foreignColumns: [
+        accountValuationCandidates.id,
+        accountValuationCandidates.valuationBasis,
+      ],
+      name: "reported_valuations_candidate_basis_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.externalAccountObservationId, table.accountId],
+      foreignColumns: [
+        externalAccountObservations.id,
+        externalAccountObservations.accountId,
+      ],
+      name: "reported_valuations_observation_account_fk",
     }).onDelete("restrict"),
   ],
 });
@@ -454,24 +485,32 @@ export const synchronizationAccountResults = defineModelTable({
       table.finishedAt,
     ),
     foreignKey({
-      columns: [table.sourceInstanceId],
-      foreignColumns: [sourceInstances.id],
-      name: "sync_account_results_source_fk",
+      columns: [table.synchronizationRunId, table.sourceInstanceId],
+      foreignColumns: [
+        synchronizationRuns.id,
+        synchronizationRuns.sourceInstanceId,
+      ],
+      name: "sync_account_results_run_source_fk",
     }).onDelete("restrict"),
     foreignKey({
-      columns: [table.synchronizationRunId],
-      foreignColumns: [synchronizationRuns.id],
-      name: "sync_account_results_run_fk",
+      columns: [table.externalAccountId, table.sourceInstanceId],
+      foreignColumns: [externalAccounts.id, externalAccounts.sourceInstanceId],
+      name: "sync_account_results_external_account_source_fk",
     }).onDelete("restrict"),
     foreignKey({
-      columns: [table.externalAccountId],
-      foreignColumns: [externalAccounts.id],
-      name: "sync_account_results_external_account_fk",
-    }).onDelete("restrict"),
-    foreignKey({
-      columns: [table.externalAccountObservationId],
-      foreignColumns: [externalAccountObservations.id],
-      name: "sync_account_results_observation_fk",
+      columns: [
+        table.externalAccountObservationId,
+        table.synchronizationRunId,
+        table.externalAccountId,
+        table.sourceInstanceId,
+      ],
+      foreignColumns: [
+        externalAccountObservations.id,
+        externalAccountObservations.synchronizationRunId,
+        externalAccountObservations.externalAccountId,
+        externalAccountObservations.sourceInstanceId,
+      ],
+      name: "sync_account_results_observation_provenance_fk",
     }).onDelete("restrict"),
     check(
       "synchronization_account_results_status_valid",
@@ -500,7 +539,14 @@ export const accountIdentityClaims = defineModelTable({
   },
   primaryKey: ["id"],
   writePolicy: "mutable-no-delete",
-  immutableFields: ["createdAt"],
+  immutableFields: [
+    "externalAccountId",
+    "claimType",
+    "keyVersion",
+    "fingerprint",
+    "firstObservedRunId",
+    "createdAt",
+  ],
   constraints: (table) => [
     uniqueIndex("account_identity_claims_value_unique").on(
       table.externalAccountId,

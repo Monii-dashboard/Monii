@@ -1,5 +1,5 @@
 -- Generated from ModelTable declarations. Do not edit by hand.
--- monii-model-table-policy-sha256:5e3dfd44bedd52c1cdc08c271e4d82c4736d81c4da6bb07a61884f0df9152d82
+-- monii-model-table-policy-sha256:88b5cad528cc72dc392ebc0bca7a40a6e8fe0506c6924e9ebda72dd3500c709b
 DO $$
 BEGIN
   CREATE ROLE "monii_runtime"
@@ -156,7 +156,7 @@ REVOKE ALL PRIVILEGES ON TABLE "ingestion"."account_identity_claims" FROM "monii
 --> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE ON TABLE "ingestion"."account_identity_claims" TO "monii_runtime";
 --> statement-breakpoint
-COMMENT ON TABLE "ingestion"."account_identity_claims" IS 'monii:model-table:v1:mutable-no-delete:8520f1889f614444';
+COMMENT ON TABLE "ingestion"."account_identity_claims" IS 'monii:model-table:v1:mutable-no-delete:ba4ae99066fedbb4';
 --> statement-breakpoint
 DROP TRIGGER IF EXISTS monii_append_only_guard ON "ingestion"."account_identity_claims";
 --> statement-breakpoint
@@ -176,13 +176,13 @@ FOR EACH STATEMENT EXECUTE FUNCTION public.monii_reject_table_mutation();
 --> statement-breakpoint
 CREATE TRIGGER monii_model_table_immutable_guard
 BEFORE UPDATE ON "ingestion"."account_identity_claims"
-FOR EACH ROW EXECUTE FUNCTION public.monii_reject_immutable_field_update('["id","created_at"]');
+FOR EACH ROW EXECUTE FUNCTION public.monii_reject_immutable_field_update('["id","external_account_id","claim_type","key_version","fingerprint","first_observed_run_id","created_at"]');
 --> statement-breakpoint
 REVOKE ALL PRIVILEGES ON TABLE "ingestion"."connections" FROM "monii_runtime";
 --> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE ON TABLE "ingestion"."connections" TO "monii_runtime";
 --> statement-breakpoint
-COMMENT ON TABLE "ingestion"."connections" IS 'monii:model-table:v1:mutable-no-delete:3d87cf6f8865bcd2';
+COMMENT ON TABLE "ingestion"."connections" IS 'monii:model-table:v1:mutable-no-delete:852165429f1157cc';
 --> statement-breakpoint
 DROP TRIGGER IF EXISTS monii_append_only_guard ON "ingestion"."connections";
 --> statement-breakpoint
@@ -202,7 +202,7 @@ FOR EACH STATEMENT EXECUTE FUNCTION public.monii_reject_table_mutation();
 --> statement-breakpoint
 CREATE TRIGGER monii_model_table_immutable_guard
 BEFORE UPDATE ON "ingestion"."connections"
-FOR EACH ROW EXECUTE FUNCTION public.monii_reject_immutable_field_update('["id","created_at"]');
+FOR EACH ROW EXECUTE FUNCTION public.monii_reject_immutable_field_update('["id","source_instance_id","external_id","created_at"]');
 --> statement-breakpoint
 REVOKE ALL PRIVILEGES ON TABLE "ingestion"."external_account_observations" FROM "monii_runtime";
 --> statement-breakpoint
@@ -230,7 +230,7 @@ REVOKE ALL PRIVILEGES ON TABLE "ingestion"."external_accounts" FROM "monii_runti
 --> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE ON TABLE "ingestion"."external_accounts" TO "monii_runtime";
 --> statement-breakpoint
-COMMENT ON TABLE "ingestion"."external_accounts" IS 'monii:model-table:v1:mutable-no-delete:2a7d3afb888eb932';
+COMMENT ON TABLE "ingestion"."external_accounts" IS 'monii:model-table:v1:mutable-no-delete:1976e95c294989f1';
 --> statement-breakpoint
 DROP TRIGGER IF EXISTS monii_append_only_guard ON "ingestion"."external_accounts";
 --> statement-breakpoint
@@ -250,13 +250,13 @@ FOR EACH STATEMENT EXECUTE FUNCTION public.monii_reject_table_mutation();
 --> statement-breakpoint
 CREATE TRIGGER monii_model_table_immutable_guard
 BEFORE UPDATE ON "ingestion"."external_accounts"
-FOR EACH ROW EXECUTE FUNCTION public.monii_reject_immutable_field_update('["id","first_observed_at"]');
+FOR EACH ROW EXECUTE FUNCTION public.monii_reject_immutable_field_update('["id","account_id","source_instance_id","external_id","first_observed_at"]');
 --> statement-breakpoint
 REVOKE ALL PRIVILEGES ON TABLE "ingestion"."external_institutions" FROM "monii_runtime";
 --> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE ON TABLE "ingestion"."external_institutions" TO "monii_runtime";
 --> statement-breakpoint
-COMMENT ON TABLE "ingestion"."external_institutions" IS 'monii:model-table:v1:mutable-no-delete:f19a38573dd6b4dc';
+COMMENT ON TABLE "ingestion"."external_institutions" IS 'monii:model-table:v1:mutable-no-delete:4e30a7426ceb2fea';
 --> statement-breakpoint
 DROP TRIGGER IF EXISTS monii_append_only_guard ON "ingestion"."external_institutions";
 --> statement-breakpoint
@@ -276,7 +276,7 @@ FOR EACH STATEMENT EXECUTE FUNCTION public.monii_reject_table_mutation();
 --> statement-breakpoint
 CREATE TRIGGER monii_model_table_immutable_guard
 BEFORE UPDATE ON "ingestion"."external_institutions"
-FOR EACH ROW EXECUTE FUNCTION public.monii_reject_immutable_field_update('["id","first_observed_at"]');
+FOR EACH ROW EXECUTE FUNCTION public.monii_reject_immutable_field_update('["id","source_instance_id","institution_id","external_id","first_observed_at"]');
 --> statement-breakpoint
 REVOKE ALL PRIVILEGES ON TABLE "ingestion"."reported_account_valuations" FROM "monii_runtime";
 --> statement-breakpoint
@@ -304,7 +304,7 @@ REVOKE ALL PRIVILEGES ON TABLE "ingestion"."source_instances" FROM "monii_runtim
 --> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE ON TABLE "ingestion"."source_instances" TO "monii_runtime";
 --> statement-breakpoint
-COMMENT ON TABLE "ingestion"."source_instances" IS 'monii:model-table:v1:mutable-no-delete:1245ed8c60cca0ca';
+COMMENT ON TABLE "ingestion"."source_instances" IS 'monii:model-table:v1:mutable-no-delete:fc878e84fb5cf6e2';
 --> statement-breakpoint
 DROP TRIGGER IF EXISTS monii_append_only_guard ON "ingestion"."source_instances";
 --> statement-breakpoint
@@ -324,7 +324,7 @@ FOR EACH STATEMENT EXECUTE FUNCTION public.monii_reject_table_mutation();
 --> statement-breakpoint
 CREATE TRIGGER monii_model_table_immutable_guard
 BEFORE UPDATE ON "ingestion"."source_instances"
-FOR EACH ROW EXECUTE FUNCTION public.monii_reject_immutable_field_update('["id","created_at"]');
+FOR EACH ROW EXECUTE FUNCTION public.monii_reject_immutable_field_update('["id","source_key","created_at"]');
 --> statement-breakpoint
 REVOKE ALL PRIVILEGES ON TABLE "ingestion"."synchronization_account_results" FROM "monii_runtime";
 --> statement-breakpoint
@@ -400,7 +400,7 @@ REVOKE ALL PRIVILEGES ON TABLE "reconciliation"."account_match_assessments" FROM
 --> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE ON TABLE "reconciliation"."account_match_assessments" TO "monii_runtime";
 --> statement-breakpoint
-COMMENT ON TABLE "reconciliation"."account_match_assessments" IS 'monii:model-table:v1:mutable-no-delete:96e3abd9f3f342c4';
+COMMENT ON TABLE "reconciliation"."account_match_assessments" IS 'monii:model-table:v1:mutable-no-delete:7ce615d1a5fcb6dd';
 --> statement-breakpoint
 DROP TRIGGER IF EXISTS monii_append_only_guard ON "reconciliation"."account_match_assessments";
 --> statement-breakpoint
@@ -420,7 +420,7 @@ FOR EACH STATEMENT EXECUTE FUNCTION public.monii_reject_table_mutation();
 --> statement-breakpoint
 CREATE TRIGGER monii_model_table_immutable_guard
 BEFORE UPDATE ON "reconciliation"."account_match_assessments"
-FOR EACH ROW EXECUTE FUNCTION public.monii_reject_immutable_field_update('["id","created_at"]');
+FOR EACH ROW EXECUTE FUNCTION public.monii_reject_immutable_field_update('["id","left_external_account_id","right_external_account_id","first_detected_synchronization_run_id","created_at"]');
 --> statement-breakpoint
 REVOKE ALL PRIVILEGES ON TABLE "wealth"."account_policies" FROM "monii_runtime";
 --> statement-breakpoint
