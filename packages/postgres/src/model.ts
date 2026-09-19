@@ -17,6 +17,7 @@ import {
   type ModelTableKey,
   type ModelTableWritePolicy,
 } from "./model-table";
+import { isInTransaction } from "./transaction";
 
 export {
   defineModelTable,
@@ -113,8 +114,16 @@ type UpdateModelClass<
   TPrimaryKey extends readonly RowKey<TTable>[],
   TImmutableFields extends readonly RowKey<TTable>[],
 > = {
+  findForUpdate(
+    primaryKey: PrimaryKeyInput<TTable, TPrimaryKey>,
+  ): Promise<ModelRecord<TTable> | null>;
   update(
     primaryKey: PrimaryKeyInput<TTable, TPrimaryKey>,
+    values: Update<TTable, TPrimaryKey, TImmutableFields>,
+  ): Promise<ModelRecord<TTable> | null>;
+  updateIf(
+    primaryKey: PrimaryKeyInput<TTable, TPrimaryKey>,
+    expected: ModelFilters<Omit<Row<TTable>, TPrimaryKey[number]>>,
     values: Update<TTable, TPrimaryKey, TImmutableFields>,
   ): Promise<ModelRecord<TTable> | null>;
 };
@@ -310,6 +319,26 @@ export function modelFor<
     });
   }
   if (writePolicy === "full-crud" || writePolicy === "mutable-no-delete") {
+    Object.defineProperty(TableModel, "findForUpdate", {
+      value: async function (
+        this: typeof TableModel,
+        key: PrimaryKeyInput<TTable, TPrimaryKey>,
+      ) {
+        if (!isInTransaction()) {
+          throw new Error("Model.findForUpdate requires transaction()");
+        }
+        const rows = (await getDatabase()
+          .select()
+          .from(table as never)
+          .where(
+            and(...conditionsFor(table, primaryKeyValues(key, primaryKey))),
+          )
+          .for("update")
+          .limit(1)) as unknown as Row<TTable>[];
+        const [row] = rows;
+        return row ? new this(row) : null;
+      },
+    });
     Object.defineProperty(TableModel, "update", {
       value: async function (
         this: typeof TableModel,
@@ -327,6 +356,45 @@ export function modelFor<
           .set(values as Partial<Insert<TTable>>)
           .where(
             and(...conditionsFor(table, primaryKeyValues(key, primaryKey))),
+          )
+          .returning();
+        return row ? new this(row as Row<TTable>) : null;
+      },
+    });
+    Object.defineProperty(TableModel, "updateIf", {
+      value: async function (
+        this: typeof TableModel,
+        key: PrimaryKeyInput<TTable, TPrimaryKey>,
+        expected: ModelFilters<Omit<Row<TTable>, TPrimaryKey[number]>>,
+        values: Update<TTable, TPrimaryKey, TImmutableFields>,
+      ) {
+        if (!expected || Object.keys(expected).length === 0) {
+          throw new Error(
+            "Model update conditions must include at least one field",
+          );
+        }
+        const repeatedPrimaryKey = primaryKey.find((field) =>
+          Object.hasOwn(expected, field),
+        );
+        if (repeatedPrimaryKey) {
+          throw new Error(
+            `Model update condition ${repeatedPrimaryKey} is already the primary key`,
+          );
+        }
+        const immutableField = immutableFields.find((field) =>
+          Object.hasOwn(values, field),
+        );
+        if (immutableField) {
+          throw new Error(`Model field ${immutableField} is immutable`);
+        }
+        const [row] = await getDatabase()
+          .update(table)
+          .set(values as Partial<Insert<TTable>>)
+          .where(
+            and(
+              ...conditionsFor(table, primaryKeyValues(key, primaryKey)),
+              ...conditionsFor(table, expected),
+            ),
           )
           .returning();
         return row ? new this(row as Row<TTable>) : null;

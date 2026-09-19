@@ -135,6 +135,8 @@ Only successful account results link an observation. A complete listing can
 produce `not_seen`; a truncated listing cannot infer absence. The financial
 refresh workflow commits run finalization, identity reconciliation, and snapshot
 creation atomically. Only one non-abandoned run can be active per source instance.
+Connection-result persistence locks its run and requires it to remain active, so
+a delayed worker cannot append facts after that run was finalized or abandoned.
 
 Repeated provenance identifiers are relational constraints, not independent
 hints. Composite foreign keys require connections and external accounts to

@@ -1,8 +1,5 @@
-import { getDatabase } from "@monii/postgres/client";
-import { synchronizationRuns } from "@monii/postgres/schema/ingestion";
-import { and, eq } from "drizzle-orm";
-
 import type { SynchronizationFailure } from "../external-financial-source";
+import { SynchronizationRun } from "../models";
 import type { SynchronizationStatus } from "../types";
 
 export type FinalizedSynchronizationRun = Readonly<{
@@ -17,22 +14,17 @@ export async function finalizeSynchronizationRun(
   status: Exclude<SynchronizationStatus, "running">,
   failure?: SynchronizationFailure,
 ): Promise<FinalizedSynchronizationRun> {
-  const [run] = await getDatabase()
-    .update(synchronizationRuns)
-    .set({
+  const run = await SynchronizationRun.updateIf(
+    runId,
+    { status: "running" },
+    {
       errorCode: failure?.code ?? null,
       errorKind: failure?.kind ?? null,
       finishedAt: new Date(),
       status,
-    })
-    .where(
-      and(
-        eq(synchronizationRuns.id, runId),
-        eq(synchronizationRuns.status, "running"),
-      ),
-    )
-    .returning({ actionId: synchronizationRuns.actionId });
+    },
+  );
   if (!run) throw new Error(`Synchronization run ${runId} is not running`);
 
-  return run;
+  return { actionId: run.actionId };
 }

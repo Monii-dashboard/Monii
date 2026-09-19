@@ -1,11 +1,8 @@
-import { getDatabase } from "@monii/postgres/client";
 import {
   SourceInstance,
   SynchronizationRun,
 } from "../models";
-import { synchronizationRuns } from "@monii/postgres/schema/ingestion";
 import { transaction } from "@monii/postgres/transaction";
-import { and, eq, lt } from "drizzle-orm";
 
 import type { FinancialOperationalReport, SynchronizationReporter } from "../reporting";
 import { isUniqueViolation } from "../internal/is-unique-violation";
@@ -44,35 +41,20 @@ export async function startSynchronizationRun(
           });
       if (!source) throw new Error("Failed to persist source instance");
 
-      const abandonedRuns = await getDatabase()
-        .update(synchronizationRuns)
-        .set({
-          errorCode: "abandoned",
-          errorKind: "orchestration",
-          finishedAt: new Date(),
-          status: "failed",
-        })
-        .where(
-          and(
-            eq(synchronizationRuns.sourceInstanceId, source.id),
-            eq(synchronizationRuns.status, "running"),
-            lt(
-              synchronizationRuns.startedAt,
-              new Date(Date.now() - 2 * 60 * 60 * 1_000),
-            ),
-          ),
-        )
-        .returning({ runId: synchronizationRuns.id });
+      const abandonedRunIds = await SynchronizationRun.abandonStaleRunning(
+        source.id,
+        new Date(Date.now() - 2 * 60 * 60 * 1_000),
+      );
       const run = await SynchronizationRun.create({
         actionId: input.actionId,
         sourceInstanceId: source.id,
         startedAt: new Date(),
       });
-      const reports: FinancialOperationalReport[] = abandonedRuns.map(
-        (abandonedRun) => ({
+      const reports: FinancialOperationalReport[] = abandonedRunIds.map(
+        (abandonedRunId) => ({
           event: "ingestion.run.abandoned",
           fields: {
-            abandoned_run_id: abandonedRun.runId,
+            abandoned_run_id: abandonedRunId,
             replacement_run_id: run.id,
             timeout_hours: 2,
           },

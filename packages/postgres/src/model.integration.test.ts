@@ -201,7 +201,12 @@ it("derives update availability directly from each table write policy", async ()
   expectTypeOf(AccountValuationCandidate).not.toHaveProperty("update");
   expectTypeOf(AccountValuationCandidate).not.toHaveProperty("delete");
   expectTypeOf(SynchronizationRun).toHaveProperty("create");
+  expectTypeOf(SynchronizationRun).toHaveProperty("findForUpdate");
   expectTypeOf(SynchronizationRun).toHaveProperty("update");
+  expectTypeOf(SynchronizationRun).toHaveProperty("updateIf");
+  expectTypeOf(SynchronizationRun.updateIf)
+    .parameter(1)
+    .not.toHaveProperty("id");
   expectTypeOf(SynchronizationRun.update)
     .parameter(1)
     .not.toHaveProperty("sourceInstanceId");
@@ -217,7 +222,9 @@ it("derives update availability directly from each table write policy", async ()
   expect("update" in AccountValuationCandidate).toBe(false);
   expect("delete" in AccountValuationCandidate).toBe(false);
   expect("create" in SynchronizationRun).toBe(true);
+  expect("findForUpdate" in SynchronizationRun).toBe(true);
   expect("update" in SynchronizationRun).toBe(true);
+  expect("updateIf" in SynchronizationRun).toBe(true);
   expect("delete" in SynchronizationRun).toBe(false);
 
   const source = await SourceInstance.create({
@@ -240,6 +247,110 @@ it("derives update availability directly from each table write policy", async ()
   await expect(
     SynchronizationRun.update(run.id, { actionId: "changed" } as never),
   ).rejects.toThrow("Model field actionId is immutable");
+});
+
+it("updates a record only when its expected state still matches", async () => {
+  const source = await SourceInstance.create({
+    adapterKey: "conditional-model-test",
+    name: "Conditional model test source",
+    sourceKey: "conditional-model-test-source",
+  });
+  const run = await SynchronizationRun.create({
+    actionId: "conditional-model-test-run",
+    sourceInstanceId: source.id,
+  });
+  const finishedAt = new Date("2026-09-12T11:00:00.000Z");
+
+  await expect(
+    SynchronizationRun.updateIf(
+      run.id,
+      { status: "running" },
+      { finishedAt, status: "succeeded" },
+    ),
+  ).resolves.toMatchObject({ finishedAt, status: "succeeded" });
+  await expect(
+    SynchronizationRun.updateIf(
+      run.id,
+      { status: "running" },
+      {
+        errorCode: "late_failure",
+        errorKind: "orchestration",
+        finishedAt: new Date(),
+        status: "failed",
+      },
+    ),
+  ).resolves.toBeNull();
+  await expect(SynchronizationRun.find(run.id)).resolves.toMatchObject({
+    errorCode: null,
+    status: "succeeded",
+  });
+  await expect(
+    SynchronizationRun.updateIf(run.id, {} as never, { status: "failed" }),
+  ).rejects.toThrow("Model update conditions must include at least one field");
+  await expect(
+    SynchronizationRun.updateIf(
+      run.id,
+      { status: "succeeded" },
+      { actionId: "changed" } as never,
+    ),
+  ).rejects.toThrow("Model field actionId is immutable");
+});
+
+it("requires a transaction for locking model records", async () => {
+  const source = await SourceInstance.create({
+    adapterKey: "locking-model-test",
+    name: "Locking model test source",
+    sourceKey: "locking-model-test-source",
+  });
+  const run = await SynchronizationRun.create({
+    actionId: "locking-model-test-run",
+    sourceInstanceId: source.id,
+  });
+
+  await expect(SynchronizationRun.findForUpdate(run.id)).rejects.toThrow(
+    "Model.findForUpdate requires transaction()",
+  );
+  await expect(
+    transaction(() => SynchronizationRun.findForUpdate(run.id)),
+  ).resolves.toMatchObject({ id: run.id, status: "running" });
+});
+
+it("holds a model update lock until its transaction finishes", async () => {
+  const source = await SourceInstance.create({
+    adapterKey: "held-lock-model-test",
+    name: "Held lock model test source",
+    sourceKey: "held-lock-model-test-source",
+  });
+  const run = await SynchronizationRun.create({
+    actionId: "held-lock-model-test-run",
+    sourceInstanceId: source.id,
+  });
+  let announceLocked!: () => void;
+  let releaseLock!: () => void;
+  const locked = new Promise<void>((resolve) => {
+    announceLocked = resolve;
+  });
+  const release = new Promise<void>((resolve) => {
+    releaseLock = resolve;
+  });
+  const lockOwner = transaction(async () => {
+    await SynchronizationRun.findForUpdate(run.id);
+    announceLocked();
+    await release;
+  });
+
+  await locked;
+  try {
+    await expect(
+      transaction(async () => {
+        await getDatabase().execute(sql`set local lock_timeout = '50ms'`);
+        await SynchronizationRun.update(run.id, { status: "running" });
+      }),
+    ).rejects.toMatchObject({ cause: { code: "55P03" } });
+  } finally {
+    releaseLock();
+    await lockOwner;
+  }
 });
 
 it("excludes stable external-account identity from model updates", async () => {

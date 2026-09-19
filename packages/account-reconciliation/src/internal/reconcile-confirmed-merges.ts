@@ -7,7 +7,7 @@ import { AccountMerge } from "@monii/accounts/models";
 import { getDatabase } from "@monii/postgres/client";
 import { externalAccounts } from "@monii/postgres/schema/ingestion";
 import { accountMatchAssessments } from "@monii/postgres/schema/reconciliation";
-import { eq, inArray } from "drizzle-orm";
+import { aliasedTable, eq } from "drizzle-orm";
 
 import type { AccountReconciliationReport } from "../reporting";
 
@@ -16,31 +16,39 @@ export async function reconcileConfirmedMerges(
 ): Promise<AccountReconciliationReport[]> {
   const db = getDatabase();
   const reports: AccountReconciliationReport[] = [];
+  const leftExternalAccounts = aliasedTable(
+    externalAccounts,
+    "left_external_accounts",
+  );
+  const rightExternalAccounts = aliasedTable(
+    externalAccounts,
+    "right_external_accounts",
+  );
   const confirmed = await db
     .select({
-      leftAccountId: externalAccounts.accountId,
-      rightExternalAccountId: accountMatchAssessments.rightExternalAccountId,
+      leftAccountId: leftExternalAccounts.accountId,
+      rightAccountId: rightExternalAccounts.accountId,
     })
     .from(accountMatchAssessments)
     .innerJoin(
-      externalAccounts,
-      eq(externalAccounts.id, accountMatchAssessments.leftExternalAccountId),
+      leftExternalAccounts,
+      eq(
+        leftExternalAccounts.id,
+        accountMatchAssessments.leftExternalAccountId,
+      ),
+    )
+    .innerJoin(
+      rightExternalAccounts,
+      eq(
+        rightExternalAccounts.id,
+        accountMatchAssessments.rightExternalAccountId,
+      ),
     )
     .where(eq(accountMatchAssessments.classification, "confirmed_duplicate"));
-  const rightIds = confirmed.map((match) => match.rightExternalAccountId);
-  const rightRows = rightIds.length
-    ? await db
-        .select({ accountId: externalAccounts.accountId, id: externalAccounts.id })
-        .from(externalAccounts)
-        .where(inArray(externalAccounts.id, rightIds))
-    : [];
-  const rightById = new Map(rightRows.map((row) => [row.id, row.accountId]));
-  const pairs = confirmed.flatMap((match) => {
-    const rightAccountId = rightById.get(match.rightExternalAccountId);
-    return rightAccountId
-      ? [{ leftAccountId: match.leftAccountId, rightAccountId }]
-      : [];
-  });
+  const pairs = confirmed.map((match) => ({
+    leftAccountId: match.leftAccountId,
+    rightAccountId: match.rightAccountId,
+  }));
   const allMerges = await AccountMerge.findMany();
   const resolvedPairs = pairs.map((pair) => ({
     leftAccountId: resolveCanonicalAccountId(pair.leftAccountId, allMerges),

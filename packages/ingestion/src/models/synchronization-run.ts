@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 
 import { getDatabase } from "@monii/postgres/client";
 import { defineModelQuery, modelFor } from "@monii/postgres/model";
@@ -31,4 +31,27 @@ const queries = {
 export class SynchronizationRun extends modelFor(
   synchronizationRuns,
   queries,
-) {}
+) {
+  static async abandonStaleRunning(
+    sourceInstanceId: string,
+    startedBefore: Date,
+  ): Promise<string[]> {
+    const rows = await getDatabase()
+      .update(synchronizationRuns)
+      .set({
+        errorCode: "abandoned",
+        errorKind: "orchestration",
+        finishedAt: new Date(),
+        status: "failed",
+      })
+      .where(
+        and(
+          eq(synchronizationRuns.sourceInstanceId, sourceInstanceId),
+          eq(synchronizationRuns.status, "running"),
+          lt(synchronizationRuns.startedAt, startedBefore),
+        ),
+      )
+      .returning({ id: synchronizationRuns.id });
+    return rows.map((row) => row.id);
+  }
+}

@@ -106,9 +106,13 @@ test("derives model methods from every supported write policy", () => {
     }),
   );
   expectTypeOf(ReadOnly).not.toHaveProperty("create");
+  expectTypeOf(ReadOnly).not.toHaveProperty("findForUpdate");
   expectTypeOf(AppendOnly).toHaveProperty("create");
   expectTypeOf(AppendOnly).not.toHaveProperty("update");
+  expectTypeOf(AppendOnly).not.toHaveProperty("updateIf");
+  expectTypeOf(Mutable).toHaveProperty("findForUpdate");
   expectTypeOf(Mutable).toHaveProperty("update");
+  expectTypeOf(Mutable).toHaveProperty("updateIf");
   expectTypeOf(Mutable.update)
     .parameter(1)
     .not.toHaveProperty("immutableValue");
@@ -119,7 +123,10 @@ test("derives model methods from every supported write policy", () => {
   expect(Object.hasOwn(ReadOnly, "create")).toBe(false);
   expect(Object.hasOwn(AppendOnly, "create")).toBe(true);
   expect(Object.hasOwn(AppendOnly, "update")).toBe(false);
+  expect(Object.hasOwn(AppendOnly, "updateIf")).toBe(false);
+  expect(Object.hasOwn(Mutable, "findForUpdate")).toBe(true);
   expect(Object.hasOwn(Mutable, "update")).toBe(true);
+  expect(Object.hasOwn(Mutable, "updateIf")).toBe(true);
   expect(Object.hasOwn(Mutable, "delete")).toBe(false);
   expect(Object.hasOwn(FullCrud, "delete")).toBe(true);
 });

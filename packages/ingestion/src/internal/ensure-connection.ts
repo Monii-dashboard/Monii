@@ -1,9 +1,5 @@
 import { Institution } from "@monii/accounts/models";
-import {
-  Connection,
-  ExternalInstitution,
-  SynchronizationRun,
-} from "../models";
+import { Connection, ExternalInstitution, SynchronizationRun } from "../models";
 
 import type { NormalizedExternalConnection } from "../external-financial-source";
 
@@ -17,8 +13,11 @@ export async function ensureConnection(
   runId: string,
   connection: NormalizedExternalConnection,
 ): Promise<StoredConnectionContext> {
-  const run = await SynchronizationRun.find(runId);
+  const run = await SynchronizationRun.findForUpdate(runId);
   if (!run) throw new Error(`Synchronization run ${runId} does not exist`);
+  if (run.status !== "running") {
+    throw new Error(`Synchronization run ${runId} is not running`);
+  }
 
   const [storedExternalInstitution] = await ExternalInstitution.findMany({
     externalId: connection.institution.externalId,
@@ -39,8 +38,8 @@ export async function ensureConnection(
     const updatedExternalInstitution = await ExternalInstitution.update(
       externalInstitution.id,
       {
-          lastObservedAt: new Date(),
-          reportedName: connection.institution.reportedName,
+        lastObservedAt: new Date(),
+        reportedName: connection.institution.reportedName,
       },
     );
     if (!updatedExternalInstitution) {

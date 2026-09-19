@@ -1,7 +1,5 @@
 import type { AccountIdentityEvidence } from "@monii/accounts";
-import { getDatabase } from "@monii/postgres/client";
-import { accountIdentityClaims } from "@monii/postgres/schema/ingestion";
-import { and, eq, ne } from "drizzle-orm";
+import { AccountIdentityClaim } from "../models";
 
 export async function saveIdentityClaims(
   runId: string,
@@ -16,40 +14,12 @@ export async function saveIdentityClaims(
 
   for (const [claimType, fingerprint] of claims) {
     if (!fingerprint) continue;
-    await getDatabase()
-      .update(accountIdentityClaims)
-      .set({ isCurrent: false, updatedAt: new Date() })
-      .where(
-        and(
-          eq(accountIdentityClaims.externalAccountId, externalAccountId),
-          eq(accountIdentityClaims.claimType, claimType),
-          eq(accountIdentityClaims.keyVersion, evidence.keyVersion),
-          ne(accountIdentityClaims.fingerprint, fingerprint),
-          eq(accountIdentityClaims.isCurrent, true),
-        ),
-      );
-    await getDatabase()
-      .insert(accountIdentityClaims)
-      .values({
-        claimType,
-        externalAccountId,
-        fingerprint,
-        firstObservedRunId: runId,
-        keyVersion: evidence.keyVersion,
-        lastObservedRunId: runId,
-      })
-      .onConflictDoUpdate({
-        target: [
-          accountIdentityClaims.externalAccountId,
-          accountIdentityClaims.claimType,
-          accountIdentityClaims.keyVersion,
-          accountIdentityClaims.fingerprint,
-        ],
-        set: {
-          isCurrent: true,
-          lastObservedRunId: runId,
-          updatedAt: new Date(),
-        },
-      });
+    await AccountIdentityClaim.recordCurrent({
+      claimType,
+      externalAccountId,
+      fingerprint,
+      keyVersion: evidence.keyVersion,
+      synchronizationRunId: runId,
+    });
   }
 }

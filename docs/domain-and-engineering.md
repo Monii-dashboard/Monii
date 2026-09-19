@@ -406,10 +406,12 @@ Each table has a small owner-package class extending `modelFor`. All models
 inherit `find`, `findMany`, and typed named queries. Their write methods are
 derived from the table policy: read-only models expose none; append-only models
 expose `create`; mutable-no-delete models also expose `update`; full CRUD must
-be selected explicitly before `delete` exists. Disallowed methods are absent
-from both the TypeScript API and runtime class. Returned records are frozen
-snapshots, and mutable column values are defensively copied so local mutation
-cannot alter the model's observed state.
+be selected explicitly before `delete` exists. Update-capable models also expose
+`updateIf` for an atomic primary-key update conditional on expected field values
+and `findForUpdate` for a locking lookup inside an existing transaction.
+Disallowed methods are absent from both the TypeScript API and runtime class.
+Returned records are frozen snapshots, and mutable column values are
+defensively copied so local mutation cannot alter the model's observed state.
 A single-field primary key gives `find` a scalar input. A composite primary key
 requires an object containing every component. `findMany()` is the explicit
 unfiltered form; a filter argument must contain at least one field, and every
@@ -421,17 +423,21 @@ Every update-capable ModelTable explicitly declares `immutableFields`. Those
 fields and the primary key are omitted from the typed model update input,
 rejected by the runtime model implementation, and protected against direct SQL
 by a generated PostgreSQL OLD-versus-NEW trigger. The implementation rejects an
-immutable input instead of silently ignoring it. State transitions and other
-domain-specific mutations belong in focused commands using conditional SQL and
-ordinary Drizzle checks. Generic model updates do not implement a state
-machine; application commands remain responsible for transition semantics. A
-mutable table's stable lookup keys, external identities, canonical mappings,
-and first-observed provenance are immutable; latest-observation and lifecycle
-state may remain mutable when their owning commands require it. A concrete
-model may add a clearly named table-owned operation such as
-`Account.archive`, but models remain representations of persisted rows, not
-service containers. Do not add implicit relation loading, mutable dirty
-tracking, lifecycle hooks, or generic business workflows to the base model.
+immutable input instead of silently ignoring it. Commands express a single-row
+state transition with `updateIf`, which performs the expectation check and
+mutation in one SQL statement; a null result means the row was missing or its
+state no longer matched. Multi-statement workflows may use `findForUpdate`,
+which rejects use outside `transaction()` and holds the row lock until that
+command-owned transaction completes. Application commands remain responsible
+for transition semantics and transaction boundaries. A mutable table's stable
+lookup keys, external identities, canonical mappings, and first-observed
+provenance are immutable; latest-observation and lifecycle state may remain
+mutable when their owning commands require it. A concrete model may add a
+clearly named table-owned operation such as `Account.archive`, or a focused
+bulk or upsert operation that cannot be represented by the shared primitives.
+Models remain representations of persisted rows, not service containers. Do
+not add implicit relation loading, mutable dirty tracking, lifecycle hooks, or
+generic business workflows to the base model.
 
 PostgreSQL runs application queries under the `monii_runtime` role. Migrations
 retain the owning connection. `pnpm db:generate` runs Drizzle's structural
@@ -478,11 +484,15 @@ result with greater cardinality; queries intended for that helper should still
 encode `limit(1)` to state their intent. Do not replace an ordinary `find` or
 `findMany` equality lookup with a named query.
 
-Joins, cross-table projections, window-function reads, locking reads, and SQL
-whose meaning exists only inside one workflow belong in internal logic owned by
-the capability that needs them. A workflow belongs in one public or internal
-command and composes model methods and focused queries. Pure domain modules
-continue to own rules and domain language without importing models.
+Standalone single-table persistence operations go through the owning Model.
+Ordinary operations use inherited methods, while specialized bulk writes,
+upserts, or reusable table-specific behavior use narrowly named methods on the
+concrete Model; direct Drizzle for those operations stays inside its model file.
+Joins, cross-table projections, window-function reads, and SQL whose meaning
+exists only as a relational projection inside one workflow belong in internal
+logic owned by the capability that needs them. A workflow belongs in one public
+or internal command and composes model methods and focused queries. Pure domain
+modules continue to own rules and domain language without importing models.
 
 Latest-state reads over append-only history must be bounded by current domain
 cardinality rather than retained-history cardinality. Start from the current

@@ -1,7 +1,3 @@
-import { getDatabase } from "@monii/postgres/client";
-import { accountMatchAssessments } from "@monii/postgres/schema/reconciliation";
-import { eq } from "drizzle-orm";
-
 import { AccountMatchAssessment } from "../models";
 import {
   assessExternalAccountIdentity,
@@ -13,21 +9,24 @@ export async function reconcileMatchAssessments(
   synchronizationRunId: string | undefined,
   identityAccounts: readonly IdentityAccount[],
 ): Promise<AccountReconciliationReport[]> {
-  const db = getDatabase();
   const reports: AccountReconciliationReport[] = [];
-  const previousActiveLikelyMatches = await AccountMatchAssessment.findMany({
-    classification: "likely_duplicate",
-    isActive: true,
-  });
+  const existingAssessments = await AccountMatchAssessment.findMany();
+  const previousActiveLikelyMatches = existingAssessments.filter(
+    (assessment) =>
+      assessment.classification === "likely_duplicate" && assessment.isActive,
+  );
+  const assessmentByPair = new Map(
+    existingAssessments.map((assessment) => [
+      `${assessment.leftExternalAccountId}:${assessment.rightExternalAccountId}`,
+      assessment,
+    ]),
+  );
   const activeLikelyPairKeys = new Set<string>();
   const identityByExternalAccount = new Map(
     identityAccounts.map((account) => [account.externalAccountId, account]),
   );
 
-  await db
-    .update(accountMatchAssessments)
-    .set({ isActive: false, updatedAt: new Date() })
-    .where(eq(accountMatchAssessments.classification, "likely_duplicate"));
+  await AccountMatchAssessment.deactivateLikelyDuplicates();
 
   for (let leftIndex = 0; leftIndex < identityAccounts.length; leftIndex += 1) {
     for (
@@ -43,11 +42,8 @@ export async function reconcileMatchAssessments(
         left.externalAccountId < right.externalAccountId
           ? [left.externalAccountId, right.externalAccountId]
           : [right.externalAccountId, left.externalAccountId];
-      const [existing] = await AccountMatchAssessment.findMany({
-        leftExternalAccountId,
-        rightExternalAccountId,
-      });
       const pairKey = `${leftExternalAccountId}:${rightExternalAccountId}`;
+      const existing = assessmentByPair.get(pairKey);
       if (classification === "likely_duplicate") {
         activeLikelyPairKeys.add(pairKey);
       }
@@ -76,10 +72,10 @@ export async function reconcileMatchAssessments(
       }
       if (classification === "distinct") {
         if (existing?.classification === "confirmed_duplicate") {
-          await db
-            .update(accountMatchAssessments)
-            .set({ conflictDetectedAt: new Date(), updatedAt: new Date() })
-            .where(eq(accountMatchAssessments.id, existing.id));
+          await AccountMatchAssessment.update(existing.id, {
+            conflictDetectedAt: new Date(),
+            updatedAt: new Date(),
+          });
           reports.push({
             event: "account_reconciliation.identity_conflict.detected",
             fields: {
@@ -101,32 +97,16 @@ export async function reconcileMatchAssessments(
         existing?.classification === "confirmed_duplicate"
           ? "confirmed_duplicate"
           : classification;
-      await db
-        .insert(accountMatchAssessments)
-        .values({
-          classification: durableClassification,
-          evidence:
-            durableClassification === "confirmed_duplicate"
-              ? "institution_iban_currency_category"
-              : "institution_currency_category_reported_name",
-          firstDetectedSynchronizationRunId: synchronizationRunId,
-          isActive: true,
-          lastDetectedSynchronizationRunId: synchronizationRunId,
-          leftExternalAccountId,
-          rightExternalAccountId,
-        })
-        .onConflictDoUpdate({
-          target: [
-            accountMatchAssessments.leftExternalAccountId,
-            accountMatchAssessments.rightExternalAccountId,
-          ],
-          set: {
-            classification: durableClassification,
-            isActive: true,
-            lastDetectedSynchronizationRunId: synchronizationRunId,
-            updatedAt: new Date(),
-          },
-        });
+      await AccountMatchAssessment.recordActiveMatch({
+        classification: durableClassification,
+        evidence:
+          durableClassification === "confirmed_duplicate"
+            ? "institution_iban_currency_category"
+            : "institution_currency_category_reported_name",
+        leftExternalAccountId,
+        rightExternalAccountId,
+        synchronizationRunId,
+      });
     }
   }
 
