@@ -407,7 +407,9 @@ inherit `find`, `findMany`, and typed named queries. Their write methods are
 derived from the table policy: read-only models expose none; append-only models
 expose `create`; mutable-no-delete models also expose `update`; full CRUD must
 be selected explicitly before `delete` exists. Disallowed methods are absent
-from both the TypeScript API and runtime class.
+from both the TypeScript API and runtime class. Returned records are frozen
+snapshots, and mutable column values are defensively copied so local mutation
+cannot alter the model's observed state.
 A single-field primary key gives `find` a scalar input. A composite primary key
 requires an object containing every component, while `findMany` may filter by a
 partial row. Unique indexes do not become alternate model identities.
@@ -484,8 +486,12 @@ The transaction boundary itself must remain explicit at the operation level;
 asynchronous context removes client plumbing, not ownership of atomicity. Nested
 commands participate automatically, and a nested command that independently
 requires atomicity uses a database savepoint. Register logging or another effect
-that must describe committed state with `afterCommit` and await all work started
-inside the transaction. Keep external API calls outside database transactions.
+that must describe committed state with `afterCommit`; callback failures are
+isolated from the already committed command result and may be observed through a
+separate failure handler. Use a short read-only `repeatable read` transaction when
+several application reads must observe one database snapshot. Await all work
+started inside a transaction, and keep external API calls outside database
+transactions.
 
 The `commands` directory contains one externally callable operation per file.
 Package-private commands live under `internal/commands`; other private helpers

@@ -56,7 +56,13 @@ export async function synchronizeFinancialSource(input: Readonly<{
     message: string,
     event: string,
     fields?: Readonly<Record<string, unknown>>,
-  ) => input.reporter?.report({ event, fields, level, message });
+  ) => {
+    try {
+      input.reporter?.report({ event, fields, level, message });
+    } catch {
+      // Reporting is observational and cannot change the synchronization result.
+    }
+  };
 
   try {
     const started = await startSynchronizationRun(

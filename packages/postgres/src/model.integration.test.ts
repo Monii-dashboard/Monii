@@ -1,4 +1,5 @@
 import { expect, expectTypeOf, it, vi } from "@testkit/integration";
+import { sql } from "drizzle-orm";
 
 import {
   accounts,
@@ -16,6 +17,7 @@ import {
   snapshots,
 } from "./schema/wealth";
 import { afterCommit, isInTransaction, transaction } from "./transaction";
+import { getDatabase } from "./client";
 import { modelFor } from "./model";
 
 class Account extends modelFor(accounts) {
@@ -85,6 +87,27 @@ it("exposes only create and update writes for a mutable no-delete model", async 
   await expect(Account.find(account.id)).resolves.toMatchObject({
     name: "Daily account",
   });
+});
+
+it("returns runtime-immutable model record snapshots", async () => {
+  const account = await Account.create({
+    category: "cash",
+    name: "Immutable account",
+    purpose: "personal",
+  });
+  const originalCreatedAt = account.createdAt.getTime();
+
+  expect(Object.isFrozen(account)).toBe(true);
+  expect(() => {
+    (account as { name: string | null }).name = "Changed locally";
+  }).toThrow(TypeError);
+
+  account.createdAt.setTime(0);
+  expect(account.createdAt.getTime()).toBe(originalCreatedAt);
+
+  const json = account.toJSON();
+  json.createdAt.setTime(0);
+  expect(account.toJSON().createdAt.getTime()).toBe(originalCreatedAt);
 });
 
 it("uses a configured non-id primary key without redefining inherited methods", async () => {
@@ -273,5 +296,54 @@ it("uses savepoints for nested transactions and runs only committed callbacks", 
   await expect(Account.findMany()).resolves.toHaveLength(1);
   await expect(Account.find(keptAccountId)).resolves.toMatchObject({
     name: "Committed",
+  });
+});
+
+it("preserves a committed result when an after-commit effect fails", async () => {
+  const observedFailure = vi.fn();
+  const laterEffect = vi.fn();
+
+  const accountId = await transaction(async () => {
+    const account = await Account.create({
+      category: "cash",
+      name: "Committed before reporting",
+      purpose: "personal",
+    });
+    afterCommit(
+      () => {
+        throw new Error("reporting unavailable");
+      },
+      { onFailure: observedFailure },
+    );
+    afterCommit(laterEffect);
+    return account.id;
+  });
+
+  expect(observedFailure).toHaveBeenCalledWith(
+    new Error("reporting unavailable"),
+  );
+  expect(laterEffect).toHaveBeenCalledOnce();
+  await expect(Account.find(accountId)).resolves.toMatchObject({
+    name: "Committed before reporting",
+  });
+});
+
+it("supports read-only repeatable-read transactions", async () => {
+  await transaction(async () => {
+    const [settings] = await getDatabase().execute<{
+      accessMode: string;
+      isolationLevel: string;
+    }>(sql`
+      select
+        current_setting('transaction_read_only') as "accessMode",
+        current_setting('transaction_isolation') as "isolationLevel"
+    `);
+    expect(settings).toEqual({
+      accessMode: "on",
+      isolationLevel: "repeatable read",
+    });
+  }, {
+    accessMode: "read only",
+    isolationLevel: "repeatable read",
   });
 });

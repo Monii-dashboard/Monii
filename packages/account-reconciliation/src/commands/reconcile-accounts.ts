@@ -42,8 +42,8 @@ export async function reconcileAccounts(
       matchChangeCount: count("account_reconciliation.match.changed"),
     } satisfies ReconcileAccountsOutcome;
 
-    afterCommit(() => {
-      for (const report of reports) {
+    for (const report of reports) {
+      afterCommit(() =>
         reporter?.report({
           ...report,
           fields: {
@@ -51,9 +51,9 @@ export async function reconcileAccounts(
             action_id: input.actionId,
             reconciliation_reason: input.reason,
           },
-        });
-      }
-    });
+        }),
+      );
+    }
     return outcome;
   });
 }

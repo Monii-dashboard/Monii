@@ -9,7 +9,7 @@ export function reportAfterCommit(
   reporter: SynchronizationReporter | undefined,
   reports: readonly FinancialOperationalReport[],
 ): void {
-  afterCommit(() => {
-    for (const report of reports) reporter?.report(report);
-  });
+  for (const report of reports) {
+    afterCommit(() => reporter?.report(report));
+  }
 }

@@ -43,6 +43,10 @@ type Update<
   Omit<Insert<TTable>, TPrimaryKey[number] | TImmutableFields[number]>
 >;
 
+function cloneRow<T>(row: T): T {
+  return structuredClone(row);
+}
+
 export type ModelQueryDefinition<TResult> = Readonly<{
   load: () => Promise<readonly TResult[]>;
 }>;
@@ -209,8 +213,15 @@ export function modelFor<
     readonly #row: Row<TTable>;
 
     constructor(row: Row<TTable>) {
-      this.#row = row;
-      Object.assign(this, row);
+      this.#row = cloneRow(row);
+      for (const key of Object.keys(row) as RowKey<TTable>[]) {
+        Object.defineProperty(this, key, {
+          configurable: false,
+          enumerable: true,
+          get: () => cloneRow(this.#row[key]),
+        });
+      }
+      Object.freeze(this);
     }
 
     static async find(key: PrimaryKeyInput<TTable, TPrimaryKey>) {
@@ -245,7 +256,7 @@ export function modelFor<
     }
 
     toJSON(): Row<TTable> {
-      return { ...this.#row };
+      return cloneRow(this.#row);
     }
   }
 

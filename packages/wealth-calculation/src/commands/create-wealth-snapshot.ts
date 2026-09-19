@@ -78,9 +78,9 @@ export async function createWealthSnapshot(
     }
 
     const reports = wealthSnapshotReports(calculated, input, snapshot.id);
-    afterCommit(() => {
-      for (const report of reports) reporter?.report(report);
-    });
+    for (const report of reports) {
+      afterCommit(() => reporter?.report(report));
+    }
     return snapshot.id;
   });
 }

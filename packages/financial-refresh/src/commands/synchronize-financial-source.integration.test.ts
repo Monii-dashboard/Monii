@@ -86,3 +86,40 @@ it("does not call the source when another synchronization is active", async () =
   expect(source.getExternalSubjectId).not.toHaveBeenCalled();
   expect(source.listConnections).not.toHaveBeenCalled();
 });
+
+it("keeps a committed synchronization successful when reporting fails", async () => {
+  const source: ExternalFinancialSource = {
+    getExternalSubjectId: async () => "subject-1",
+    listAccounts: async () => ({
+      accounts: [fakeExternalAccount({ balance: "42" })],
+      failures: [],
+      isComplete: true,
+      reportedTotal: 1,
+    }),
+    listConnections: async () => [fakeExternalConnection()],
+  };
+
+  await expect(
+    synchronizeFinancialSource({
+      actionId: "reporting-failure",
+      adapterKey: "test",
+      reporter: {
+        report: () => {
+          throw new Error("reporting unavailable");
+        },
+      },
+      source,
+      sourceKey: "reporting-failure-source",
+      sourceName: "Reporting failure source",
+    }),
+  ).resolves.toMatchObject({
+    failedConnectionCount: 0,
+    partialConnectionCount: 0,
+    status: "succeeded",
+    successfulConnectionCount: 1,
+  });
+  await expect(getCurrentWealth()).resolves.toMatchObject({
+    headlineAmount: "42.00000000",
+    latestSynchronizationStatus: "succeeded",
+  });
+});
