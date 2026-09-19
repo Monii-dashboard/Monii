@@ -86,10 +86,6 @@ export type CurrentWealth = Readonly<{
   recordedAt: Date | null;
 }>;
 
-export type WealthQueryRepository = Readonly<{
-  loadCurrentWealthState(): Promise<CurrentWealthState>;
-}>;
-
 const STALE_AFTER_MILLISECONDS = 48 * 60 * 60 * 1_000;
 
 export function buildCurrentWealthView(
@@ -180,11 +176,4 @@ export function buildCurrentWealthView(
     ),
     recordedAt: state.snapshot.recordedAt,
   };
-}
-
-export async function getCurrentWealth(
-  repository: WealthQueryRepository,
-  now = new Date(),
-): Promise<CurrentWealth> {
-  return buildCurrentWealthView(await repository.loadCurrentWealthState(), now);
 }

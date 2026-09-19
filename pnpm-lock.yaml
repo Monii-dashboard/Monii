@@ -29,9 +29,15 @@ importers:
       '@graphql-typed-document-node/core':
         specifier: 3.2.0
         version: 3.2.0(graphql@16.12.0)
+      '@monii/account-reconciliation':
+        specifier: workspace:*
+        version: link:packages/account-reconciliation
       '@monii/accounts':
         specifier: workspace:*
         version: link:packages/accounts
+      '@monii/financial-refresh':
+        specifier: workspace:*
+        version: link:packages/financial-refresh
       '@monii/graphql':
         specifier: workspace:*
         version: link:packages/graphql
@@ -122,6 +128,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@monii/financial-refresh':
+        specifier: workspace:*
+        version: link:../../packages/financial-refresh
       '@monii/ingestion':
         specifier: workspace:*
         version: link:../../packages/ingestion
@@ -237,8 +246,62 @@ importers:
         specifier: ^8.2.2
         version: 8.2.2(@types/node@20.19.43)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
 
-  packages/accounts:
+  packages/account-reconciliation:
+    dependencies:
+      '@monii/accounts':
+        specifier: workspace:*
+        version: link:../accounts
+      '@monii/ingestion':
+        specifier: workspace:*
+        version: link:../ingestion
+      '@monii/postgres':
+        specifier: workspace:*
+        version: link:../postgres
+      '@monii/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(postgres@3.4.9)
     devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/accounts:
+    dependencies:
+      '@monii/postgres':
+        specifier: workspace:*
+        version: link:../postgres
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/financial-refresh:
+    dependencies:
+      '@monii/account-reconciliation':
+        specifier: workspace:*
+        version: link:../account-reconciliation
+      '@monii/ingestion':
+        specifier: workspace:*
+        version: link:../ingestion
+      '@monii/postgres':
+        specifier: workspace:*
+        version: link:../postgres
+      '@monii/wealth-calculation':
+        specifier: workspace:*
+        version: link:../wealth-calculation
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
       typescript:
         specifier: ^5
         version: 5.9.3
@@ -282,25 +345,25 @@ importers:
       '@monii/accounts':
         specifier: workspace:*
         version: link:../accounts
+      '@monii/postgres':
+        specifier: workspace:*
+        version: link:../postgres
+      '@monii/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(postgres@3.4.9)
     devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
       typescript:
         specifier: ^5
         version: 5.9.3
 
   packages/postgres:
     dependencies:
-      '@monii/accounts':
-        specifier: workspace:*
-        version: link:../accounts
-      '@monii/ingestion':
-        specifier: workspace:*
-        version: link:../ingestion
-      '@monii/wealth-calculation':
-        specifier: workspace:*
-        version: link:../wealth-calculation
-      '@monii/wealth-query':
-        specifier: workspace:*
-        version: link:../wealth-query
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(postgres@3.4.9)
@@ -345,10 +408,28 @@ importers:
 
   packages/wealth-calculation:
     dependencies:
+      '@monii/account-reconciliation':
+        specifier: workspace:*
+        version: link:../account-reconciliation
       '@monii/accounts':
         specifier: workspace:*
         version: link:../accounts
+      '@monii/ingestion':
+        specifier: workspace:*
+        version: link:../ingestion
+      '@monii/postgres':
+        specifier: workspace:*
+        version: link:../postgres
+      '@monii/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(postgres@3.4.9)
     devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
       typescript:
         specifier: ^5
         version: 5.9.3
@@ -358,7 +439,22 @@ importers:
       '@monii/accounts':
         specifier: workspace:*
         version: link:../accounts
+      '@monii/ingestion':
+        specifier: workspace:*
+        version: link:../ingestion
+      '@monii/postgres':
+        specifier: workspace:*
+        version: link:../postgres
+      '@monii/wealth-calculation':
+        specifier: workspace:*
+        version: link:../wealth-calculation
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(postgres@3.4.9)
     devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
       typescript:
         specifier: ^5
         version: 5.9.3

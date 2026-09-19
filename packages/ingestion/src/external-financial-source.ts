@@ -1,12 +1,11 @@
 import type {
   AccountCategory,
+  AccountIdentityEvidence,
   AccountPurpose,
   AccountSupportStatus,
   DecimalAmount,
   ExternalAccountLifecycle,
 } from "@monii/accounts";
-
-import type { AccountIdentityEvidence } from "./account-identity";
 
 export type ExternalAccountTypeSupport = AccountSupportStatus;
 

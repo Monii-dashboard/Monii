@@ -7,11 +7,17 @@ import {
   integer,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { accounts, accountValuationCandidates, institutions } from "./financial";
+import { defineModelTable } from "../model-table";
+import {
+  accounts,
+  accountValuationCandidates,
+  institutions,
+} from "./financial";
 import { ingestionSchema } from "./namespaces";
 
 const mutableTimestamps = {
@@ -23,18 +29,25 @@ const mutableTimestamps = {
     .notNull(),
 };
 
-export const sourceInstances = ingestionSchema.table(
-  "source_instances",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const sourceInstances = defineModelTable({
+  schema: ingestionSchema,
+  name: "source_instances",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     sourceKey: text("source_key").notNull(),
     adapterKey: text("adapter_key").notNull(),
     name: text("name").notNull(),
     externalSubjectId: text("external_subject_id"),
-    archivedAt: timestamp("archived_at", { mode: "date", withTimezone: true }),
+    archivedAt: timestamp("archived_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
     ...mutableTimestamps,
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "mutable-no-delete",
+  immutableFields: ["sourceKey", "createdAt"],
+  constraints: (table) => [
     uniqueIndex("source_instances_source_key_unique").on(table.sourceKey),
     uniqueIndex("source_instances_adapter_subject_unique")
       .on(table.adapterKey, table.externalSubjectId)
@@ -48,12 +61,13 @@ export const sourceInstances = ingestionSchema.table(
       sql`length(trim(${table.adapterKey})) > 0`,
     ),
   ],
-);
+});
 
-export const externalInstitutions = ingestionSchema.table(
-  "external_institutions",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const externalInstitutions = defineModelTable({
+  schema: ingestionSchema,
+  name: "external_institutions",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     sourceInstanceId: uuid("source_instance_id")
       .notNull()
       .references(() => sourceInstances.id, { onDelete: "restrict" }),
@@ -75,12 +89,20 @@ export const externalInstitutions = ingestionSchema.table(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "mutable-no-delete",
+  immutableFields: [
+    "sourceInstanceId",
+    "institutionId",
+    "externalId",
+    "firstObservedAt",
+  ],
+  constraints: (table) => [
     uniqueIndex("external_institutions_source_external_unique").on(
       table.sourceInstanceId,
       table.externalId,
     ),
-    uniqueIndex("external_institutions_id_source_unique").on(
+    unique("external_institutions_id_source_unique").on(
       table.id,
       table.sourceInstanceId,
     ),
@@ -90,49 +112,66 @@ export const externalInstitutions = ingestionSchema.table(
       sql`length(trim(${table.externalId})) > 0`,
     ),
   ],
-);
+});
 
-export const connections = ingestionSchema.table(
-  "connections",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const connections = defineModelTable({
+  schema: ingestionSchema,
+  name: "connections",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     sourceInstanceId: uuid("source_instance_id")
       .notNull()
       .references(() => sourceInstances.id, { onDelete: "restrict" }),
-    externalInstitutionId: uuid("external_institution_id")
-      .notNull()
-      .references(() => externalInstitutions.id, { onDelete: "restrict" }),
+    externalInstitutionId: uuid("external_institution_id").notNull(),
     externalId: text("external_id").notNull(),
-    archivedAt: timestamp("archived_at", { mode: "date", withTimezone: true }),
+    archivedAt: timestamp("archived_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
     ...mutableTimestamps,
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "mutable-no-delete",
+  immutableFields: ["sourceInstanceId", "externalId", "createdAt"],
+  constraints: (table) => [
     uniqueIndex("connections_source_external_unique").on(
       table.sourceInstanceId,
       table.externalId,
     ),
-    uniqueIndex("connections_id_source_unique").on(table.id, table.sourceInstanceId),
-    index("connections_external_institution_idx").on(table.externalInstitutionId),
+    unique("connections_id_source_unique").on(
+      table.id,
+      table.sourceInstanceId,
+    ),
+    index("connections_external_institution_idx").on(
+      table.externalInstitutionId,
+    ),
+    foreignKey({
+      columns: [table.externalInstitutionId, table.sourceInstanceId],
+      foreignColumns: [
+        externalInstitutions.id,
+        externalInstitutions.sourceInstanceId,
+      ],
+      name: "connections_external_institution_source_fk",
+    }).onDelete("restrict"),
     check(
       "connections_external_id_not_blank",
       sql`length(trim(${table.externalId})) > 0`,
     ),
   ],
-);
+});
 
-export const externalAccounts = ingestionSchema.table(
-  "external_accounts",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const externalAccounts = defineModelTable({
+  schema: ingestionSchema,
+  name: "external_accounts",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     accountId: uuid("account_id")
       .notNull()
       .references(() => accounts.id, { onDelete: "restrict" }),
     sourceInstanceId: uuid("source_instance_id")
       .notNull()
       .references(() => sourceInstances.id, { onDelete: "restrict" }),
-    connectionId: uuid("connection_id").references(() => connections.id, {
-      onDelete: "restrict",
-    }),
+    connectionId: uuid("connection_id"),
     externalId: text("external_id").notNull(),
     reportedName: text("reported_name"),
     reportedType: text("reported_type"),
@@ -155,18 +194,34 @@ export const externalAccounts = ingestionSchema.table(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "mutable-no-delete",
+  immutableFields: [
+    "accountId",
+    "sourceInstanceId",
+    "externalId",
+    "firstObservedAt",
+  ],
+  constraints: (table) => [
     uniqueIndex("external_accounts_source_external_unique").on(
       table.sourceInstanceId,
       table.externalId,
     ),
-    uniqueIndex("external_accounts_id_source_unique").on(
+    unique("external_accounts_id_source_unique").on(
       table.id,
       table.sourceInstanceId,
     ),
-    uniqueIndex("external_accounts_id_account_unique").on(table.id, table.accountId),
+    unique("external_accounts_id_account_unique").on(
+      table.id,
+      table.accountId,
+    ),
     index("external_accounts_account_idx").on(table.accountId),
     index("external_accounts_connection_idx").on(table.connectionId),
+    foreignKey({
+      columns: [table.connectionId, table.sourceInstanceId],
+      foreignColumns: [connections.id, connections.sourceInstanceId],
+      name: "external_accounts_connection_source_fk",
+    }).onDelete("restrict"),
     check(
       "external_accounts_lifecycle_valid",
       sql`${table.lifecycle} in ('active', 'disabled', 'deleted', 'unknown')`,
@@ -180,12 +235,13 @@ export const externalAccounts = ingestionSchema.table(
       sql`length(trim(${table.externalId})) > 0`,
     ),
   ],
-);
+});
 
-export const synchronizationRuns = ingestionSchema.table(
-  "synchronization_runs",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const synchronizationRuns = defineModelTable({
+  schema: ingestionSchema,
+  name: "synchronization_runs",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     sourceInstanceId: uuid("source_instance_id")
       .notNull()
       .references(() => sourceInstances.id, { onDelete: "restrict" }),
@@ -196,10 +252,16 @@ export const synchronizationRuns = ingestionSchema.table(
     startedAt: timestamp("started_at", { mode: "date", withTimezone: true })
       .defaultNow()
       .notNull(),
-    finishedAt: timestamp("finished_at", { mode: "date", withTimezone: true }),
+    finishedAt: timestamp("finished_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
   },
-  (table) => [
-    uniqueIndex("synchronization_runs_id_source_unique").on(
+  primaryKey: ["id"],
+  writePolicy: "mutable-no-delete",
+  immutableFields: ["sourceInstanceId", "actionId", "startedAt"],
+  constraints: (table) => [
+    unique("synchronization_runs_id_source_unique").on(
       table.id,
       table.sourceInstanceId,
     ),
@@ -219,32 +281,40 @@ export const synchronizationRuns = ingestionSchema.table(
       sql`(${table.status} = 'running' and ${table.finishedAt} is null) or (${table.status} <> 'running' and ${table.finishedAt} is not null)`,
     ),
   ],
-);
+});
 
-export const synchronizationConnectionResults = ingestionSchema.table(
-  "synchronization_connection_results",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const synchronizationConnectionResults = defineModelTable({
+  schema: ingestionSchema,
+  name: "synchronization_connection_results",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     sourceInstanceId: uuid("source_instance_id").notNull(),
     synchronizationRunId: uuid("synchronization_run_id").notNull(),
     connectionId: uuid("connection_id").notNull(),
     status: text("status").notNull(),
     reportedActive: boolean("reported_active").default(true).notNull(),
     reportedState: text("reported_state"),
-    retryAfter: timestamp("retry_after", { mode: "date", withTimezone: true }),
+    retryAfter: timestamp("retry_after", {
+      mode: "date",
+      withTimezone: true,
+    }),
     sourceUpdatedAt: timestamp("source_updated_at", {
       mode: "date",
       withTimezone: true,
     }),
     errorKind: text("error_kind"),
     errorCode: text("error_code"),
-    successfulAccountCount: integer("successful_account_count").default(0).notNull(),
+    successfulAccountCount: integer("successful_account_count")
+      .default(0)
+      .notNull(),
     failedAccountCount: integer("failed_account_count").default(0).notNull(),
     finishedAt: timestamp("finished_at", { mode: "date", withTimezone: true })
       .defaultNow()
       .notNull(),
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "append-only",
+  constraints: (table) => [
     uniqueIndex("synchronization_connection_results_run_connection_unique").on(
       table.synchronizationRunId,
       table.connectionId,
@@ -254,19 +324,17 @@ export const synchronizationConnectionResults = ingestionSchema.table(
       table.finishedAt,
     ),
     foreignKey({
-      columns: [table.sourceInstanceId],
-      foreignColumns: [sourceInstances.id],
-      name: "sync_connection_results_source_fk",
+      columns: [table.synchronizationRunId, table.sourceInstanceId],
+      foreignColumns: [
+        synchronizationRuns.id,
+        synchronizationRuns.sourceInstanceId,
+      ],
+      name: "sync_connection_results_run_source_fk",
     }).onDelete("restrict"),
     foreignKey({
-      columns: [table.synchronizationRunId],
-      foreignColumns: [synchronizationRuns.id],
-      name: "sync_connection_results_run_fk",
-    }).onDelete("restrict"),
-    foreignKey({
-      columns: [table.connectionId],
-      foreignColumns: [connections.id],
-      name: "sync_connection_results_connection_fk",
+      columns: [table.connectionId, table.sourceInstanceId],
+      foreignColumns: [connections.id, connections.sourceInstanceId],
+      name: "sync_connection_results_connection_source_fk",
     }).onDelete("restrict"),
     check(
       "synchronization_connection_results_status_valid",
@@ -277,18 +345,17 @@ export const synchronizationConnectionResults = ingestionSchema.table(
       sql`${table.successfulAccountCount} >= 0 and ${table.failedAccountCount} >= 0`,
     ),
   ],
-);
+});
 
-export const externalAccountObservations = ingestionSchema.table(
-  "external_account_observations",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const externalAccountObservations = defineModelTable({
+  schema: ingestionSchema,
+  name: "external_account_observations",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     sourceInstanceId: uuid("source_instance_id").notNull(),
     synchronizationRunId: uuid("synchronization_run_id").notNull(),
     externalAccountId: uuid("external_account_id").notNull(),
-    accountId: uuid("account_id")
-      .notNull()
-      .references(() => accounts.id, { onDelete: "restrict" }),
+    accountId: uuid("account_id").notNull(),
     observedAt: timestamp("observed_at", { mode: "date", withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -299,18 +366,20 @@ export const externalAccountObservations = ingestionSchema.table(
     reportedLifecycle: text("reported_lifecycle").notNull(),
     reportedCurrency: text("reported_currency"),
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "append-only",
+  constraints: (table) => [
     uniqueIndex("external_account_observations_run_account_unique").on(
       table.synchronizationRunId,
       table.externalAccountId,
     ),
-    uniqueIndex("external_account_observations_provenance_unique").on(
+    unique("external_account_observations_provenance_unique").on(
       table.id,
       table.synchronizationRunId,
       table.externalAccountId,
       table.sourceInstanceId,
     ),
-    uniqueIndex("external_account_observations_id_account_unique").on(
+    unique("external_account_observations_id_account_unique").on(
       table.id,
       table.accountId,
     ),
@@ -319,59 +388,80 @@ export const externalAccountObservations = ingestionSchema.table(
       table.observedAt,
     ),
     foreignKey({
-      columns: [table.sourceInstanceId],
-      foreignColumns: [sourceInstances.id],
-      name: "external_account_observations_source_fk",
+      columns: [table.synchronizationRunId, table.sourceInstanceId],
+      foreignColumns: [
+        synchronizationRuns.id,
+        synchronizationRuns.sourceInstanceId,
+      ],
+      name: "external_account_observations_run_source_fk",
     }).onDelete("restrict"),
     foreignKey({
-      columns: [table.synchronizationRunId],
-      foreignColumns: [synchronizationRuns.id],
-      name: "external_account_observations_run_fk",
+      columns: [table.externalAccountId, table.sourceInstanceId],
+      foreignColumns: [externalAccounts.id, externalAccounts.sourceInstanceId],
+      name: "external_account_observations_account_source_fk",
     }).onDelete("restrict"),
     foreignKey({
-      columns: [table.externalAccountId],
-      foreignColumns: [externalAccounts.id],
-      name: "external_account_observations_external_account_fk",
+      columns: [table.externalAccountId, table.accountId],
+      foreignColumns: [externalAccounts.id, externalAccounts.accountId],
+      name: "external_account_observations_account_identity_fk",
     }).onDelete("restrict"),
     check(
       "external_account_observations_lifecycle_valid",
       sql`${table.reportedLifecycle} in ('active', 'disabled', 'deleted', 'unknown')`,
     ),
   ],
-);
+});
 
-export const reportedAccountValuations = ingestionSchema.table(
-  "reported_account_valuations",
-  {
-    valuationCandidateId: uuid("valuation_candidate_id").primaryKey(),
-    externalAccountObservationId: uuid("external_account_observation_id").notNull(),
-    accountId: uuid("account_id")
-      .notNull()
-      .references(() => accounts.id, { onDelete: "restrict" }),
+export const reportedAccountValuations = defineModelTable({
+  schema: ingestionSchema,
+  name: "reported_account_valuations",
+  columns: {
+    valuationCandidateId: uuid("valuation_candidate_id").notNull(),
+    externalAccountObservationId: uuid(
+      "external_account_observation_id",
+    ).notNull(),
+    accountId: uuid("account_id").notNull(),
     valuationBasis: text("valuation_basis").notNull(),
   },
-  (table) => [
+  primaryKey: ["valuationCandidateId"],
+  writePolicy: "append-only",
+  constraints: (table) => [
     uniqueIndex("reported_account_valuations_observation_basis_unique").on(
       table.externalAccountObservationId,
       table.valuationBasis,
     ),
     foreignKey({
-      columns: [table.valuationCandidateId],
-      foreignColumns: [accountValuationCandidates.id],
-      name: "reported_valuations_candidate_fk",
+      columns: [table.valuationCandidateId, table.accountId],
+      foreignColumns: [
+        accountValuationCandidates.id,
+        accountValuationCandidates.accountId,
+      ],
+      name: "reported_valuations_candidate_account_fk",
     }).onDelete("restrict"),
     foreignKey({
-      columns: [table.externalAccountObservationId],
-      foreignColumns: [externalAccountObservations.id],
-      name: "reported_valuations_observation_fk",
+      columns: [table.valuationCandidateId, table.valuationBasis],
+      foreignColumns: [
+        accountValuationCandidates.id,
+        accountValuationCandidates.valuationBasis,
+      ],
+      name: "reported_valuations_candidate_basis_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.externalAccountObservationId, table.accountId],
+      foreignColumns: [
+        externalAccountObservations.id,
+        externalAccountObservations.accountId,
+      ],
+      name: "reported_valuations_observation_account_fk",
     }).onDelete("restrict"),
   ],
-);
+});
 
-export const synchronizationAccountResults = ingestionSchema.table(
-  "synchronization_account_results",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const synchronizationAccountResults = defineModelTable({
+  schema: ingestionSchema,
+  name: "synchronization_account_results",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     sourceInstanceId: uuid("source_instance_id").notNull(),
     synchronizationRunId: uuid("synchronization_run_id").notNull(),
     externalAccountId: uuid("external_account_id").notNull(),
@@ -383,7 +473,9 @@ export const synchronizationAccountResults = ingestionSchema.table(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "append-only",
+  constraints: (table) => [
     uniqueIndex("synchronization_account_results_run_account_unique").on(
       table.synchronizationRunId,
       table.externalAccountId,
@@ -393,24 +485,32 @@ export const synchronizationAccountResults = ingestionSchema.table(
       table.finishedAt,
     ),
     foreignKey({
-      columns: [table.sourceInstanceId],
-      foreignColumns: [sourceInstances.id],
-      name: "sync_account_results_source_fk",
+      columns: [table.synchronizationRunId, table.sourceInstanceId],
+      foreignColumns: [
+        synchronizationRuns.id,
+        synchronizationRuns.sourceInstanceId,
+      ],
+      name: "sync_account_results_run_source_fk",
     }).onDelete("restrict"),
     foreignKey({
-      columns: [table.synchronizationRunId],
-      foreignColumns: [synchronizationRuns.id],
-      name: "sync_account_results_run_fk",
+      columns: [table.externalAccountId, table.sourceInstanceId],
+      foreignColumns: [externalAccounts.id, externalAccounts.sourceInstanceId],
+      name: "sync_account_results_external_account_source_fk",
     }).onDelete("restrict"),
     foreignKey({
-      columns: [table.externalAccountId],
-      foreignColumns: [externalAccounts.id],
-      name: "sync_account_results_external_account_fk",
-    }).onDelete("restrict"),
-    foreignKey({
-      columns: [table.externalAccountObservationId],
-      foreignColumns: [externalAccountObservations.id],
-      name: "sync_account_results_observation_fk",
+      columns: [
+        table.externalAccountObservationId,
+        table.synchronizationRunId,
+        table.externalAccountId,
+        table.sourceInstanceId,
+      ],
+      foreignColumns: [
+        externalAccountObservations.id,
+        externalAccountObservations.synchronizationRunId,
+        externalAccountObservations.externalAccountId,
+        externalAccountObservations.sourceInstanceId,
+      ],
+      name: "sync_account_results_observation_provenance_fk",
     }).onDelete("restrict"),
     check(
       "synchronization_account_results_status_valid",
@@ -421,12 +521,13 @@ export const synchronizationAccountResults = ingestionSchema.table(
       sql`(${table.status} = 'succeeded' and ${table.externalAccountObservationId} is not null) or (${table.status} <> 'succeeded' and ${table.externalAccountObservationId} is null)`,
     ),
   ],
-);
+});
 
-export const accountIdentityClaims = ingestionSchema.table(
-  "account_identity_claims",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
+export const accountIdentityClaims = defineModelTable({
+  schema: ingestionSchema,
+  name: "account_identity_claims",
+  columns: {
+    id: uuid("id").defaultRandom().notNull(),
     externalAccountId: uuid("external_account_id").notNull(),
     claimType: text("claim_type").notNull(),
     keyVersion: text("key_version").notNull(),
@@ -436,7 +537,17 @@ export const accountIdentityClaims = ingestionSchema.table(
     lastObservedRunId: uuid("last_observed_run_id").notNull(),
     ...mutableTimestamps,
   },
-  (table) => [
+  primaryKey: ["id"],
+  writePolicy: "mutable-no-delete",
+  immutableFields: [
+    "externalAccountId",
+    "claimType",
+    "keyVersion",
+    "fingerprint",
+    "firstObservedRunId",
+    "createdAt",
+  ],
+  constraints: (table) => [
     uniqueIndex("account_identity_claims_value_unique").on(
       table.externalAccountId,
       table.claimType,
@@ -471,60 +582,4 @@ export const accountIdentityClaims = ingestionSchema.table(
       sql`${table.claimType} in ('iban', 'account_number', 'reported_name')`,
     ),
   ],
-);
-
-export const accountMatchAssessments = ingestionSchema.table(
-  "account_match_assessments",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    leftExternalAccountId: uuid("left_external_account_id").notNull(),
-    rightExternalAccountId: uuid("right_external_account_id").notNull(),
-    classification: text("classification").notNull(),
-    evidence: text("evidence").notNull(),
-    isActive: boolean("is_active").default(true).notNull(),
-    conflictDetectedAt: timestamp("conflict_detected_at", {
-      mode: "date",
-      withTimezone: true,
-    }),
-    firstDetectedRunId: uuid("first_detected_run_id").notNull(),
-    lastDetectedRunId: uuid("last_detected_run_id").notNull(),
-    ...mutableTimestamps,
-  },
-  (table) => [
-    uniqueIndex("account_match_assessments_pair_unique").on(
-      table.leftExternalAccountId,
-      table.rightExternalAccountId,
-    ),
-    index("account_match_assessments_right_account_idx").on(
-      table.rightExternalAccountId,
-    ),
-    foreignKey({
-      columns: [table.leftExternalAccountId],
-      foreignColumns: [externalAccounts.id],
-      name: "account_matches_left_external_account_fk",
-    }).onDelete("restrict"),
-    foreignKey({
-      columns: [table.rightExternalAccountId],
-      foreignColumns: [externalAccounts.id],
-      name: "account_matches_right_external_account_fk",
-    }).onDelete("restrict"),
-    foreignKey({
-      columns: [table.firstDetectedRunId],
-      foreignColumns: [synchronizationRuns.id],
-      name: "account_matches_first_run_fk",
-    }).onDelete("restrict"),
-    foreignKey({
-      columns: [table.lastDetectedRunId],
-      foreignColumns: [synchronizationRuns.id],
-      name: "account_matches_last_run_fk",
-    }).onDelete("restrict"),
-    check(
-      "account_match_assessments_ordered_pair",
-      sql`${table.leftExternalAccountId}::text < ${table.rightExternalAccountId}::text`,
-    ),
-    check(
-      "account_match_assessments_classification_valid",
-      sql`${table.classification} in ('confirmed_duplicate', 'likely_duplicate', 'dismissed')`,
-    ),
-  ],
-);
+});

@@ -31,17 +31,26 @@ Monii is organized as a small, source-first pnpm workspace:
 - `packages/runtime` owns Node-backed operation context, logging, and future
   process-wide observability capabilities used across backend code.
 - `packages/accounts` owns canonical account, institution, merge-alias, and
-  valuation-candidate language. It is portable.
-- `packages/ingestion` owns provider-neutral source inputs, conservative
-  external-account identity policy, synchronization orchestration, and its
-  persistence port. It is portable.
+  valuation-candidate language, Models, and account commands. Its pure domain
+  modules stay infrastructure-free even though its scoped Models make the
+  package Node-capable.
+- `packages/ingestion` owns provider-neutral source inputs, external references,
+  observations, synchronization Models, and focused synchronization commands.
+- `packages/account-reconciliation` owns identity assessment policy, durable
+  match assessments, and the independent account-reconciliation command. It
+  may be invoked after ingestion or by another operator/workflow at any time.
+- `packages/financial-refresh` owns the cross-capability workflow that performs
+  external synchronization, reconciliation, and wealth snapshot publication.
+  It interprets reconciliation outcomes; reconciliation has no persisted run ID.
 - `packages/wealth-calculation` owns inclusion and valuation-selection policy,
-  exact aggregate calculation, immutable decision output, and write use cases.
-  It is portable.
-- `packages/wealth-query` owns the current-wealth read contract and presentation
-  projection. It is portable and independent from worker orchestration.
+  exact aggregate calculation, immutable decision output, and wealth commands.
+- `packages/wealth-query` owns the current-wealth query and presentation
+  projection. It remains independent from worker orchestration.
 - `packages/powens` owns Powens transport, configuration, DTOs, and normalization.
-- `packages/postgres` owns Drizzle schemas and PostgreSQL port implementations.
+- `packages/postgres` owns Drizzle schemas, the shared Model factory, database
+  context, and transaction mechanics. Capability packages own and scope-export
+  their concrete Models, named single-table queries, commands, and multi-table
+  query logic.
 - `packages/graphql` owns the GraphQL transport and resolver composition.
 - Unit and integration tests live beside their owning package or app behavior,
   either in `src` or a focused `test` directory. Root `tests` currently owns
@@ -65,25 +74,25 @@ acceptable. Apps must not import another app's internals.
 Every workspace manifest declares `monii.platform` as `portable` or `node`.
 Portable packages may depend only on portable workspace packages and cannot use
 Node APIs, environment access, or concrete backend/framework adapters. Node
-packages may depend on portable or Node packages. Accounts, ingestion,
-wealth-calculation, and wealth-query are portable; PostgreSQL, Powens, GraphQL,
-runtime, and the app composition roots are Node. Web frontend code cannot import
-Node adapters outside HTTP route bootstraps.
+packages may depend on portable or Node packages. Accounts is portable;
+ingestion, wealth-calculation, wealth-query, PostgreSQL, Powens, GraphQL,
+runtime, and the app composition roots are Node. Pure domain modules inside a
+Node package still avoid Node and persistence imports. Web frontend code cannot
+import Node packages outside HTTP route bootstraps.
 
 Portable ownership applies to production APIs and manifest dependencies. A
-recognized `.integration.test.ts` file inside a portable package may compose
-Node adapters through the repository's virtual `@testkit/*` imports, and the
-package may own isolated helpers under `test-support`. These are test-only
-composition roots: lint rejects their use from production, unit tests, and
-portable contract suites, and workspace validation rejects manifests that
-export `test-support`. This exception must not create a production dependency
-edge or weaken the portable package's public boundary.
+recognized `.integration.test.ts` file may compose test capabilities through
+the repository's virtual `@testkit/*` imports, and its package may own isolated
+helpers under `test-support`. These are test-only composition roots: lint
+rejects their use from production and unit tests, and workspace validation
+rejects manifests that export `test-support`. This exception must not create a
+production dependency edge or weaken package public boundaries.
 
-The workspace graph must be acyclic. Portable capabilities cannot import their
-Node implementations; app composition roots assemble them. Runtime remains
-independent of other workspace packages. Third-party compatibility remains an
-explicit dependency-review responsibility: workspace metadata does not certify
-external libraries.
+The workspace graph must be acyclic. Capability commands may depend on
+PostgreSQL models; PostgreSQL must not depend back on those capabilities.
+Runtime remains independent of other workspace packages. Third-party
+compatibility remains an explicit dependency-review responsibility: workspace
+metadata does not certify external libraries.
 
 Shared packages expose explicit package entry points and ship TypeScript source
 directly. Cross-package production imports must use these public exports rather
@@ -289,7 +298,8 @@ Synchronization isolates failures by source, connection, and identifiable
 account item. A failure must preserve prior valid data, expose useful failure
 state, and allow unaffected data to remain readable. A complete listing may
 mark a known account as not seen; a truncated listing may not infer absence.
-Run finalization, identity reconciliation, and snapshot creation are atomic,
+The financial-refresh workflow makes run finalization, identity reconciliation,
+and snapshot creation atomic,
 and overlapping runs for the same source are rejected. Retries and error categorization
 should be introduced in proportion to observed needs rather than designed
 speculatively.
@@ -322,7 +332,8 @@ time-bounded integration facility rather than a shadow domain model.
 
 V1 retains immutable normalized account observations and valuation candidates
 rather than overwriting the only known value. It records a wealth snapshot after
-each synchronization and account-policy change. Each decision freezes the
+each synchronization, account-policy change, and independent reconciliation that
+changes identity state. Each decision freezes the
 account and institution labels, classification, selected candidate metadata,
 contribution, exclusion reason, duplicate role, and uncertainty known then.
 Reads therefore need no join to mutable account or ingestion tables. Backdated
@@ -367,9 +378,131 @@ accounting before they are needed.
   requirement supports a change.
 - Define services, databases, schedules, workflows, secrets, and development
   environments with Specific.
-- Emit typed domain events from portable capabilities, but invoke handlers
+- Emit typed domain events from capability packages, but invoke handlers
   synchronously and explicitly for now. A persisted outbox or external event bus
   is justified only when delivery, retry, or independent deployment requires it.
+
+### PostgreSQL models and transactions
+
+Monii has one PostgreSQL database. Persistence-aware Node code accesses it
+through lightweight table models owned by each capability and exposed from
+scoped entry points such as `@monii/accounts/models`; normal callers do not
+accept or pass a database client. `@monii/postgres/model` exposes only the shared
+factory. The client resolver uses the active asynchronous database context when
+one exists and otherwise uses the configured process database.
+
+Every Drizzle table is declared through `defineModelTable`, which constructs the
+real Drizzle table from its columns, constraints, ordered primary-key fields,
+write policy, and immutable fields. The primary-key tuple creates the Drizzle
+constraint as well as typing model identity, so columns must be explicitly
+non-null and developers do not also call `.primaryKey()` or repeat a composite
+key. Primary keys are automatically immutable. PostgreSQL creates the
+corresponding unique index. Drizzle remains the sole definition of other
+indexes, checks, and foreign keys. Database integration checks compare the model
+identity and policy with migrated constraints, triggers, privileges, and table
+metadata.
+
+Each table has a small owner-package class extending `modelFor`. All models
+inherit `find`, `findMany`, and typed named queries. Their write methods are
+derived from the table policy: read-only models expose none; append-only models
+expose `create`; mutable-no-delete models also expose `update`; full CRUD must
+be selected explicitly before `delete` exists. Disallowed methods are absent
+from both the TypeScript API and runtime class. Returned records are frozen
+snapshots, and mutable column values are defensively copied so local mutation
+cannot alter the model's observed state.
+A single-field primary key gives `find` a scalar input. A composite primary key
+requires an object containing every component, while `findMany` may filter by a
+partial row. Unique indexes do not become alternate model identities.
+
+Every update-capable ModelTable explicitly declares `immutableFields`. Those
+fields and the primary key are omitted from the typed model update input,
+rejected by the runtime model implementation, and protected against direct SQL
+by a generated PostgreSQL OLD-versus-NEW trigger. The implementation rejects an
+immutable input instead of silently ignoring it. State transitions and other
+domain-specific mutations belong in focused commands using conditional SQL and
+ordinary Drizzle checks. Generic model updates do not implement a state
+machine; application commands remain responsible for transition semantics. A
+mutable table's stable lookup keys, external identities, canonical mappings,
+and first-observed provenance are immutable; latest-observation and lifecycle
+state may remain mutable when their owning commands require it. A concrete
+model may add a clearly named table-owned operation such as
+`Account.archive`, but models remain representations of persisted rows, not
+service containers. Do not add implicit relation loading, mutable dirty
+tracking, lifecycle hooks, or generic business workflows to the base model.
+
+PostgreSQL runs application queries under the `monii_runtime` role. Migrations
+retain the owning connection. `pnpm db:generate` runs Drizzle's structural
+generator and then emits a Drizzle custom migration whenever the normalized
+ModelTable policy hash changes. That migration removes prior runtime grants
+before applying the exact least-privilege set, hardens the runtime role, records
+a policy fingerprint on every table, and installs statement-level write guards
+plus immutable-field guards. Repository checks reject a changed ModelTable
+policy without its generated migration. A separate `pnpm db:check:schema`
+command runs ordinary Drizzle generation against a disposable copy of the
+migration history and rejects ungenerated changes to columns, indexes, checks,
+foreign keys, defaults, or nullability. Integration tests compare declarations
+with PostgreSQL primary keys, role attributes, grants, comments, and triggers.
+After migration, `pnpm db:check:catalog` performs the same policy comparison
+against a configured PostgreSQL database so manually altered grants, comments,
+primary keys, or managed triggers fail deployment verification.
+Each generated policy migration describes the complete current state: it first
+revokes the runtime role's table privileges and drops managed guards, then
+recreates the exact grants and triggers. Moving between policies or adding and
+removing immutable fields is therefore an ordinary forward migration rather
+than a manual cleanup step.
+
+These table-wide permissions intentionally use PostgreSQL grants and triggers,
+not row-level security. RLS belongs to rules where visibility or mutation
+differs by row. The triggers reject append-only mutation, deletion, truncation,
+and immutable-field changes even through the owner connection. Because
+the managed connection authenticates the owning user before assuming
+`monii_runtime`, the role separation protects normal application and accidental
+direct writes; independently authenticated runtime credentials are still
+required for isolation from a deliberately hostile session owner. A superuser
+or owner deliberately altering or disabling guards remains an administrative
+trust boundary.
+
+Simple equality lookups belong on the inherited model API. A reusable read that
+still concerns one table—such as the latest snapshot, current claims, or the
+latest synchronization status—is registered under a `snake_case` literal name in
+that table's model file. Callers use `Model.query("query_name").load()`,
+`.loadOne()`, or `.count()`. The registry preserves the result inferred from
+each Drizzle selection, so a query name exposes only its actual projected
+fields and an unknown name fails typechecking. Do not replace an ordinary
+`find` or `findMany` equality lookup with a named query.
+
+Joins, cross-table projections, window-function reads, locking reads, and SQL
+whose meaning exists only inside one workflow belong in internal logic owned by
+the capability that needs them. A workflow belongs in one public or internal
+command and composes model methods and focused queries. Pure domain modules
+continue to own rules and domain language without importing models.
+
+Use `transaction(async () => { ... })` only when an operation owns an atomic
+consistency boundary. A read, a single atomic SQL statement, or independent
+writes do not acquire a transaction merely because they are inside a command.
+The transaction helper installs its Drizzle transaction in asynchronous context,
+so every model and query called below it automatically uses the same client.
+The transaction boundary itself must remain explicit at the operation level;
+asynchronous context removes client plumbing, not ownership of atomicity. Nested
+commands participate automatically, and a nested command that independently
+requires atomicity uses a database savepoint. Register logging or another effect
+that must describe committed state with `afterCommit`; callback failures are
+isolated from the already committed command result and may be observed through a
+separate failure handler. Use a short read-only `repeatable read` transaction when
+several application reads must observe one database snapshot. Await all work
+started inside a transaction, and keep external API calls outside database
+transactions.
+
+The `commands` directory contains one externally callable operation per file.
+Package-private commands live under `internal/commands`; other private helpers
+are grouped under a named internal responsibility rather than a flat junk
+drawer. Commands may call public or internal commands. The package entry point
+exports only its supported commands, queries, domain functions, and public
+types; internal modules are never exported or deep-imported by another package.
+
+Do not add a repository, persistence interface, or reusable repository-contract
+suite for a table when PostgreSQL is the only implementation. Add an interface
+only for a real external boundary or demonstrated second implementation.
 
 ## Application API boundary
 
@@ -386,10 +519,10 @@ explicit `generated` directory and checked for staleness. Powens and future
 provider payloads must still be normalized before they reach GraphQL-facing
 application logic.
 
-The web route is the composition root for current-wealth reads: it supplies the
-PostgreSQL wealth-query repository to the GraphQL transport. The resolver uses
-the portable `wealth-query` projection, and the dashboard consumes only the
-generated GraphQL operation rather than database or provider types.
+The GraphQL resolver calls the `wealth-query` package's public query, which
+loads the current snapshot through the active PostgreSQL context. The dashboard
+consumes only the generated GraphQL operation rather than database or provider
+types.
 
 This decision does not introduce multiple GraphQL services, federation,
 subscriptions, or provider-facing GraphQL APIs. Add those only for a concrete

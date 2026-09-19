@@ -158,12 +158,6 @@ export class CurrentWealthResolver {
   async currentWealth(
     @Ctx() context: GraphqlContext,
   ): Promise<CurrentWealthObject> {
-    if (!context.wealthRepository) {
-      throw new Error("Wealth query repository is not configured.");
-    }
-
-    return mapCurrentWealth(
-      await getCurrentWealth(context.wealthRepository, context.now()),
-    );
+    return mapCurrentWealth(await getCurrentWealth(context.now()));
   }
 }

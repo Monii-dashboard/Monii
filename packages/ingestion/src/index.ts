@@ -1,11 +1,3 @@
-export { assessExternalAccountIdentity } from "./account-identity";
-export type {
-  AccountIdentityEvidence,
-  ExternalAccountIdentityAssessment,
-  IdentityAccount,
-  IdentityAssessmentReason,
-  IdentityClassification,
-} from "./account-identity";
 export type { SynchronizationFinalized } from "./events";
 export type {
   ExternalAccountTypeSupport,
@@ -18,14 +10,20 @@ export type {
   SynchronizationFailure,
 } from "./external-financial-source";
 export {
-  synchronizationFailureFrom,
-  synchronizeSourceInstance,
-} from "./synchronize-source-instance";
+  finalizeSynchronizationRun,
+  type FinalizedSynchronizationRun,
+} from "./commands/finalize-synchronization-run";
+export { identifySynchronizationSource } from "./commands/identify-synchronization-source";
+export { markSynchronizationRunFailed } from "./commands/mark-synchronization-run-failed";
+export { recordConnectionFailure } from "./commands/record-connection-failure";
+export { recordConnectionResult } from "./commands/record-connection-result";
+export { startSynchronizationRun } from "./commands/start-synchronization-run";
 export type {
   ConnectionPersistenceResult,
-  FinancialOperationalReport,
-  SynchronizationReporter,
-  SynchronizationRepository,
   SynchronizationResult,
   SynchronizationStatus,
-} from "./synchronize-source-instance";
+} from "./types";
+export type {
+  FinancialOperationalReport,
+  SynchronizationReporter,
+} from "./reporting";

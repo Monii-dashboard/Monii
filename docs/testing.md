@@ -122,7 +122,6 @@ packages/
   accounts/src/**/*.integration.test.ts
   accounts/test-support/             narrow account state helpers
   ingestion/src/**/*.test.ts
-  ingestion/test/*.contract.ts       reusable port behavior owned by ingestion
   ingestion/test-support/            small source-input fakes with overrides
   wealth-calculation/src/**/*.test.ts
   wealth-query/src/**/*.test.ts
@@ -145,10 +144,9 @@ helpers.
 
 Name a file after its behavioral subject or surface, not merely the concrete
 technology used to run it. For example,
-`synchronization-repository.integration.test.ts` identifies a port contract,
-while PostgreSQL-specific rollback behavior belongs in
-`synchronization-finalization.integration.test.ts`. A `postgres-*` omnibus file
-that binds unrelated ports is not an acceptable owner.
+`synchronization-finalization.integration.test.ts` identifies the operation and
+behavior it owns. A `postgres-*` omnibus file that groups unrelated models,
+queries, or operations is not an acceptable owner.
 
 ### Naming tests precisely
 
@@ -170,7 +168,7 @@ Examples:
 | Weak claim | Accurate replacement or required proof |
 | --- | --- |
 | `functionally disables the link` | For static markup: `renders a pending link as aria-disabled and removes it from the tab order`. Add a browser interaction test before claiming navigation is prevented. |
-| `serves persisted current wealth` with a fake repository | `serializes the current-wealth projection returned by the repository`, or use the real PostgreSQL adapter. |
+| `serves persisted current wealth` with a stubbed response | `serializes the supplied current-wealth projection`, or use the real PostgreSQL command/query path. |
 | `prevents overlapping synchronization runs` with sequential calls | Run two starts concurrently and assert that only one obtains the lease. |
 | `explains every excluded account` | Enumerate every supported exclusion reason or narrow the name to the cases in the table. |
 
@@ -201,53 +199,40 @@ adds distinct evidence, such as serialization through GraphQL or presentation
 in a browser. In that case, assert the added boundary rather than copying the
 lower-level scenario matrix.
 
-For persistence integration tests, create state through public use-case or port
-operations when practical. Direct SQL is appropriate only for adapter-specific
-preconditions or evidence that public operations cannot express, such as aging
-a lease, forcing a constraint failure, or inspecting atomic rollback. Keep that
-SQL local and do not let table layout become the domain contract.
+For persistence integration tests, create state through public application
+operations or granular owner-local helpers backed by the real table models when
+practical. Direct SQL is appropriate only for PostgreSQL-specific preconditions
+or evidence those APIs cannot express, such as aging a lease, forcing a
+constraint failure, or inspecting atomic rollback. Keep that SQL local and do
+not let table layout become the domain contract.
 
-Mocks and stubs remain useful for pure orchestration and unavailable external
-systems. They should be local, minimal, and limited to the interaction under
-test. A mock returning a repository-shaped value does not prove persistence.
+Mocks and stubs remain useful for unavailable external systems and narrow
+transport behavior. They should be local, minimal, and limited to the
+interaction under test. A mocked persistence function does not prove durable
+behavior; use the real command/query path with PostgreSQL instead.
 
-### Reusable port contracts
+### Persistence behavior without contract duplication
 
-A port contract is one reusable group of tests describing behavior that every
-real implementation of a domain-owned port must share. The owning portable
-package defines the examples and performs state-changing setup through public
-ports or use cases. An adapter's integration test supplies a fresh
-implementation and runs those examples. A binding may also supply read-only
-probes for durable concepts that have no product read API yet; those probes must
-not become an alternate write path or leak adapter details into the behavioral
-claim. The contract remains part of the adapter's existing suite; `contract` is
-not a fifth public test category.
+Monii has one PostgreSQL implementation. A repository interface plus a reusable
+contract plus a PostgreSQL binding therefore adds three places to understand a
+single behavior without currently protecting implementation interchangeability.
+New persistence work should instead use table models for CRUD and typed named
+single-table queries, capability-owned query logic for joins or genuinely
+feature-specific projections, and explicit application operations for
+multi-table workflows. A model registers each reusable query under a literal
+name; `Model.query("query_name").load()`, `.loadOne()`, and `.count()` preserve
+that query's inferred result type. Test the observable behavior once beside the
+model, query, or operation that owns it, using the real isolated PostgreSQL
+database.
 
-In simple terms, an interface checks that an implementation has the right
-operations; a contract checks that those operations keep the same promises. For
-example, `SynchronizationRepository` requires a `startRun` method at compile
-time. Its contract can additionally prove that the first run for a source
-starts, a concurrent second run is refused, and another source remains
-independent.
+Persistence behavior now lives in one owner-local integration test beside its
+model, query, or command. PostgreSQL-specific locking, rollback, migration, and
+constraint cases stay beside the responsible code. There is no reusable harness
+or second copy of a claim for the sole database implementation.
 
-Only reusable implementations need to run the full relevant contract. One-off
-unit-test fakes may stay deliberately small because they represent a controlled
-answer, not an alternate persistence implementation. If a fake becomes shared,
-stateful, or relied upon for repository semantics, it must pass the same
-contract or be replaced with the real adapter.
-
-Extracting a contract is consolidation work: move common behavioral assertions
-out of ad hoc adapter or cross-package tests, apply them once per real
-implementation, and delete the overlap. Retain a separate adapter-specific test
-only when it proves a distinct implementation risk such as PostgreSQL locking,
-transaction rollback, migration behavior, or database constraints.
-
-Keep the contract definition beside the portable package that owns the port.
-For each real adapter, add one colocated integration binding that calls that
-contract with the smallest required harness. This call is what registers the
-contract's `describe` and `it` cases with Vitest; a contract file is a reusable
-test definition, not a separately discovered suite. Keep adapter-specific
-locking, rollback, migration, and constraint cases beside the adapter source.
+If Monii later gains a genuine second implementation of the same interface, a
+shared contract can again be appropriate. That decision should be based on the
+real variation, not used pre-emptively to justify an abstraction.
 
 ### Modular integration testkit
 
@@ -259,11 +244,11 @@ applies the committed migrations; afterward, it disposes lazy test resources
 and the database in `finally` cleanup.
 
 The active database is propagated through asynchronous context. Production
-repository factories such as `createPostgresWealthQueryRepository()` use that
-active database when no database is passed, while retaining their normal
-configured-database fallback outside tests. Tests therefore do not receive or
-thread a `postgres` fixture parameter. `@testkit/postgres` exposes the active
-database only when direct storage setup or inspection is genuinely required.
+models, queries, and commands use that active database while retaining their
+normal configured-database fallback outside tests. Tests therefore do not
+receive or thread a `postgres` fixture parameter.
+`@testkit/postgres` exposes the active database only when direct storage setup
+or inspection is genuinely required.
 
 PostgreSQL is the only eager integration capability. Everything else is an
 independently imported, lazy resource:
@@ -287,8 +272,8 @@ do not hide a use case behind a broad `buildWealthScenario`-style method.
 
 `@testkit/*` and owner `test-support` modules are test-only architecture. Lint
 permits them only from integration files or other isolated test-support
-modules. Production files, unit tests, and portable contract suites cannot
-import them. Package manifests must not export `test-support`, and manifests
+modules. Production files and unit tests cannot import them. Package manifests
+must not export `test-support`, and manifests
 must not acquire testkit dependencies: the virtual aliases avoid production
 workspace edges and cycles.
 
@@ -368,6 +353,8 @@ and [Playwright Test introduction](https://playwright.dev/docs/test-intro).
 | TST-014 | P2 | Fixed | Eliminate noisy expected-error output and nondeterministic global state. | TST-003 |
 | TST-015 | P2 | Open | Align testing documentation, scripts, globs, and directory claims with reality. | TST-002, TST-003 |
 | TST-016 | P0 | Fixed | Establish a modular integration testkit with an implicit isolated database and owner-local support. | TST-001, TST-003, TST-008 |
+| TST-017 | P0 | Fixed | Replace single-implementation repositories and contracts with inherited models, named queries, and operation-owned integration tests. | TST-008, TST-016 |
+| TST-018 | P0 | Fixed | Enforce capability-owned Models and separate ingestion, reconciliation, and financial-refresh boundaries. | TST-017 |
 
 ### TST-001 — Testcontainers-only PostgreSQL isolation
 
@@ -632,6 +619,11 @@ Verified with `pnpm test:integration` (57 tests in 18 files),
 `pnpm test:unit` (127 tests), `pnpm test:repository`, `pnpm typecheck`, and
 `pnpm lint`.
 
+This remains the historical record of why contract coverage was introduced.
+The later single-database model decision in TST-017 supersedes contracts as the
+target architecture. TST-017 moved their behavioral claims to one owner-local
+test per operation and then removed the contracts and bindings.
+
 ### TST-009 — Powens boundary decomposition
 
 **Problem:** one large test file mixes configuration, URL construction,
@@ -665,9 +657,9 @@ case even though operations exist.
 **Acceptance criteria:**
 
 - [x] A test executes the production dashboard document against the production
-      GraphQL schema/server composition with a controlled repository.
-- [x] A PostgreSQL-backed test is added only where it proves behavior not already
-      covered by the resolver and repository contracts.
+      GraphQL schema/server composition with persisted state.
+- [x] Query edge cases stay in the query-owned integration test rather than
+      being repeated through GraphQL.
 - [x] Synthetic schema and generated artifacts are retained only for a distinct,
       stated contract.
 - [ ] `hook-contract.ts` becomes an explicit type test or is removed.
@@ -677,10 +669,10 @@ case even though operations exist.
 
 **Progress (2026-09-11):** a colocated web integration test executes the actual
 generated dashboard document through the production in-process GraphQL server
-and PostgreSQL repository composition. Its small owner-local setup helpers
+and PostgreSQL command/query composition. Its small owner-local setup helpers
 create controlled persisted state. This test proves the app-specific wiring,
 document serialization, and transport response together; it does not repeat the
-repository contract's edge-case matrix. The remaining synthetic-contract and
+query integration test's edge-case matrix. The remaining synthetic-contract and
 configuration cleanup keeps this issue open. The old broad GraphQL integration
 file is split: production server serialization belongs to `packages/graphql`,
 while the synthetic schema and generated documents now belong solely to the
@@ -805,8 +797,8 @@ eventually load every app and grow business-specific convenience methods.
       lint rules rejecting a missing import or direct Vitest `it`/`test`.
 - [x] A fresh migrated PostgreSQL Testcontainer is active before each test's
       hooks and body and is always cleaned up.
-- [x] Production PostgreSQL repository factories use the async-scoped test
-      database by default without fixture callback parameters.
+- [x] Production PostgreSQL access uses the async-scoped test database by
+      default without fixture callback parameters.
 - [x] Non-database capabilities load independently and lazily, and app-owned
       bindings identify the specific endpoint being exercised.
 - [x] In-process GraphQL support accepts arbitrary typed documents and variables
@@ -814,7 +806,7 @@ eventually load every app and grow business-specific convenience methods.
 - [x] Owner-local state helpers demonstrate valid, granular inserts with typed
       overrides while the test composes the complex scenario.
 - [x] Lint and workspace validation isolate testkit and test-support from
-      production, unit tests, portable contracts, and package exports.
+      production, unit tests, and package exports.
 
 **Fixed (2026-09-11):** `@testkit/integration` now establishes the per-test
 database and asynchronous integration context. The PostgreSQL client resolves
@@ -831,6 +823,169 @@ duration from roughly 48 seconds to 85 seconds; correctness and
 uniform availability are the accepted priority, and any future optimization
 must preserve per-test isolation.
 
+### TST-017 — Inherited PostgreSQL models and operation-owned tests
+
+**Problem:** Monii has one database implementation, but persistence behavior is
+spread across portable repository interfaces, a large combined PostgreSQL
+repository, reusable contract definitions, and adapter bindings. That structure
+was useful for exposing missing behavior, but it now makes a single concrete
+path look like several interchangeable implementations and encourages duplicate
+test ownership.
+
+**Decision:** use one lightweight class per table, inheriting typed CRUD from a
+shared model base that resolves the active database implicitly. Register
+reusable single-table SQL as typed named queries on the owning model; keep joins
+and feature-specific projections in their capability. Wrap multi-table
+workflows in explicit application operations using an async-context transaction
+helper. Migrate contract claims
+to one integration test beside the behavior that owns each claim; do not trade
+the current contracts for duplicate model, query, and operation tests.
+
+**Acceptance criteria:**
+
+- [x] Every current table has a concrete model inheriting `create`, `find`,
+      `findMany`, `update`, and `delete`, including non-`id` and composite keys.
+- [x] Model calls automatically use the active integration database and do not
+      receive a database fixture or constructor dependency.
+- [x] An explicit transaction wrapper propagates one transaction through nested
+      model calls, uses savepoints when nested, and supports post-commit effects.
+- [x] Integration coverage proves inherited CRUD, rollback, savepoint, and
+      post-commit behavior against isolated PostgreSQL.
+- [x] Owner-local state helpers begin using models rather than direct testkit
+      database access.
+- [x] Reusable single-table reads are typed named queries on their owning model;
+      joins and purpose-specific projections remain with their capability.
+- [x] Multi-table repository writes are moved to explicit application
+      operations using the transaction wrapper.
+- [x] Existing repository interfaces, factories, implementations, contracts,
+      and bindings are removed after their behavior has one replacement owner.
+- [x] The complete unit, integration, repository, type, and lint checks pass
+      after the migration.
+
+**Fixed (2026-09-12):** PostgreSQL now owns schema, the inherited Model factory,
+client lifecycle, and async-scoped transaction mechanics. Capability packages
+own concrete Models, focused public commands, private commands, custom query
+logic, and pure domain policy. No production or test repository interface, factory,
+implementation, contract, or binding remains. The CLI and GraphQL surfaces call
+commands and queries directly without database injection. Repository-contract
+claims were moved once to operation-owned PostgreSQL integration tests, the
+mocked synchronization repository unit suite was removed, and the duplicate
+mocked GraphQL projection test was removed in favor of the persisted dashboard
+boundary. CLI argument variants were consolidated without dropping any inputs,
+and the database-isolation regression now reuses its lifecycle-provided database
+instead of starting two redundant containers. Verified with `pnpm typecheck`,
+`pnpm lint`, `pnpm test:unit` (120 tests), `pnpm test:repository` (47 tests), and
+`pnpm test:integration` (42 tests in 20 files). The aggregate `pnpm test` also
+passes all 209 tests in 35 files with the integration Testcontainers enabled.
+
+### TST-018 — Capability-owned Models and financial workflow boundaries
+
+**Problem:** concrete domain Models were exposed from one global PostgreSQL
+catalogue, while ingestion also owned identity assessment, account merging,
+wealth snapshot publication, and the top-level refresh workflow. That made a
+provider-data capability the accidental home of independent business behavior
+and encouraged unrelated dependencies to converge in one command tree.
+
+**Decision:** PostgreSQL exposes only schemas, database/transaction context, and
+the shared Model factory. Each capability defines and scope-exports its own
+concrete Models. Account reconciliation is independently callable and persists
+only durable assessments and account aliases, not a synthetic reconciliation
+run. Financial refresh owns the composition of ingestion, reconciliation, and
+snapshot publication.
+
+**Acceptance criteria:**
+
+- [x] Concrete Models live in their owning capability and are available only
+      from an explicit `./models` package export.
+- [x] PostgreSQL no longer exposes a global concrete-Model catalogue.
+- [x] Ingestion commands record source facts and synchronization state without
+      importing reconciliation or wealth-calculation.
+- [x] Account reconciliation has its own package, schema, pure policy, Model,
+      and public command with optional synchronization provenance.
+- [x] Financial refresh owns atomic synchronization completion and can trigger
+      reconciliation independently, publishing a snapshot only when it changes
+      identity state.
+- [x] Account merging is an accounts-owned command and reconciliation does not
+      read or mutate wealth policy tables.
+- [x] Integration tests are split beside synchronization, reconciliation,
+      Model-query, and cross-capability workflow ownership without duplicating
+      lower-level claims.
+- [x] Repository checks enforce the scoped Model factory/export boundary.
+- [x] Migrations, typechecking, lint, unit, repository, and integration tests
+      pass.
+
+**Fixed (2026-09-12):** concrete Models now live behind the scoped `./models`
+exports of accounts, ingestion, account-reconciliation, and wealth-calculation.
+PostgreSQL exports only the generic Model factory and schema, client, and
+transaction infrastructure. Identity policy and durable match state moved out
+of ingestion into account-reconciliation; account merging moved behind an
+accounts command; and financial-refresh now owns synchronization composition
+plus the independent reconciliation-and-snapshot workflow. The migration moves
+match assessments into a reconciliation schema and makes synchronization
+provenance optional without adding a reconciliation-run table. Focused
+integration files now own inherited account merging, named-query, workflow
+atomicity, identity transition, independent reconciliation, and
+ingestion-observation claims. Verified with
+`pnpm typecheck`, `pnpm lint`, `pnpm test:unit` (120 tests),
+`pnpm test:repository` (49 tests), and `pnpm test:integration` (44 tests in 23
+files) against isolated PostgreSQL Testcontainers.
+
+The TST-017 requirement that every model expose full CRUD was superseded by
+TST-019 after immutable financial history was found to have mutable APIs.
+
+### TST-019 — Schema-backed ModelTable write policies
+
+**Problem:** every model inherited update and delete operations even when its
+Drizzle table represented immutable history or mutable state that must never be
+hard-deleted. Application API conventions did not prevent direct SQL from
+rewriting historical financial facts.
+
+**Decision:** every Drizzle table is constructed by ModelTable from one explicit
+primary-key tuple, write policy, and immutable-field declaration. Models omit
+immutable fields from typed updates. A deterministic Drizzle custom-migration
+generator applies a restricted runtime role plus owner-level triggers for
+append-only, no-delete, truncate, and immutable-field enforcement.
+
+**Acceptance criteria:**
+
+- [x] Every Drizzle table is registered as a ModelTable, which creates its
+      Drizzle primary-key constraint from the same tuple used by model identity.
+- [x] Single-column `find` inputs remain scalar and composite primary keys
+      require an object containing every key component.
+- [x] Read-only, append-only, mutable-no-delete, and explicitly selected
+      full-CRUD policies produce the intended typed and runtime model methods.
+- [x] Immutable and primary-key fields are absent from typed update inputs and
+      rejected by both model runtime checks and PostgreSQL triggers.
+- [x] Migrated table comments, triggers, and `monii_runtime` privileges match
+      every ModelTable policy.
+- [x] Repository checks reject ModelTable policy changes that do not have a
+      matching generated custom migration.
+- [x] A separate repository check rejects ordinary Drizzle schema changes that
+      do not have a matching structural migration.
+- [x] A live catalog command detects migrated ModelTable policy drift in a
+      configured PostgreSQL database.
+- [x] PostgreSQL upgrade tests prove that moving between write policies and
+      expanding immutable fields replaces grants and triggers correctly.
+- [x] PostgreSQL tests prove allowed writes and reject append-only mutation,
+      deletion, truncation, and immutable-field changes through both runtime and
+      owning connections where applicable.
+- [x] Integration commands execute with the restricted runtime role while
+      PostgreSQL-specific setup and inspection retain an isolated owning test
+      connection.
+
+**Fixed (2026-09-12):** `defineModelTable` now constructs each real Drizzle table
+and its primary-key constraint from the identity tuple, while binding its write
+policy and immutable fields. `modelFor` consumes that contract without repeated
+primary-key arguments and installs only permitted operations. `pnpm db:generate`
+composes Drizzle schema generation with a
+deterministic custom policy migration generator. Generated SQL hardens the runtime role,
+revokes old privileges before granting the exact policy, fingerprints each
+table, and installs write and immutable-field guards. Unit tests cover every
+policy SQL shape, policy-derived model APIs, immutable update inputs, and
+schema-key validation; repository checks own migration drift; PostgreSQL
+integration tests exercise every policy through runtime and owning connections
+and inspect the complete catalog state.
+
 ## Recommended implementation order
 
 Fix the foundation before moving files in bulk:
@@ -841,9 +996,12 @@ Fix the foundation before moving files in bulk:
    assertions in the same focused batches.
 4. TST-007 and TST-008: lock down financial policy and persistence contracts.
 5. TST-016: provide the modular integration foundation for app-level tests.
-6. TST-005 and TST-006: add real browser component and E2E coverage.
-7. TST-009 and TST-010: deepen provider and GraphQL boundaries.
-8. TST-011 through TST-015: make omissions visible, reduce support-code debt,
+6. TST-017: use Models, commands, and queries without duplicate persistence
+   contracts.
+7. TST-018: keep concrete Models and workflows inside capability boundaries.
+8. TST-005 and TST-006: add real browser component and E2E coverage.
+9. TST-009 and TST-010: deepen provider and GraphQL boundaries.
+10. TST-011 through TST-015: make omissions visible, reduce support-code debt,
    and align CI and documentation.
 
 The order is deliberately incremental. Each issue should leave the suite

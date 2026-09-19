@@ -20,7 +20,9 @@ financial                         ingestion
     +-- account_merges                 +-- external_account_observations
     +-- account_valuation_candidates <-+-- reported_account_valuations
                                        +-- account_identity_claims
-                                       +-- account_match_assessments
+
+reconciliation
+  account_match_assessments
 
 ingestion.synchronization_runs
   +-- synchronization_connection_results
@@ -36,6 +38,7 @@ The schemas are responsibility boundaries:
 
 - `financial` owns canonical identity and producer-neutral value candidates.
 - `ingestion` owns external references, reported facts, provenance, and attempts.
+- `reconciliation` owns durable cross-reference identity assessments.
 - `wealth` owns selection policy and immutable calculation/read records.
 - `public` contains no application tables.
 
@@ -119,16 +122,30 @@ provider payloads are deliberately not stored as a JSON shadow model.
   `succeeded`, `provider_error`, `malformed`, or `not_seen`.
 
 Only successful account results link an observation. A complete listing can
-produce `not_seen`; a truncated listing cannot infer absence. Run finalization,
-identity reconciliation, terminal status, and snapshot creation commit atomically.
-Only one non-abandoned run can be active per source instance.
+produce `not_seen`; a truncated listing cannot infer absence. The financial
+refresh workflow commits run finalization, identity reconciliation, and snapshot
+creation atomically. Only one non-abandoned run can be active per source instance.
+
+Repeated provenance identifiers are relational constraints, not independent
+hints. Composite foreign keys require connections and external accounts to
+belong to the stated source, observations and results to agree on their source,
+run, external account, and canonical account, and reported valuations to agree
+with both their observation and candidate. Optional relationships skip their
+tuple constraint only when the optional identifier is null.
 
 ### Identity evidence
 
 - `account_identity_claims` stores current and historical versioned HMAC
   fingerprints for validated IBAN, account number, and normalized reported name.
+
+## `reconciliation` schema
+
+### Account match assessments
+
 - `account_match_assessments` stores durable confirmed matches, active likely
-  matches, evidence class, and later conflicts.
+  matches, evidence class, and later conflicts. Synchronization provenance is
+  optional because reconciliation can also run independently; no separate
+  reconciliation-run record or ID is persisted.
 
 Names may suggest a likely duplicate but never confirm one. V1 confirmation also
 requires canonical institution, currency, compatible known category, matching
@@ -149,8 +166,8 @@ required basis.
 
 ### `snapshots`
 
-One immutable knowledge-time calculation caused by a synchronization or policy
-change. It stores the exact EUR headline, duplicate-adjusted estimate,
+One immutable knowledge-time calculation caused by a synchronization, policy
+change, or independent reconciliation change. It stores the exact EUR headline, duplicate-adjusted estimate,
 completeness, counts, policy version, causation/action IDs, and recording time.
 Each synchronization and causation ID can create at most one snapshot.
 
@@ -164,6 +181,11 @@ One self-contained row per account evaluated in a snapshot. It freezes:
 - contribution or precise exclusion decision;
 - duplicate group and adjustment role; and
 - identity and refresh uncertainty.
+
+An evaluated candidate may belong either to the decision's account or to one of
+its immutable merged aliases. The candidate reference preserves that origin;
+the decision account identifies the canonical account whose contribution was
+calculated.
 
 Current wealth reads only the newest snapshot and these decisions. It does not
 join mutable canonical or ingestion metadata. Renaming an account or importing a
@@ -179,15 +201,16 @@ counted. This is deliberate provenance, not ledger duplication.
 ```text
 Specific cron / operator CLI
   -> Powens transport and normalization
-  -> ingestion synchronization use case
+  -> financial-refresh workflow
+  -> ingestion synchronization commands
   -> PostgreSQL reported facts and results
-  -> conservative identity reconciliation
+  -> independent conservative account reconciliation
   -> latest candidates grouped through stable aliases
   -> explicit inclusion + valuation selection policy
   -> immutable snapshot and account decisions
 
 Web/API consumer
-  -> wealth query port
+  -> current-wealth query
   -> newest immutable snapshot
   -> current-wealth presentation
 ```
@@ -206,40 +229,54 @@ last candidate while freezing uncertainty into the new snapshot.
 
 ```text
 apps/cli
-  -> @monii/ingestion
+  -> @monii/financial-refresh
   -> @monii/powens
-  -> @monii/postgres
 
 apps/web/api
   -> @monii/graphql
-  -> @monii/postgres (wealth-query repository composition)
 
-@monii/accounts <- @monii/ingestion
-@monii/accounts <- @monii/wealth-calculation
-@monii/accounts <- @monii/wealth-query
+@monii/financial-refresh -> ingestion, account-reconciliation, wealth-calculation
+@monii/account-reconciliation -> accounts, ingestion, postgres
+@monii/ingestion -> accounts, postgres
+@monii/wealth-calculation -> accounts, account-reconciliation, ingestion, postgres
+@monii/wealth-query -> accounts, ingestion, wealth-calculation, postgres
 
 @monii/graphql -> @monii/wealth-query
 
-@monii/postgres implements ingestion, calculation, and query ports
+@monii/accounts owns canonical financial Models and account commands
+@monii/postgres owns schemas, the Model factory, and transaction context
 @monii/powens implements the external financial source port
 ```
 
 Important files are named after their responsibility:
 
 - `packages/accounts/src/account-valuation.ts`: common candidate language.
+- `packages/accounts/src/models/`: canonical financial table Models.
+- `packages/accounts/src/commands/merge-accounts.ts`: account-owned merge write.
 - `packages/ingestion/src/external-financial-source.ts`: normalization contract.
-- `packages/ingestion/src/synchronize-source-instance.ts`: worker orchestration.
+- `packages/ingestion/src/commands/`: focused persistence-aware synchronization
+  operations.
+- `packages/ingestion/src/models/`: ingestion and synchronization Models.
+- `packages/account-reconciliation/src/`: pure identity rules, match Model, and
+  independent reconciliation command.
+- `packages/financial-refresh/src/commands/`: synchronization and standalone
+  reconciliation workflows that compose capabilities.
 - `packages/wealth-calculation/src/calculate-wealth-snapshot.ts`: pure policy.
-- `packages/wealth-query/src/current-wealth.ts`: consumer projection.
-- `packages/postgres/src/schema/{financial,ingestion,wealth}.ts`: table ownership.
-- `packages/postgres/src/repositories/financial-persistence.ts`: internal atomic
-  persistence composition. Its public ingestion, calculation, and query factories
-  return narrow ports, so workers and consumers cannot call each other's methods.
+- `packages/wealth-calculation/src/commands/`: public wealth write operations.
+- `packages/wealth-calculation/src/models/`: wealth policy and snapshot Models.
+- `packages/wealth-query/src/queries/get-current-wealth.ts`: persisted read.
+- `packages/wealth-query/src/current-wealth.ts`: pure consumer projection.
+- `packages/postgres/src/schema/{financial,ingestion,reconciliation,wealth}.ts`:
+  physical table definitions.
+- `packages/postgres/src/model.ts`: inherited CRUD and typed named-query factory.
+- `packages/postgres/src/transaction.ts`: explicit atomic boundaries with an
+  async-scoped transaction client.
 - `packages/powens/src/source.ts`: provider-to-ingestion normalization.
 - `packages/graphql/src/`: API transport only.
 
-Portable packages exchange explicit data and typed events. Current handlers are
-synchronous function calls; no persisted outbox or event-bus infrastructure exists.
+Capability packages exchange explicit data and typed events. Current handlers
+are synchronous function calls; no persisted outbox or event-bus infrastructure
+exists.
 
 ## Future manual and ledger extension
 
@@ -267,7 +304,16 @@ not create pass-through package layers in advance.
 
 The migration history was intentionally replaced because existing databases were
 declared disposable for this refactor. The current baseline is under `drizzle/`
-and creates only the three application schemas above.
+and creates the four application schemas above.
+
+When intentionally replacing the history again, remove the SQL migrations and
+snapshots but recreate `drizzle/meta/_journal.json` with version `7`, dialect
+`postgresql`, and an empty `entries` array before running `pnpm db:generate`.
+Drizzle Kit requires that empty journal to bootstrap a new history. Named
+`pgSchema` objects must remain exported from the schema entry point so the
+baseline emits `CREATE SCHEMA`; tuples targeted by composite foreign keys must
+be declared as table-level `UNIQUE` constraints so they exist before Drizzle's
+later `ALTER TABLE ... ADD CONSTRAINT` statements.
 
 Use Specific for the real local environment:
 

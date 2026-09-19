@@ -7,6 +7,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@monii/financial-refresh": "workspace:*",
     "@monii/ingestion": "workspace:*",
     "@monii/postgres": "workspace:*",
     "@monii/powens": "workspace:*",

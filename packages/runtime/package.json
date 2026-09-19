@@ -6,7 +6,8 @@
   "exports": {
     "./context": "./src/context.ts",
     "./log": "./src/log.ts",
-    "./operation": "./src/operation.ts"
+    "./operation": "./src/operation.ts",
+    "./reporting": "./src/reporting.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"

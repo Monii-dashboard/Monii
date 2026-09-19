@@ -45,6 +45,27 @@ costly or hard to reverse.
 - Reuse types when meaning and invariants match. Separate them only for real
   validation, serialization, ownership, lifecycle, or domain differences.
 - Prefer explicit local code, small public APIs, and composition.
+- For PostgreSQL persistence, define concrete table models in the capability
+  that owns the table and expose them only through that package's scoped
+  `./models` export, such as `@monii/accounts/models`. Extend the shared
+  `modelFor` infrastructure from `@monii/postgres/model`; PostgreSQL owns the
+  mechanism and schemas, not a global catalogue of domain models. Register
+  reusable single-table reads beside their owner model and call them through
+  `Model.query("query_name").load()`, `.loadOne()`, or `.count()`; the literal
+  name determines the result type. Keep genuinely feature-specific SQL, joins,
+  and cross-table projections in the owning capability's internal query logic,
+  and use commands for callable workflows. Model and query calls resolve the
+  active database or transaction implicitly; do not thread a database client
+  through normal callers. Do not add a repository or persistence interface
+  without a real second implementation or external boundary.
+- Put one externally callable operation per file under `commands`; put
+  package-private commands under `internal/commands` and other private logic
+  under a named internal responsibility. Export only supported commands,
+  queries, domain functions, and public types. A command opens
+  `transaction(async () => ...)` only when it owns an atomic consistency
+  boundary. Nested commands participate through async context; do not wrap
+  reads, single atomic statements, independent writes, or external API calls in
+  unnecessary transactions.
 
 ## Frontend Styling and Components
 
@@ -112,28 +133,19 @@ costly or hard to reverse.
 - Prefer the real implementation when behavior depends on a meaningful boundary.
   In particular, prove persistence, transactions, constraints, concurrency,
   query semantics, and durable history with the PostgreSQL adapter in an
-  isolated Testcontainer, not with an in-memory fake or mocked repository.
-- Prefer creating integration-test state through public application or port APIs.
+  isolated Testcontainer, not with an in-memory fake or mocked persistence API.
+- Prefer creating integration-test state through public application APIs or
+  owner-local model-based test-support helpers.
   Use direct SQL only for PostgreSQL-specific setup or verification that the
   public API cannot express, and keep it local to the adapter test.
 - Keep unit tests for pure policy, deterministic transformations, and isolated
   orchestration decisions. Use mocks or stubs only when the collaborator's
   interaction is the behavior under test or when it represents an external
   boundary; do not use them to claim integration or persistence behavior.
-- When a domain port owns durable semantics, define one reusable contract suite
-  beside the package that owns the port and apply it to each real reusable
-  implementation, including the first. A contract is a set of observable
-  examples, not a new public test category. Local one-off fakes should stay
-  minimal; do not turn them into stateful alternate implementations merely for
-  tests.
-- When extracting a contract, move the shared behavioral assertions into it and
-  delete or narrow superseded tests. Keep adapter-specific tests only for risks
-  unique to that adapter.
-- Keep each port contract beside its owning portable package and invoke it from
-  one colocated `*.integration.test.ts` binding per real adapter. The binding
-  owns only the harness that contract requires. Put implementation-specific
-  transaction, locking, migration, or constraint tests beside the adapter
-  source instead of mixing them into the portable contract.
+- PostgreSQL is the sole persistence implementation, so persistence behavior
+  has one owner-local integration test against models, named queries, or the
+  command that owns it. Do not introduce reusable persistence contracts merely
+  to retest the same implementation.
 - Integration tests may live beside the owning source or under `test`, but must
   use the `.integration.test.ts` or `.integration.test.tsx` suffix. Import
   `it`, `describe`, hooks, assertions, and `vi` from `@testkit/integration`;
@@ -141,7 +153,7 @@ costly or hard to reverse.
 - The integration lifecycle automatically creates and migrates a fresh
   PostgreSQL Testcontainer for every test, before its hooks and body. Do not
   add database fixture parameters or external database fallbacks. PostgreSQL
-  repository factories should use the active integration database by default;
+  models, queries, and commands should use the active integration database;
   import `@testkit/postgres` only for necessary direct setup or inspection.
 - Keep non-database integration capabilities independently importable and lazy.
   Put app-specific in-process endpoint bindings under that app's
@@ -155,7 +167,7 @@ costly or hard to reverse.
   not merely to shorten one scenario.
 - Treat `@testkit/*` and `test-support` as isolated test-only APIs. They may be
   imported only by integration tests and other test-support modules, never by
-  production code, unit tests, or portable contract suites. Do not expose
+  production code or unit tests. Do not expose
   test-support through package manifests or add production workspace
   dependencies for it.
 - Add or update tests when behavior changes.

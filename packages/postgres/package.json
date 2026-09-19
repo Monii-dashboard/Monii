@@ -5,18 +5,17 @@
   "type": "module",
   "exports": {
     "./client": "./src/client.ts",
-    "./ingestion": "./src/repositories/ingestion.ts",
-    "./schema": "./src/schema/index.ts",
-    "./wealth": "./src/repositories/wealth.ts"
+    "./model": "./src/model.ts",
+    "./schema/financial": "./src/schema/financial.ts",
+    "./schema/ingestion": "./src/schema/ingestion.ts",
+    "./schema/reconciliation": "./src/schema/reconciliation.ts",
+    "./schema/wealth": "./src/schema/wealth.ts",
+    "./transaction": "./src/transaction.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@monii/accounts": "workspace:*",
-    "@monii/ingestion": "workspace:*",
-    "@monii/wealth-calculation": "workspace:*",
-    "@monii/wealth-query": "workspace:*",
     "drizzle-orm": "0.45.2",
     "postgres": "3.4.9"
   },

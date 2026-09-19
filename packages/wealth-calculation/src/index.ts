@@ -10,8 +10,18 @@ export type {
   SnapshotAccountDecision,
   SnapshotAccountDecisionCode,
 } from "./calculate-wealth-snapshot";
-export { changeAccountInclusionPolicy } from "./use-cases";
+export {
+  changeAccountInclusionPolicy,
+  type ChangeAccountInclusionPolicyInput,
+} from "./commands/change-account-inclusion-policy";
+export {
+  createWealthSnapshot,
+  type CreateWealthSnapshotInput,
+} from "./commands/create-wealth-snapshot";
 export type {
-  WealthCalculationRepository,
+  WealthOperationalReport,
+  WealthReporter,
+} from "./reporting";
+export type {
   WealthSnapshotReason,
-} from "./use-cases";
+} from "./types";

@@ -1,14 +1,15 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "baseUrl": ".",
     "lib": ["dom", "dom.iterable", "esnext"],
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "paths": {
-      "@/*": ["apps/web/src/*"],
-      "@testkit/*": ["tests/support/testkit/*"],
-      "@testkit/apps/*": ["apps/*/test-support/index.ts"],
-      "@testkit/packages/*": ["packages/*/test-support/index.ts"]
+      "@/*": ["src/*"],
+      "@testkit/*": ["../../tests/support/testkit/*"],
+      "@testkit/apps/*": ["../../apps/*/test-support/index.ts"],
+      "@testkit/packages/*": ["../../packages/*/test-support/index.ts"]
     }
   },
   "include": [

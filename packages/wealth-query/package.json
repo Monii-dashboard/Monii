@@ -10,12 +10,17 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@monii/accounts": "workspace:*"
+    "@monii/accounts": "workspace:*",
+    "@monii/ingestion": "workspace:*",
+    "@monii/postgres": "workspace:*",
+    "@monii/wealth-calculation": "workspace:*",
+    "drizzle-orm": "0.45.2"
   },
   "devDependencies": {
+    "@types/node": "^20",
     "typescript": "^5"
   },
   "monii": {
-    "platform": "portable"
+    "platform": "node"
   }
 }

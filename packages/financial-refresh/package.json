@@ -1,0 +1,25 @@
+{
+  "name": "@monii/financial-refresh",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@monii/account-reconciliation": "workspace:*",
+    "@monii/ingestion": "workspace:*",
+    "@monii/postgres": "workspace:*",
+    "@monii/wealth-calculation": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  },
+  "monii": {
+    "platform": "node"
+  }
+}

@@ -7,7 +7,6 @@ import { log, type Log } from "@monii/runtime/log";
 
 import { graphqlErrorCodes, isGraphqlErrorCode } from "./errors";
 import { graphqlSchema } from "./schema";
-import type { WealthQueryRepository } from "@monii/wealth-query";
 
 const graphqlEndpoint = "/api/graphql";
 
@@ -15,7 +14,6 @@ type CreateGraphqlServerOptions = {
   logger?: Log;
   now?: () => Date;
   schema: GraphQLSchema;
-  wealthRepository?: WealthQueryRepository;
 };
 
 function hasPublicErrorCode(error: GraphQLError) {
@@ -42,7 +40,6 @@ export function createGraphqlServer({
   logger = log,
   now = () => new Date(),
   schema,
-  wealthRepository,
 }: CreateGraphqlServerOptions) {
   return createYoga({
     schema,
@@ -65,7 +62,6 @@ export function createGraphqlServer({
         now,
         request,
         signal: request.signal,
-        wealthRepository,
       };
     },
     maskedErrors: {

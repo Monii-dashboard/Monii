@@ -32,7 +32,8 @@ The dashboard must provide:
 
 Synchronization should happen approximately once per day. Each synchronization
 retains normalized observations and an immutable snapshot of the total and its
-per-account decisions. Inclusion changes also create a snapshot. Later versions
+per-account decisions. Inclusion changes and independent reconciliation changes
+also create a snapshot. Later versions
 can therefore explain what Monii knew at the time without recomputing history
 under newer policy. A history chart or historical analysis is not required in
 V1.

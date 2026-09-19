@@ -123,6 +123,13 @@ export function workspaceImportRule(packages) {
           else if (owner && owner !== target && !mayUseTestkit && !Object.hasOwn(dependencies(owner), target.name)) reason = "Declare workspace dependencies in the owning manifest.";
           else if (owner?.monii.platform === "portable" && !mayUseTestkit && target.monii.platform !== "portable") reason = "Portable packages cannot import Node packages.";
         }
+        if (
+          specifier === "@monii/postgres/model" &&
+          owner?.name !== "@monii/postgres" &&
+          !filename.includes(`${path.sep}src${path.sep}models${path.sep}`)
+        ) {
+          reason = "Only capability-owned model definitions may import the shared model factory.";
+        }
         if (owner?.monii.platform === "portable" && !mayUseTestkit && (
           specifier.startsWith("node:") || nodeModules.has(specifier) ||
           adapters.some((adapter) => specifier === adapter || specifier.startsWith(`${adapter}/`))

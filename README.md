@@ -38,11 +38,11 @@ separate concerns.
 ## Workspace structure
 
 Monii is a source-first pnpm workspace. Packages are named after
-capabilities: app bootstraps compose Node adapters, and those adapters implement
-the portable domain packages' contracts. Workspace manifests declare a
-`portable` or `node` platform; lint enforces compatible, acyclic workspace
-dependencies and public imports. App-specific features stay inside their owning
-app.
+capabilities. Public commands and queries compose capability-owned PostgreSQL
+Models, while pure business rules stay in database-free domain modules. Workspace
+manifests declare a `portable` or `node` platform; lint enforces compatible,
+acyclic workspace dependencies and public imports. App-specific features stay
+inside their owning app.
 
 ```text
 apps/
@@ -50,15 +50,17 @@ apps/
   cli/          One-shot operator and cron commands
   console/      Local TypeScript console for developer exploration
 packages/
-  accounts/     Portable account, institution, identity, and valuation language
-  ingestion/    Portable synchronization and external-account identity policy
-  wealth-calculation/ Portable wealth inclusion and calculation policy
-  wealth-query/ Portable current-wealth read projection
+  accounts/     Canonical account language, Models, and account commands
+  ingestion/    External facts, Models, and focused synchronization commands
+  account-reconciliation/ Identity policy and independent reconciliation
+  financial-refresh/ Cross-capability synchronization/reconciliation workflow
+  wealth-calculation/ Wealth commands and pure inclusion/calculation policy
+  wealth-query/ Current-wealth queries and presentation projection
   graphql/      GraphQL schema, server, and resolver composition
-  postgres/     PostgreSQL schemas and domain-port implementations
+  postgres/     PostgreSQL schemas, Model factory, and transaction context
   powens/       Powens transport and normalization
   runtime/      Node operation context and logging
-tests/          Cross-package integration, shared support, and repository checks
+tests/          Cross-cutting integration support and repository-quality checks
 ```
 
 Shared packages are private and export TypeScript source through explicit
