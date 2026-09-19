@@ -1,6 +1,6 @@
 import {
   connectedAccountGroups,
-  resolveCanonicalAccountId,
+  createCanonicalAccountIdResolver,
   type AccountCategory,
   type AccountPurpose,
   type AccountValuationCandidate,
@@ -11,20 +11,20 @@ import {
   AccountMerge,
 } from "@monii/accounts/models";
 import { AccountMatchAssessment } from "@monii/account-reconciliation/models";
-import { ExternalAccount } from "@monii/ingestion/models";
 import {
   accounts,
   accountValuationCandidates,
   institutions,
 } from "@monii/postgres/schema/financial";
 import {
+  externalAccounts,
   synchronizationAccountResults,
   synchronizationRuns,
 } from "@monii/postgres/schema/ingestion";
 import {
   accountPolicies,
 } from "@monii/postgres/schema/wealth";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 import type { AccountInclusionPolicy } from "../account-policy";
 import type { AccountWealthCalculationState } from "../calculate-wealth-snapshot";
@@ -38,7 +38,9 @@ function laterCandidate(
   const rightEffective = (right.effectiveAt ?? right.recordedAt).getTime();
   return rightEffective > leftEffective ||
     (rightEffective === leftEffective &&
-      right.recordedAt.getTime() > left.recordedAt.getTime())
+      (right.recordedAt.getTime() > left.recordedAt.getTime() ||
+        (right.recordedAt.getTime() === left.recordedAt.getTime() &&
+          right.valuationCandidateId > left.valuationCandidateId)))
     ? right
     : left;
 }
@@ -47,21 +49,74 @@ export async function loadAccountCalculationStates(): Promise<
   readonly AccountWealthCalculationState[]
 > {
   const db = getDatabase();
+  const latestCandidate = (
+    valuationBasis: "balance" | "estimated_value",
+    alias: string,
+  ) =>
+    db
+      .select({
+        accountId: accountValuationCandidates.accountId,
+        amount: accountValuationCandidates.amount,
+        currency: accountValuationCandidates.currency,
+        effectiveAt: accountValuationCandidates.effectiveAt,
+        id: accountValuationCandidates.id,
+        recordedAt: accountValuationCandidates.recordedAt,
+        valuationBasis: accountValuationCandidates.valuationBasis,
+      })
+      .from(accountValuationCandidates)
+      .where(
+        and(
+          eq(accountValuationCandidates.accountId, accounts.id),
+          eq(accountValuationCandidates.valuationMethod, "reported"),
+          eq(accountValuationCandidates.valuationBasis, valuationBasis),
+        ),
+      )
+      .orderBy(
+        sql`coalesce(${accountValuationCandidates.effectiveAt}, ${accountValuationCandidates.recordedAt}) desc`,
+        desc(accountValuationCandidates.recordedAt),
+        desc(accountValuationCandidates.id),
+      )
+      .limit(1)
+      .as(alias);
+  const latestBalance = latestCandidate("balance", "latest_account_balance");
+  const latestEstimatedValue = latestCandidate(
+    "estimated_value",
+    "latest_account_estimated_value",
+  );
   const accountRows = await db
     .select({
       account: accounts,
+      balance: {
+        accountId: latestBalance.accountId,
+        amount: latestBalance.amount,
+        currency: latestBalance.currency,
+        effectiveAt: latestBalance.effectiveAt,
+        id: latestBalance.id,
+        recordedAt: latestBalance.recordedAt,
+        valuationBasis: latestBalance.valuationBasis,
+      },
+      estimatedValue: {
+        accountId: latestEstimatedValue.accountId,
+        amount: latestEstimatedValue.amount,
+        currency: latestEstimatedValue.currency,
+        effectiveAt: latestEstimatedValue.effectiveAt,
+        id: latestEstimatedValue.id,
+        recordedAt: latestEstimatedValue.recordedAt,
+        valuationBasis: latestEstimatedValue.valuationBasis,
+      },
       institutionName: institutions.name,
       policy: accountPolicies,
     })
     .from(accounts)
     .leftJoin(institutions, eq(accounts.institutionId, institutions.id))
-    .leftJoin(accountPolicies, eq(accounts.id, accountPolicies.accountId));
+    .leftJoin(accountPolicies, eq(accounts.id, accountPolicies.accountId))
+    .leftJoinLateral(latestBalance, sql`true`)
+    .leftJoinLateral(latestEstimatedValue, sql`true`);
   const merges = await AccountMerge.findMany();
-  const groupedIds = new Map<string, string[]>();
+  const resolveCanonicalAccountId = createCanonicalAccountIdResolver(merges);
   const inclusionPolicyByRoot = new Map<string, AccountInclusionPolicy>();
   for (const row of accountRows) {
-    const root = resolveCanonicalAccountId(row.account.id, merges);
-    groupedIds.set(root, [...(groupedIds.get(root) ?? []), row.account.id]);
+    const root = resolveCanonicalAccountId(row.account.id);
     const policy = (row.policy?.inclusionPolicy ??
       "automatic") as AccountInclusionPolicy;
     const previous = inclusionPolicyByRoot.get(root) ?? "automatic";
@@ -74,45 +129,45 @@ export async function loadAccountCalculationStates(): Promise<
           : "automatic",
     );
   }
-  const externalRows = await ExternalAccount.findMany();
-  const rankedValuations = db
+  const latestResult = db
     .select({
-      accountId: accountValuationCandidates.accountId,
-      amount: accountValuationCandidates.amount,
-      candidateRank: sql<number>`row_number() over (
-        partition by ${accountValuationCandidates.accountId}, ${accountValuationCandidates.valuationBasis}
-        order by coalesce(${accountValuationCandidates.effectiveAt}, ${accountValuationCandidates.recordedAt}) desc,
-          ${accountValuationCandidates.recordedAt} desc,
-          ${accountValuationCandidates.id} desc
-      )`.as("candidate_rank"),
-      currency: accountValuationCandidates.currency,
-      effectiveAt: accountValuationCandidates.effectiveAt,
-      id: accountValuationCandidates.id,
-      recordedAt: accountValuationCandidates.recordedAt,
-      valuationBasis: accountValuationCandidates.valuationBasis,
-    })
-    .from(accountValuationCandidates)
-    .as("ranked_account_valuations");
-  const valuationRows = await db
-    .select()
-    .from(rankedValuations)
-    .where(eq(rankedValuations.candidateRank, 1));
-  const resultRows = await db
-    .select({
-      result: synchronizationAccountResults,
-      runStartedAt: synchronizationRuns.startedAt,
+      finishedAt: synchronizationAccountResults.finishedAt,
+      id: synchronizationAccountResults.id,
+      status: synchronizationAccountResults.status,
+      synchronizationRunId:
+        synchronizationAccountResults.synchronizationRunId,
     })
     .from(synchronizationAccountResults)
-    .innerJoin(
-      synchronizationRuns,
+    .where(
       eq(
-        synchronizationRuns.id,
-        synchronizationAccountResults.synchronizationRunId,
+        synchronizationAccountResults.externalAccountId,
+        externalAccounts.id,
       ),
     )
     .orderBy(
-      desc(synchronizationRuns.startedAt),
       desc(synchronizationAccountResults.finishedAt),
+      desc(synchronizationAccountResults.id),
+    )
+    .limit(1)
+    .as("latest_synchronization_account_result");
+  const externalRows = await db
+    .select({
+      accountId: externalAccounts.accountId,
+      id: externalAccounts.id,
+      latestResult: {
+        finishedAt: latestResult.finishedAt,
+        id: latestResult.id,
+        status: latestResult.status,
+      },
+      latestResultRunStartedAt: synchronizationRuns.startedAt,
+      lifecycle: externalAccounts.lifecycle,
+      normalizedTypeSupport: externalAccounts.normalizedTypeSupport,
+    })
+    .from(externalAccounts)
+    .leftJoinLateral(latestResult, sql`true`)
+    .leftJoin(
+      synchronizationRuns,
+      eq(synchronizationRuns.id, latestResult.synchronizationRunId),
     );
   const matchRows = await AccountMatchAssessment.findMany({ isActive: true });
   const accountByExternal = new Map(
@@ -123,8 +178,8 @@ export async function loadAccountCalculationStates(): Promise<
     const left = accountByExternal.get(match.leftExternalAccountId);
     const right = accountByExternal.get(match.rightExternalAccountId);
     if (!left || !right) return [];
-    const leftRoot = resolveCanonicalAccountId(left, merges);
-    const rightRoot = resolveCanonicalAccountId(right, merges);
+    const leftRoot = resolveCanonicalAccountId(left);
+    const rightRoot = resolveCanonicalAccountId(right);
     return leftRoot === rightRoot
       ? []
       : [{ leftAccountId: leftRoot, rightAccountId: rightRoot }];
@@ -132,7 +187,7 @@ export async function loadAccountCalculationStates(): Promise<
   const rootIds = [
     ...new Set(
       accountRows.map((row) =>
-        resolveCanonicalAccountId(row.account.id, merges),
+        resolveCanonicalAccountId(row.account.id),
       ),
     ),
   ];
@@ -146,40 +201,78 @@ export async function loadAccountCalculationStates(): Promise<
     if (!match.conflictDetectedAt) continue;
     const left = accountByExternal.get(match.leftExternalAccountId);
     const right = accountByExternal.get(match.rightExternalAccountId);
-    if (left) conflictAccounts.add(resolveCanonicalAccountId(left, merges));
-    if (right) conflictAccounts.add(resolveCanonicalAccountId(right, merges));
+    if (left) conflictAccounts.add(resolveCanonicalAccountId(left));
+    if (right) conflictAccounts.add(resolveCanonicalAccountId(right));
+  }
+
+  const externalRowsByRoot = new Map<string, typeof externalRows>();
+  for (const external of externalRows) {
+    const root = resolveCanonicalAccountId(external.accountId);
+    const group = externalRowsByRoot.get(root);
+    if (group) group.push(external);
+    else externalRowsByRoot.set(root, [external]);
+  }
+  const valuationsByRoot = new Map<
+    string,
+    Readonly<{
+      balance: AccountValuationCandidate | null;
+      estimatedValue: AccountValuationCandidate | null;
+      latestDataRecordedAt: Date | null;
+    }>
+  >();
+  for (const row of accountRows) {
+    const root = resolveCanonicalAccountId(row.account.id);
+    const previous = valuationsByRoot.get(root) ?? {
+      balance: null,
+      estimatedValue: null,
+      latestDataRecordedAt: null,
+    };
+    const normalize = (
+      candidate: typeof row.balance,
+    ): AccountValuationCandidate | null =>
+      candidate
+        ? {
+            accountId: candidate.accountId,
+            amount: candidate.amount,
+            basis: candidate.valuationBasis as "balance" | "estimated_value",
+            currency: candidate.currency,
+            effectiveAt: candidate.effectiveAt,
+            recordedAt: candidate.recordedAt,
+            valuationCandidateId: candidate.id,
+            valuationMethod: "reported",
+          }
+        : null;
+    const balance = normalize(row.balance);
+    const estimatedValue = normalize(row.estimatedValue);
+    const candidates = [balance, estimatedValue].filter(
+      (candidate): candidate is AccountValuationCandidate => candidate !== null,
+    );
+    const latestRecordedAt = candidates.reduce<Date | null>(
+      (latest, candidate) =>
+        !latest || candidate.recordedAt > latest
+          ? candidate.recordedAt
+          : latest,
+      previous.latestDataRecordedAt,
+    );
+    valuationsByRoot.set(root, {
+      balance: balance
+        ? laterCandidate(previous.balance, balance)
+        : previous.balance,
+      estimatedValue: estimatedValue
+        ? laterCandidate(previous.estimatedValue, estimatedValue)
+        : previous.estimatedValue,
+      latestDataRecordedAt: latestRecordedAt,
+    });
   }
 
   return accountRows.map((row): AccountWealthCalculationState => {
-    const root = resolveCanonicalAccountId(row.account.id, merges);
-    const memberIds = groupedIds.get(root) ?? [row.account.id];
-    const groupExternal = externalRows.filter((external) =>
-      memberIds.includes(external.accountId),
-    );
-    let balance: AccountValuationCandidate | null = null;
-    let estimatedValue: AccountValuationCandidate | null = null;
-    let latestDataRecordedAt: Date | null = null;
-    for (const candidate of valuationRows) {
-      if (!memberIds.includes(candidate.accountId)) continue;
-      const normalized: AccountValuationCandidate = {
-        accountId: candidate.accountId,
-        amount: candidate.amount,
-        currency: candidate.currency,
-        effectiveAt: candidate.effectiveAt,
-        recordedAt: candidate.recordedAt,
-        basis: candidate.valuationBasis as "balance" | "estimated_value",
-        valuationCandidateId: candidate.id,
-        valuationMethod: "reported",
-      };
-      if (candidate.valuationBasis === "balance") {
-        balance = laterCandidate(balance, normalized);
-      } else {
-        estimatedValue = laterCandidate(estimatedValue, normalized);
-      }
-      if (!latestDataRecordedAt || candidate.recordedAt > latestDataRecordedAt) {
-        latestDataRecordedAt = candidate.recordedAt;
-      }
-    }
+    const root = resolveCanonicalAccountId(row.account.id);
+    const groupExternal = externalRowsByRoot.get(root) ?? [];
+    const valuations = valuationsByRoot.get(root) ?? {
+      balance: null,
+      estimatedValue: null,
+      latestDataRecordedAt: null,
+    };
     const typeSupport = groupExternal.some(
       (external) => external.normalizedTypeSupport === "supported",
     )
@@ -194,31 +287,52 @@ export async function loadAccountCalculationStates(): Promise<
     )
       ? "active"
       : (groupExternal[0]?.lifecycle ?? "unknown");
-    const externalIds = new Set(
-      groupExternal.map((external) => external.id),
-    );
-    const latestResult = resultRows.find(({ result }) =>
-      externalIds.has(result.externalAccountId),
-    )?.result;
+    const groupLatestResult = groupExternal.reduce<
+      Readonly<{
+        finishedAt: Date;
+        id: string;
+        runStartedAt: Date;
+        status: string;
+      }> | null
+    >((latest, external) => {
+      if (!external.latestResult || !external.latestResultRunStartedAt) {
+        return latest;
+      }
+      const candidate = {
+        ...external.latestResult,
+        runStartedAt: external.latestResultRunStartedAt,
+      };
+      if (!latest) return candidate;
+      const runTimeDifference =
+        candidate.runStartedAt.getTime() - latest.runStartedAt.getTime();
+      const resultTimeDifference =
+        candidate.finishedAt.getTime() - latest.finishedAt.getTime();
+      return runTimeDifference > 0 ||
+        (runTimeDifference === 0 &&
+          (resultTimeDifference > 0 ||
+            (resultTimeDifference === 0 && candidate.id > latest.id)))
+        ? candidate
+        : latest;
+    }, null);
     return {
       accountId: row.account.id,
       accountName: row.account.name,
       archivedAt: row.account.archivedAt,
-      balance,
+      balance: valuations.balance,
       category: row.account.category as AccountCategory,
-      estimatedValue,
+      estimatedValue: valuations.estimatedValue,
       externalLifecycle: lifecycle as ExternalAccountLifecycle,
       identityConflict: conflictAccounts.has(root),
       inclusionPolicy: inclusionPolicyByRoot.get(root) ?? "automatic",
       institutionId: row.account.institutionId,
       institutionName: row.institutionName,
-      latestDataRecordedAt,
+      latestDataRecordedAt: valuations.latestDataRecordedAt,
       likelyDuplicateGroupId: likelyGroupByAccount.get(root) ?? null,
       managementMode: "external",
       mergedIntoAccountId: root === row.account.id ? null : root,
       purpose: row.account.purpose as AccountPurpose,
       refreshUncertain: Boolean(
-        latestResult && latestResult.status !== "succeeded",
+        groupLatestResult && groupLatestResult.status !== "succeeded",
       ),
       selectedValuationMethod: "reported",
       typeSupport,

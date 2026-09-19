@@ -1,0 +1,6 @@
+DROP INDEX "financial"."account_valuation_candidates_selection_idx";--> statement-breakpoint
+DROP INDEX "ingestion"."external_account_observations_external_account_time_idx";--> statement-breakpoint
+DROP INDEX "ingestion"."synchronization_account_results_account_finished_idx";--> statement-breakpoint
+CREATE INDEX "account_valuation_candidates_selection_idx" ON "financial"."account_valuation_candidates" USING btree ("account_id","valuation_method","valuation_basis",coalesce("effective_at", "recorded_at") desc,"recorded_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "external_account_observations_external_account_time_idx" ON "ingestion"."external_account_observations" USING btree ("external_account_id","observed_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "synchronization_account_results_account_finished_idx" ON "ingestion"."synchronization_account_results" USING btree ("external_account_id","finished_at" DESC NULLS LAST,"id" DESC NULLS LAST);

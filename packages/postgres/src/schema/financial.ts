@@ -135,11 +135,12 @@ export const accountValuationCandidates = defineModelTable({
       table.valuationBasis,
     ),
     index("account_valuation_candidates_selection_idx").on(
-      table.accountId,
-      table.valuationMethod,
-      table.valuationBasis,
-      table.effectiveAt,
-      table.recordedAt,
+      table.accountId.asc(),
+      table.valuationMethod.asc(),
+      table.valuationBasis.asc(),
+      sql`coalesce(${table.effectiveAt}, ${table.recordedAt}) desc`,
+      table.recordedAt.desc(),
+      table.id.desc(),
     ),
     check(
       "account_valuation_candidates_method_valid",

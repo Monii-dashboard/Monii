@@ -1,6 +1,6 @@
 import { transaction } from "@monii/postgres/transaction";
 
-import { resolveCanonicalAccountId } from "../account-merge";
+import { createCanonicalAccountIdResolver } from "../account-merge";
 import { Account, AccountMerge } from "../models";
 
 export type MergeAccountsInput = Readonly<{
@@ -19,11 +19,12 @@ export async function mergeAccounts(
 ): Promise<MergeAccountsOutcome | null> {
   return transaction(async () => {
     const existingMerges = await AccountMerge.findMany();
+    const resolveCanonicalAccountId = createCanonicalAccountIdResolver(
+      existingMerges,
+    );
     const accountIds = [
       ...new Set(
-        input.accountIds.map((id) =>
-          resolveCanonicalAccountId(id, existingMerges)
-        ),
+        input.accountIds.map((id) => resolveCanonicalAccountId(id)),
       ),
     ];
     const accounts = (await Promise.all(accountIds.map((id) => Account.find(id))))

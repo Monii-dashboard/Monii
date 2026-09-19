@@ -4,25 +4,35 @@ export type AccountMerge = Readonly<{
 }>;
 
 /** Resolves merge aliases without changing the identity of historical facts. */
+export function createCanonicalAccountIdResolver(
+  merges: readonly AccountMerge[],
+) {
+  const targetByAccount = new Map(
+    merges.map((merge) => [merge.mergedAccountId, merge.canonicalAccountId]),
+  );
+
+  return (accountId: string): string => {
+    const visited = new Set<string>();
+    let current = accountId;
+
+    while (targetByAccount.has(current)) {
+      if (visited.has(current)) {
+        throw new Error(`Account merge cycle includes ${current}`);
+      }
+      visited.add(current);
+      current = targetByAccount.get(current)!;
+    }
+
+    return current;
+  };
+}
+
+/** Resolves one merge alias without changing historical fact identities. */
 export function resolveCanonicalAccountId(
   accountId: string,
   merges: readonly AccountMerge[],
 ): string {
-  const targetByAccount = new Map(
-    merges.map((merge) => [merge.mergedAccountId, merge.canonicalAccountId]),
-  );
-  const visited = new Set<string>();
-  let current = accountId;
-
-  while (targetByAccount.has(current)) {
-    if (visited.has(current)) {
-      throw new Error(`Account merge cycle includes ${current}`);
-    }
-    visited.add(current);
-    current = targetByAccount.get(current)!;
-  }
-
-  return current;
+  return createCanonicalAccountIdResolver(merges)(accountId);
 }
 
 export function connectedAccountGroups(

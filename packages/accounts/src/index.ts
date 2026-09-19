@@ -8,6 +8,7 @@ export type {
 } from "./account";
 export {
   connectedAccountGroups,
+  createCanonicalAccountIdResolver,
   resolveCanonicalAccountId,
 } from "./account-merge";
 export type { AccountMerge } from "./account-merge";

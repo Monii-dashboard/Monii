@@ -384,8 +384,9 @@ export const externalAccountObservations = defineModelTable({
       table.accountId,
     ),
     index("external_account_observations_external_account_time_idx").on(
-      table.externalAccountId,
-      table.observedAt,
+      table.externalAccountId.asc(),
+      table.observedAt.desc(),
+      table.id.desc(),
     ),
     foreignKey({
       columns: [table.synchronizationRunId, table.sourceInstanceId],
@@ -481,8 +482,9 @@ export const synchronizationAccountResults = defineModelTable({
       table.externalAccountId,
     ),
     index("synchronization_account_results_account_finished_idx").on(
-      table.externalAccountId,
-      table.finishedAt,
+      table.externalAccountId.asc(),
+      table.finishedAt.desc(),
+      table.id.desc(),
     ),
     foreignKey({
       columns: [table.synchronizationRunId, table.sourceInstanceId],

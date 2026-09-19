@@ -484,6 +484,19 @@ the capability that needs them. A workflow belongs in one public or internal
 command and composes model methods and focused queries. Pure domain modules
 continue to own rules and domain language without importing models.
 
+Latest-state reads over append-only history must be bounded by current domain
+cardinality rather than retained-history cardinality. Start from the current
+owner rows and use a capability-owned Drizzle lateral query with an explicit
+`order by ... limit 1`, backed by an index whose leading columns are the owner
+identity and the same deterministic ordering. A window function or `distinct
+on` is appropriate only when scanning every historical partition is
+intentional; returning one row per partition does not by itself make the scan
+bounded. Keep these relational projections out of the generic Model API. The
+Model registry remains for reusable single-table reads, while Drizzle expresses
+joins and lateral subqueries without a parallel repository or handwritten SQL
+query layer. Small SQL expressions remain acceptable where the query builder
+has no typed operator, such as the valuation-selection `coalesce` expression.
+
 Use `transaction(async () => { ... })` only when an operation owns an atomic
 consistency boundary. A read, a single atomic SQL statement, or independent
 writes do not acquire a transaction merely because they are inside a command.

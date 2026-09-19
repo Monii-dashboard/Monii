@@ -10,10 +10,11 @@ import {
 } from "@monii/postgres/schema/financial";
 import {
   accountIdentityClaims,
+  externalAccountObservations,
   externalAccounts,
   reportedAccountValuations,
 } from "@monii/postgres/schema/ingestion";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 
 import type { IdentityAccount } from "../assess-account-identity";
 
@@ -37,37 +38,49 @@ function identityEvidence(
 }
 
 export async function loadIdentityAccounts(): Promise<IdentityAccount[]> {
-  const referenceRows = await getDatabase()
-    .select({
-      accountId: externalAccounts.accountId,
-      category: accounts.category,
-      currency: accountValuationCandidates.currency,
-      externalAccountId: externalAccounts.id,
-      institutionId: accounts.institutionId,
-    })
-    .from(externalAccounts)
-    .innerJoin(accounts, eq(externalAccounts.accountId, accounts.id))
-    .leftJoin(
+  const db = getDatabase();
+  const latestReportedValuation = db
+    .select({ currency: accountValuationCandidates.currency })
+    .from(externalAccountObservations)
+    .innerJoin(
       reportedAccountValuations,
-      eq(reportedAccountValuations.accountId, accounts.id),
+      eq(
+        reportedAccountValuations.externalAccountObservationId,
+        externalAccountObservations.id,
+      ),
     )
-    .leftJoin(
+    .innerJoin(
       accountValuationCandidates,
       eq(
         accountValuationCandidates.id,
         reportedAccountValuations.valuationCandidateId,
       ),
     )
-    .orderBy(desc(accountValuationCandidates.recordedAt));
-  const firstByExternalAccount = new Map<
-    string,
-    (typeof referenceRows)[number]
-  >();
-  for (const row of referenceRows) {
-    if (!firstByExternalAccount.has(row.externalAccountId)) {
-      firstByExternalAccount.set(row.externalAccountId, row);
-    }
-  }
+    .where(
+      eq(
+        externalAccountObservations.externalAccountId,
+        externalAccounts.id,
+      ),
+    )
+    .orderBy(
+      desc(externalAccountObservations.observedAt),
+      desc(externalAccountObservations.id),
+      desc(accountValuationCandidates.recordedAt),
+      desc(accountValuationCandidates.id),
+    )
+    .limit(1)
+    .as("latest_reported_account_valuation");
+  const referenceRows = await db
+    .select({
+      accountId: externalAccounts.accountId,
+      category: accounts.category,
+      currency: latestReportedValuation.currency,
+      externalAccountId: externalAccounts.id,
+      institutionId: accounts.institutionId,
+    })
+    .from(externalAccounts)
+    .innerJoin(accounts, eq(externalAccounts.accountId, accounts.id))
+    .leftJoinLateral(latestReportedValuation, sql`true`);
 
   const claims = await AccountIdentityClaim.query("current").load();
   const claimsByExternalAccount = new Map<string, typeof claims>();
@@ -79,7 +92,7 @@ export async function loadIdentityAccounts(): Promise<IdentityAccount[]> {
   }
 
   const accountsWithIdentity: IdentityAccount[] = [];
-  for (const row of firstByExternalAccount.values()) {
+  for (const row of referenceRows) {
     const evidence = identityEvidence(
       claimsByExternalAccount.get(row.externalAccountId) ?? [],
     );

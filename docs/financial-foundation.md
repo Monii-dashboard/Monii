@@ -121,6 +121,16 @@ provider payloads are deliberately not stored as a JSON shadow model.
 - `synchronization_account_results` records identifiable account outcomes as
   `succeeded`, `provider_error`, `malformed`, or `not_seen`.
 
+Current refresh uncertainty uses the most recently finished result for each
+external account, with the immutable result ID as a deterministic tie-breaker.
+Runs for the same source cannot overlap, so result completion order identifies
+the latest result for one external account. When confirmed aliases span more
+than one source, their current results retain synchronization start time as the
+cross-source ordering, followed by result completion time and immutable result
+ID. The read starts from current external accounts and performs indexed
+latest-result lookups; retained attempt history is not materialized to calculate
+current state.
+
 Only successful account results link an observation. A complete listing can
 produce `not_seen`; a truncated listing cannot infer absence. The financial
 refresh workflow commits run finalization, identity reconciliation, and snapshot
@@ -150,6 +160,9 @@ tuple constraint only when the optional identifier is null.
 Names may suggest a likely duplicate but never confirm one. V1 confirmation also
 requires canonical institution, currency, compatible known category, matching
 validated IBAN, matching key version, and no contradictory account number.
+Reconciliation compares the last known normalized valuation currency reported
+through each external account's own observation provenance. An observation
+without a valuation does not erase an earlier known normalized currency.
 
 ## `wealth` schema
 
@@ -190,6 +203,13 @@ calculated.
 Current wealth reads only the newest snapshot and these decisions. It does not
 join mutable canonical or ingestion metadata. Renaming an account or importing a
 backdated fact therefore cannot rewrite what an older snapshot displayed or meant.
+
+Snapshot publication selects the latest candidate for each current account,
+method, and basis through indexed lookups. Candidate selection orders by
+effective time when present, otherwise recording time, then by recording time
+and immutable candidate ID. Confirmed aliases are grouped only after those
+bounded per-account reads so the newest candidate across the canonical group
+still wins without ranking the complete retained history.
 
 Observations and decisions may contain the same amount for different reasons:
 the observation proves what the source reported; the candidate represents a
