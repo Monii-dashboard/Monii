@@ -1,10 +1,12 @@
 import {
   and,
+  count,
   eq,
   getTableColumns,
   isNull,
   type Column,
   type SQL,
+  type Subquery,
 } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 
@@ -42,13 +44,22 @@ type Update<
 > = Partial<
   Omit<Insert<TTable>, TPrimaryKey[number] | TImmutableFields[number]>
 >;
+type ModelFilters<TRow> = {
+  [TKey in keyof TRow]-?: Required<Pick<TRow, TKey>> &
+    Partial<Omit<TRow, TKey>>;
+}[keyof TRow];
 
 function cloneRow<T>(row: T): T {
   return structuredClone(row);
 }
 
+type ModelQueryBuilder<TResult> = PromiseLike<readonly TResult[]> &
+  Readonly<{
+    as: (alias: string) => Subquery;
+  }>;
+
 export type ModelQueryDefinition<TResult> = Readonly<{
-  load: () => Promise<readonly TResult[]>;
+  build: () => ModelQueryBuilder<TResult>;
 }>;
 
 type ModelQueryDefinitions = Readonly<
@@ -65,9 +76,9 @@ export type ModelQuery<TResult> = Readonly<{
 }>;
 
 export function defineModelQuery<TResult>(
-  load: () => Promise<readonly TResult[]>,
+  build: () => ModelQueryBuilder<TResult>,
 ): ModelQueryDefinition<TResult> {
-  return { load };
+  return { build };
 }
 
 export type ModelRecord<TTable extends PgTable> = Readonly<Row<TTable>> & {
@@ -84,7 +95,10 @@ type ReadModelClass<
   find(
     primaryKey: PrimaryKeyInput<TTable, TPrimaryKey>,
   ): Promise<ModelRecord<TTable> | null>;
-  findMany(filters?: Partial<Row<TTable>>): Promise<ModelRecord<TTable>[]>;
+  findMany(): Promise<ModelRecord<TTable>[]>;
+  findMany(
+    filters: ModelFilters<Row<TTable>>,
+  ): Promise<ModelRecord<TTable>[]>;
   query<TKey extends keyof TQueries & string>(
     name: TKey,
   ): ModelQuery<ModelQueryResult<TQueries[TKey]>>;
@@ -149,9 +163,11 @@ function conditionsFor(
 ): SQL[] {
   const columns = getTableColumns(table) as Record<string, Column>;
   return Object.entries(values).flatMap(([key, value]) => {
-    if (value === undefined) return [];
     const column = columns[key];
     if (!column) throw new Error(`Unknown model field ${key}`);
+    if (value === undefined) {
+      throw new Error(`Model field ${key} cannot be undefined`);
+    }
     return [value === null ? isNull(column) : eq(column, value)];
   });
 }
@@ -234,24 +250,45 @@ export function modelFor<
       return row ? new this(row as Row<TTable>) : null;
     }
 
-    static async findMany(filters: Partial<Row<TTable>> = {}) {
-      const rows = (await getDatabase()
-        .select()
-        .from(table as never)
-        .where(
-          and(...conditionsFor(table, filters)),
-        )) as unknown as Row<TTable>[];
+    static async findMany(filters?: Partial<Row<TTable>>) {
+      if (arguments.length > 0) {
+        if (!filters || Object.keys(filters).length === 0) {
+          throw new Error(
+            "Model filters must include at least one field; call findMany() to load all rows",
+          );
+        }
+      }
+      const query = getDatabase().select().from(table as never);
+      const rows = (await (filters
+        ? query.where(and(...conditionsFor(table, filters)))
+        : query)) as unknown as Row<TTable>[];
       return rows.map((row) => new this(row));
     }
 
     static query(name: keyof TQueries & string): ModelQuery<unknown> {
       const definition = queries[name];
       if (!definition) throw new Error(`Unknown model query ${name}`);
-      const load = async () => [...(await definition.load())];
+      const load = async () => [...(await definition.build())];
       return {
-        count: async () => (await load()).length,
+        count: async () => {
+          const [result] = await getDatabase()
+            .select({ value: count() })
+            .from(definition.build().as("model_query"));
+          return result?.value ?? 0;
+        },
         load,
-        loadOne: async () => (await load())[0] ?? null,
+        loadOne: async () => {
+          const rows = (await getDatabase()
+            .select()
+            .from(definition.build().as("model_query"))
+            .limit(2)) as unknown[];
+          if (rows.length > 1) {
+            throw new Error(
+              `Model query ${name} expected at most one row but returned multiple rows`,
+            );
+          }
+          return rows[0] ?? null;
+        },
       };
     }
 

@@ -220,10 +220,10 @@ New persistence work should instead use table models for CRUD and typed named
 single-table queries, capability-owned query logic for joins or genuinely
 feature-specific projections, and explicit application operations for
 multi-table workflows. A model registers each reusable query under a literal
-name; `Model.query("query_name").load()`, `.loadOne()`, and `.count()` preserve
-that query's inferred result type. Test the observable behavior once beside the
-model, query, or operation that owns it, using the real isolated PostgreSQL
-database.
+name; `Model.query("query_name").load()`, cardinality-checking `.loadOne()`, and
+SQL-level `.count()` preserve that query's inferred result type. Test the
+observable behavior once beside the model, query, or operation that owns it,
+using the real isolated PostgreSQL database.
 
 Persistence behavior now lives in one owner-local integration test beside its
 model, query, or command. PostgreSQL-specific locking, rollback, migration, and
@@ -355,6 +355,8 @@ and [Playwright Test introduction](https://playwright.dev/docs/test-intro).
 | TST-016 | P0 | Fixed | Establish a modular integration testkit with an implicit isolated database and owner-local support. | TST-001, TST-003, TST-008 |
 | TST-017 | P0 | Fixed | Replace single-implementation repositories and contracts with inherited models, named queries, and operation-owned integration tests. | TST-008, TST-016 |
 | TST-018 | P0 | Fixed | Enforce capability-owned Models and separate ingestion, reconciliation, and financial-refresh boundaries. | TST-017 |
+| TST-019 | P0 | Fixed | Back model writes with declared table policies and database enforcement. | TST-017 |
+| TST-020 | P1 | Fixed | Make model filters and named-query cardinality and counting semantics fail-safe. | TST-017 |
 
 ### TST-001 — Testcontainers-only PostgreSQL isolation
 
@@ -985,6 +987,31 @@ policy SQL shape, policy-derived model APIs, immutable update inputs, and
 schema-key validation; repository checks own migration drift; PostgreSQL
 integration tests exercise every policy through runtime and owning connections
 and inspect the complete catalog state.
+
+### TST-020 — Fail-safe model lookup semantics
+
+**Problem:** an explicit `undefined` or empty `findMany` filter widened into an
+unfiltered read. Named-query `count()` materialized every selected row, while
+`loadOne()` also loaded every row and silently discarded all but the first.
+
+**Acceptance criteria:**
+
+- [x] `findMany()` remains an explicit unfiltered read, while filter arguments
+      must be non-empty and contain no `undefined` values.
+- [x] Named-query `count()` counts the registered selection in PostgreSQL
+      without loading its projection into application memory.
+- [x] `loadOne()` reads at most two rows and rejects multiple results instead
+      of silently selecting one.
+- [x] PostgreSQL integration tests prove each failure mode and preserve named
+      query result inference.
+
+**Fixed (2026-09-19):** the shared Model API now separates its no-argument
+unfiltered overload from non-empty filtered calls and validates the same
+boundary at runtime. Named-query definitions retain their Drizzle builders so
+`count()` can wrap them in SQL and `loadOne()` can apply a two-row cardinality
+check. Verified with `pnpm typecheck`, `pnpm lint`, `pnpm test:unit`, and focused
+PostgreSQL integration runs for the Model, synchronization-run query, and
+current-wealth query owners.
 
 ## Recommended implementation order
 

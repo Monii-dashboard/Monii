@@ -411,8 +411,11 @@ from both the TypeScript API and runtime class. Returned records are frozen
 snapshots, and mutable column values are defensively copied so local mutation
 cannot alter the model's observed state.
 A single-field primary key gives `find` a scalar input. A composite primary key
-requires an object containing every component, while `findMany` may filter by a
-partial row. Unique indexes do not become alternate model identities.
+requires an object containing every component. `findMany()` is the explicit
+unfiltered form; a filter argument must contain at least one field, and every
+supplied value must be defined. This prevents a missing lookup value or empty
+filter object from silently widening into a full-table read. Unique indexes do
+not become alternate model identities.
 
 Every update-capable ModelTable explicitly declares `immutableFields`. Those
 fields and the primary key are omitted from the typed model update input,
@@ -468,8 +471,12 @@ latest synchronization status—is registered under a `snake_case` literal name 
 that table's model file. Callers use `Model.query("query_name").load()`,
 `.loadOne()`, or `.count()`. The registry preserves the result inferred from
 each Drizzle selection, so a query name exposes only its actual projected
-fields and an unknown name fails typechecking. Do not replace an ordinary
-`find` or `findMany` equality lookup with a named query.
+fields and an unknown name fails typechecking. `count()` wraps the registered
+selection in a SQL count instead of materializing its rows. `loadOne()` returns
+null or one row, loads no more than two rows to check cardinality, and rejects a
+result with greater cardinality; queries intended for that helper should still
+encode `limit(1)` to state their intent. Do not replace an ordinary `find` or
+`findMany` equality lookup with a named query.
 
 Joins, cross-table projections, window-function reads, locking reads, and SQL
 whose meaning exists only inside one workflow belong in internal logic owned by

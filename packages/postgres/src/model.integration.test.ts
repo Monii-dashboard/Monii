@@ -1,5 +1,5 @@
 import { expect, expectTypeOf, it, vi } from "@testkit/integration";
-import { sql } from "drizzle-orm";
+import { asc, sql } from "drizzle-orm";
 
 import {
   accounts,
@@ -18,7 +18,7 @@ import {
 } from "./schema/wealth";
 import { afterCommit, isInTransaction, transaction } from "./transaction";
 import { getDatabase } from "./client";
-import { modelFor } from "./model";
+import { defineModelQuery, modelFor } from "./model";
 
 class Account extends modelFor(accounts) {
   static archive(id: string, archivedAt = new Date()) {
@@ -41,6 +41,22 @@ class SourceInstance extends modelFor(sourceInstances) {}
 class SynchronizationRun extends modelFor(synchronizationRuns) {}
 
 class WealthSnapshot extends modelFor(snapshots) {}
+
+const accountQueries = {
+  all_ids: defineModelQuery(() =>
+    getDatabase()
+      .select({ id: accounts.id })
+      .from(accounts)
+      .orderBy(asc(accounts.id)),
+  ),
+  invalid_projection: defineModelQuery(() =>
+    getDatabase()
+      .select({ value: sql<number>`${accounts.name}::integer`.as("value") })
+      .from(accounts),
+  ),
+};
+
+class QueriedAccount extends modelFor(accounts, accountQueries) {}
 
 it("exposes only create and update writes for a mutable no-delete model", async () => {
   expectTypeOf(Account).toHaveProperty("create");
@@ -108,6 +124,59 @@ it("returns runtime-immutable model record snapshots", async () => {
   const json = account.toJSON();
   json.createdAt.setTime(0);
   expect(account.toJSON().createdAt.getTime()).toBe(originalCreatedAt);
+});
+
+it("rejects undefined findMany filters instead of widening the query", async () => {
+  await Account.create({
+    category: "cash",
+    name: "Existing account",
+    purpose: "personal",
+  });
+
+  await expect(
+    Account.findMany({ id: undefined } as never),
+  ).rejects.toThrow("Model field id cannot be undefined");
+});
+
+it("reserves an argument-free findMany call for intentionally unfiltered reads", async () => {
+  await Account.create({ category: "cash", purpose: "personal" });
+
+  await expect(Account.findMany()).resolves.toHaveLength(1);
+  await expect(Account.findMany({} as never)).rejects.toThrow(
+    "Model filters must include at least one field; call findMany() to load all rows",
+  );
+  await expect(Account.findMany(undefined as never)).rejects.toThrow(
+    "Model filters must include at least one field; call findMany() to load all rows",
+  );
+});
+
+it("rejects loadOne when a named query returns multiple rows", async () => {
+  await Account.create({
+    category: "cash",
+    name: "First account",
+    purpose: "personal",
+  });
+  await Account.create({
+    category: "cash",
+    name: "Second account",
+    purpose: "personal",
+  });
+
+  await expect(QueriedAccount.query("all_ids").loadOne()).rejects.toThrow(
+    "Model query all_ids expected at most one row but returned multiple rows",
+  );
+});
+
+it("counts a named query in PostgreSQL without loading its projection", async () => {
+  await Account.create({
+    category: "cash",
+    name: "not-a-number",
+    purpose: "personal",
+  });
+
+  await expect(
+    QueriedAccount.query("invalid_projection").count(),
+  ).resolves.toBe(1);
 });
 
 it("uses a configured non-id primary key without redefining inherited methods", async () => {
